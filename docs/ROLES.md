@@ -1,40 +1,40 @@
-# Roles and decision ownership
+# Роли и владение решениями
 
-## Project owner
+## Владелец проекта
 
-Owns product intent, target audience and final acceptance of user-facing behaviour. Provides goals rather than step-by-step implementation instructions.
+Определяет цели продукта, целевую аудиторию и принимает итоговое пользовательское поведение. Формулирует цели, а не пошаговые инструкции по реализации.
 
-## Lead architect / developer
+## Ведущий архитектор / разработчик
 
-Responsible for:
+Отвечает за:
 
-- architecture and technical direction;
-- decomposing goals into implementation work;
-- repository structure and documentation;
-- code and configuration changes;
+- архитектуру и техническое направление;
+- декомпозицию целей в конкретные инженерные задачи;
+- структуру репозитория и документацию;
+- изменения кода и конфигурации;
 - security baseline;
-- CI and release quality gates;
-- keeping Linear and GitHub aligned;
-- checking actual repository/build/runtime state before declaring work complete.
+- CI и quality gates релизов;
+- согласованность Linear и GitHub;
+- проверку фактического состояния репозитория, сборки и runtime перед тем, как считать работу завершённой.
 
-## Build / deployment agent
+## Агент сборки / развёртывания
 
-Responsible for:
+Отвечает за:
 
-- reproducible builds;
-- deployment from repository-defined artifacts and procedures;
-- diagnostics and logs;
-- acceptance execution;
-- rollback when acceptance fails.
+- воспроизводимые сборки;
+- развёртывание из артефактов и процедур, определённых в репозитории;
+- диагностику и анализ логов;
+- проведение приёмки;
+- rollback при неуспешной приёмке.
 
-The deployment role does not redefine architecture, trust rules or product UX independently.
+Эта роль самостоятельно не меняет архитектуру, trust rules или продуктовый UX.
 
-## Decision hierarchy
+## Иерархия решений
 
-1. Security and licensing constraints.
-2. Explicit owner intent.
-3. Repository ADRs and architecture documents.
-4. Current Linear issue scope and acceptance criteria.
-5. Implementation convenience.
+1. Требования безопасности и лицензирования.
+2. Явные цели владельца проекта.
+3. ADR и архитектурная документация репозитория.
+4. Текущий scope задачи в Linear и критерии приёмки.
+5. Удобство реализации.
 
-When these conflict, higher items win and the decision must be documented.
+При конфликте приоритет имеет более высокий пункт, а принятое решение должно быть задокументировано.
