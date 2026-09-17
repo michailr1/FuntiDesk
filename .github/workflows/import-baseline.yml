@@ -1,0 +1,75 @@
+name: Import baseline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.head_ref == 'michailr/mik-18-import-runner'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target working branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: michailr/mik-18-import-runner
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add and fetch pinned upstreams
+        run: |
+          git remote add upstream-client https://github.com/rustdesk/rustdesk.git
+          git remote add upstream-server https://github.com/rustdesk/rustdesk-server.git
+          git remote add upstream-common https://github.com/rustdesk/hbb_common.git
+          git fetch upstream-client 6c578292e8ebbbec708b76986ba8c4bc7c509747
+          git fetch upstream-server 73523b31cfd25d77dee862e6fc9f5e1fb5e485ef
+          git fetch upstream-common 7e1c392c62d39c364127307cd408421dd5f8cfb0
+          git fetch upstream-common 83419b6549636ee39dacef7776c473f5802e08d6
+
+      - name: Import client baseline
+        run: |
+          git subtree add --prefix=client upstream-client 6c578292e8ebbbec708b76986ba8c4bc7c509747
+          git rm -f client/libs/hbb_common client/.gitmodules
+          git commit -m "chore(import): заменить client hbb_common gitlink на vendored tree"
+          git subtree add --prefix=client/libs/hbb_common upstream-common 7e1c392c62d39c364127307cd408421dd5f8cfb0
+
+      - name: Import server baseline
+        run: |
+          git subtree add --prefix=server upstream-server 73523b31cfd25d77dee862e6fc9f5e1fb5e485ef
+          git rm -f server/libs/hbb_common server/.gitmodules
+          git commit -m "chore(import): заменить server hbb_common gitlink на vendored tree"
+          git subtree add --prefix=server/libs/hbb_common upstream-common 83419b6549636ee39dacef7776c473f5802e08d6
+
+      - name: Record and verify import manifest
+        run: |
+          cat > docs/BASELINE_IMPORT.md <<'EOF'
+          # Baseline import
+
+          Импорт выполнен без функциональных изменений FuntiDesk.
+
+          - client: `rustdesk/rustdesk@6c578292e8ebbbec708b76986ba8c4bc7c509747` (1.4.9)
+          - client/libs/hbb_common: `rustdesk/hbb_common@7e1c392c62d39c364127307cd408421dd5f8cfb0`
+          - server: `rustdesk/rustdesk-server@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef` (1.1.16)
+          - server/libs/hbb_common: `rustdesk/hbb_common@83419b6549636ee39dacef7776c473f5802e08d6`
+
+          Внутренние `.gitmodules` удалены; обе версии `hbb_common` хранятся непосредственно в монорепозитории.
+          EOF
+          test -f client/Cargo.toml
+          test -f client/libs/hbb_common/Cargo.toml
+          test -f server/Cargo.toml
+          test -f server/libs/hbb_common/Cargo.toml
+          test ! -e client/.gitmodules
+          test ! -e server/.gitmodules
+          git add docs/BASELINE_IMPORT.md
+          git commit -m "docs: зафиксировать baseline import manifest"
+
+      - name: Push import result
+        run: git push origin HEAD:michailr/mik-18-import-baseline --force-with-lease
