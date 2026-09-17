@@ -1,12 +1,12 @@
-# FuntiDesk Architecture
+# Архитектура FuntiDesk
 
-Status: draft for M0.
+Статус: черновик M0.
 
-## Scope
+## Область проекта
 
-FuntiDesk is a private self-hosted remote desktop system based on RustDesk. The first production target is Windows-to-Windows remote access for a small trusted circle (owner, family, friends).
+FuntiDesk — частная self-hosted система удалённого доступа. Первая production-цель — Windows↔Windows для небольшого доверенного круга: владелец, семья и друзья.
 
-## Core topology
+## Базовая топология
 
 ```text
 FuntiDesk client A
@@ -15,63 +15,61 @@ FuntiDesk client A
         v
       hbbs
         |
-        +---- direct P2P when possible ----> FuntiDesk client B
+        +---- direct P2P, если возможно ----> FuntiDesk client B
         |
-        +---- relay fallback via hbbr -----> FuntiDesk client B
+        +---- relay fallback через hbbr ----> FuntiDesk client B
 ```
 
-## Initial components
+## Начальные компоненты
 
-- **Client**: fork of `rustdesk/rustdesk`.
-- **Rendezvous server**: RustDesk Server OSS `hbbs`.
-- **Relay server**: RustDesk Server OSS `hbbr`.
-- **Infrastructure**: DNS, firewall, persistent server keys/configuration, logs and backups under our control.
+- **Client** — наша клиентская кодовая база FuntiDesk на основе open-source upstream.
+- **Rendezvous server** — `hbbs`.
+- **Relay server** — `hbbr`.
+- **Infrastructure** — DNS, firewall, постоянные server keys/configuration, логи и backup под нашим контролем.
 
-## Decisions already made
+## Уже принятые решения
 
-### Device identity
+### Идентичность устройства
 
-The existing RustDesk numeric ID remains part of the protocol and UI as a universal fallback. Human-friendly device names and a saved-device list may be layered on top later.
+Существующий числовой ID сохраняется как часть протокола и интерфейса, а также как универсальный fallback. Понятные имена устройств и список сохранённых устройств добавляются поверх этой модели позже.
 
-### Public RustDesk infrastructure
+### Публичная сторонняя инфраструктура
 
-FuntiDesk clients must not silently fall back to public RustDesk rendezvous or relay infrastructure. Server endpoints and the expected server public key will be controlled by the FuntiDesk build/configuration.
+FuntiDesk-клиенты не должны молча переключаться на публичные rendezvous/relay-сервисы. Server endpoints и ожидаемый server public key контролируются сборкой и конфигурацией FuntiDesk.
 
-### Upstream compatibility
+### Совместимость с upstream
 
-Protocol/core modifications should be minimized. Branding, defaults and policy enforcement should be isolated where practical so upstream security fixes remain mergeable.
+Изменения протокола и ядра минимизируются. Брендинг, defaults и policy enforcement по возможности изолируются, чтобы сохранялась возможность переносить security fixes из upstream.
 
-### Mobile direction
+### Мобильное направление
 
-Android and iOS clients are planned after the Windows MVP and E2E validation. iOS is initially an outbound controller; platform restrictions on remote control of iOS itself are outside the Windows MVP scope.
+Android и iOS планируются после Windows MVP и E2E-приёмки. На первом этапе iOS рассматривается как управляющий клиент; ограничения платформы на удалённое управление самим iOS-устройством не входят в Windows MVP.
 
 ## Security baseline
 
-The first implementation must include:
+Первая реализация должна включать:
 
-- server public-key verification/pinning;
-- no public-server fallback;
-- protected persistent server private keys;
-- documented backup/restore of server identity;
-- explicit temporary vs permanent/unattended access modes;
-- reproducible build/deployment documentation;
-- no hidden remote access or silent privilege escalation.
+- проверку/pinning публичного ключа сервера;
+- отсутствие fallback на публичные серверы;
+- защищённое хранение постоянных приватных ключей сервера;
+- задокументированный backup/restore server identity;
+- явное разделение временного и постоянного/unattended доступа;
+- воспроизводимую документацию сборки и развёртывания;
+- отсутствие скрытого удалённого доступа и скрытого повышения привилегий.
 
-## First acceptance criterion
+## Первый критерий приёмки
 
-Two Windows machines running FuntiDesk can connect without public RustDesk services in both cases:
+Два Windows-компьютера с FuntiDesk могут соединяться без сторонних публичных remote-access сервисов в обоих случаях:
 
-1. direct P2P connection succeeds;
-2. P2P is unavailable and traffic is relayed by our `hbbr`.
+1. прямое P2P-соединение успешно;
+2. P2P недоступно, и трафик идёт через наш `hbbr`.
 
-Additional E2E checks include NAT differences, reboot/reconnect, Windows login/UAC, clipboard and file transfer.
+Дополнительная E2E-проверка включает разные NAT, перезапуск/reconnect, Windows login/UAC, буфер обмена и передачу файлов.
 
-## Open M0 decisions
+## Открытые решения M0
 
-- exact upstream client commit/tag;
-- exact upstream server commit/tag;
-- repository import layout;
-- update/merge policy for upstream releases;
-- final product name/branding assets;
-- deployment hostname(s) and environment separation;
-- release signing and update trust chain.
+- структура импорта исходного кода в репозиторий;
+- финальная политика обновлений и merge из upstream;
+- окончательные branding assets;
+- hostname(s) и разделение окружений;
+- release signing и update trust chain.
