@@ -6,6 +6,14 @@ FuntiDesk стартует со стабильных версий исходны
 
 - Client: `rustdesk/rustdesk`, tag `1.4.9`, commit `6c578292e8ebbbec708b76986ba8c4bc7c509747`.
 - Server: `rustdesk/rustdesk-server`, tag `1.1.16`, commit `73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`.
+- Shared library: `rustdesk/hbb_common`, подключён в обоих проектах как git submodule
+  `libs/hbb_common` и закреплён на разных коммитах:
+  - для клиента — `7e1c392c62d39c364127307cd408421dd5f8cfb0`;
+  - для сервера — `83419b6549636ee39dacef7776c473f5802e08d6`.
+
+`hbb_common` — не вспомогательная зависимость: именно в нём находится
+`src/config.rs` с адресами rendezvous-серверов, публичным ключом и логикой выбора
+сервера, то есть основной предмет форка.
 
 Мы сознательно не используем плавающий `master` как baseline.
 
@@ -14,13 +22,18 @@ FuntiDesk стартует со стабильных версий исходны
 FuntiDesk планируется как единый продуктовый репозиторий с двумя деревьями, происходящими от upstream:
 
 ```text
-/client   # клиентская кодовая база
-/server   # серверная кодовая база
+/client                    # клиентская кодовая база
+/client/libs/hbb_common    # общая библиотека на клиентском пине
+/server                    # серверная кодовая база
+/server/libs/hbb_common    # общая библиотека на серверном пине
 /docs
 /infra
 ```
 
-Начальный импорт исходного кода по возможности должен сохранять историю upstream. Предпочтителен history-preserving import (`git subtree` или эквивалент), а не copy-paste snapshot.
+`hbb_common` импортируется дважды, каждое дерево — на своём upstream-пине.
+Обоснование и рассмотренные альтернативы: `docs/FORK_PLAN.md`.
+
+Начальный импорт исходного кода по возможности должен сохранять историю upstream. Предпочтителен history-preserving import (`git subtree` или эквивалент), а не copy-paste snapshot. Submodule на upstream-репозиторий в production-сборке не используется: это сделало бы сборку невоспроизводимой из нашего репозитория.
 
 ## Upstream remotes
 
@@ -30,6 +43,7 @@ FuntiDesk планируется как единый продуктовый ре
 origin            -> github.com/michailr1/FuntiDesk
 upstream-client   -> github.com/rustdesk/rustdesk
 upstream-server   -> github.com/rustdesk/rustdesk-server
+upstream-common   -> github.com/rustdesk/hbb_common
 ```
 
 ## Политика merge
@@ -42,6 +56,8 @@ upstream-server   -> github.com/rustdesk/rustdesk-server
 6. Любой upstream merge/rebase перед релизом должен пройти E2E-матрицу FuntiDesk.
 
 ## Области ожидаемого расхождения
+
+Конкретный минимальный patch set с указанием файлов приведён в `docs/FORK_PLAN.md`.
 
 - название продукта, иконки и пользовательский текст;
 - default/pinned rendezvous и relay endpoints;
