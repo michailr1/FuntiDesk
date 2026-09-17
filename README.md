@@ -1,48 +1,48 @@
 # FuntiDesk
 
-FuntiDesk is a private self-hosted remote-access platform for personal use, family and friends.
+FuntiDesk — частная self-hosted платформа удалённого доступа для личного использования, семьи и друзей.
 
-## Product goal
+## Цель продукта
 
-Provide simple, reliable remote access where identity, rendezvous, relay, configuration, releases and future device management are controlled by FuntiDesk infrastructure.
+Обеспечить простой и надёжный удалённый доступ, при котором идентификация, rendezvous, relay, конфигурация, релизы и будущий слой управления устройствами контролируются нашей инфраструктурой FuntiDesk.
 
-## Product principles
+## Принципы продукта
 
-- All production clients use only FuntiDesk infrastructure.
-- Keep a numeric device ID as a universal fallback connection method.
-- Add human-friendly device names, favourites and a device list without breaking the underlying ID model.
-- Start with Windows-to-Windows, then Android and iOS clients.
-- Build a distinct FuntiDesk product identity and UX rather than a re-skinned upstream interface.
-- Keep low-level protocol/core changes minimal where possible so security and compatibility fixes remain practical to integrate.
-- Security-sensitive behaviour must be explicit, documented and fail closed.
+- Все production-клиенты работают только через инфраструктуру FuntiDesk.
+- Числовой ID устройства сохраняется как универсальный резервный способ подключения.
+- Поверх ID добавляются понятные имена устройств, избранное и список «Мои устройства» без изменения базовой модели идентификации.
+- Сначала делаем Windows↔Windows, затем Android и iOS.
+- FuntiDesk должен иметь собственный интерфейс и пользовательские сценарии, а не выглядеть как перекрашенный исходный проект.
+- Изменения низкоуровневого протокола и ядра по возможности минимизируются, чтобы было проще получать исправления безопасности и совместимости.
+- Поведение, связанное с безопасностью, должно быть явным, задокументированным и работать по принципу fail closed.
 
-## Initial milestones
+## Первые этапы
 
-1. **M0 — Architecture**: baseline, fork strategy, licensing, trust/security model and product identity rules.
-2. **M1 — Self-hosted Server**: reproducible rendezvous/relay deployment.
-3. **M2 — Windows MVP**: first Windows client configured only for FuntiDesk infrastructure.
-4. **M3 — End-to-End Validation**: P2P, relay fallback, NAT, reboot, UAC/login, clipboard and file transfer.
-5. **M4 — Family Release**: distinctive UI, simple installer/portable mode, friendly device names and safe unattended access.
+1. **M0 — Архитектура**: baseline, стратегия форка, лицензирование, trust/security model и правила продуктовой идентичности.
+2. **M1 — Self-hosted Server**: воспроизводимое развёртывание rendezvous/relay.
+3. **M2 — Windows MVP**: первый Windows-клиент, настроенный только на инфраструктуру FuntiDesk.
+4. **M3 — End-to-End Validation**: P2P, relay fallback, NAT, перезагрузка, UAC/login screen, буфер обмена и передача файлов.
+5. **M4 — Family Release**: самостоятельный интерфейс, простой installer/portable-режим, понятные имена устройств и безопасный unattended access.
 
-## First acceptance criterion
+## Первый критерий приёмки
 
-Two Windows machines running FuntiDesk can connect through infrastructure we control, including both direct P2P and relay fallback, without relying on any third-party public rendezvous/relay service.
+Два Windows-компьютера с FuntiDesk могут соединиться через контролируемую нами инфраструктуру как напрямую по P2P, так и через relay fallback, без зависимости от сторонних публичных rendezvous/relay-сервисов.
 
-## Project governance
+## Управление проектом
 
-- GitHub is the source of truth for code, architecture, roles, plans, ADRs and operational documentation.
-- Linear tracks execution status, priorities and dependencies.
-- Changes to production behaviour are implemented through repository history and reviewed against documented acceptance criteria.
+- GitHub — источник истины для кода, архитектуры, ролей, планов, ADR и эксплуатационной документации.
+- Linear — оперативный трекер статусов, приоритетов и зависимостей.
+- Изменения production-поведения выполняются через историю репозитория и проверяются по задокументированным критериям приёмки.
 
-See:
+Документы:
 
-- `AGENTS.md` — working rules and agent responsibilities.
-- `docs/ROLES.md` — project roles and decision ownership.
-- `docs/ROADMAP.md` — delivery plan and milestones.
-- `docs/PRODUCT.md` — product and UX principles.
-- `docs/ARCHITECTURE.md` — technical architecture.
-- `docs/UPSTREAM.md` — upstream integration strategy.
+- `AGENTS.md` — правила работы и ответственность агентов.
+- `docs/ROLES.md` — роли и владение решениями.
+- `docs/ROADMAP.md` — план и этапы проекта.
+- `docs/PRODUCT.md` — продуктовые и UX-принципы.
+- `docs/ARCHITECTURE.md` — техническая архитектура.
+- `docs/UPSTREAM.md` — стратегия синхронизации с исходными проектами.
 
-## Licensing and attribution
+## Лицензирование и атрибуция
 
-FuntiDesk is built using open-source components. Required license, copyright and source-availability notices are preserved in the repository and distributions where legally required. Product-facing UI and documentation should otherwise use FuntiDesk naming and identity.
+FuntiDesk использует open-source компоненты. Обязательные сведения о лицензиях, copyright и доступности исходного кода сохраняются в репозитории и дистрибутивах там, где этого требует лицензия. Пользовательский интерфейс и пользовательская документация при этом используют бренд и терминологию FuntiDesk.
