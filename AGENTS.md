@@ -1,34 +1,35 @@
-# FuntiDesk Working Rules
+# Правила работы над FuntiDesk
 
-This file defines how humans and AI agents work on FuntiDesk.
+Этот документ определяет, как люди и ИИ-агенты работают над FuntiDesk.
 
-## Source of truth
+## Источник истины
 
-GitHub is authoritative for code, architecture, ADRs, security rules, release procedures and operational documentation. Linear is used for planning and execution status.
+GitHub является основным источником истины для кода, архитектуры, ADR, правил безопасности, процедур релиза и эксплуатационной документации. Linear используется для планирования и отражения фактического статуса работ.
 
-## Roles
+## Роли
 
-- **Owner** — defines product intent and accepts user-facing outcomes.
-- **Lead architect/developer (ChatGPT)** — owns architecture, implementation planning, code changes, reviews, documentation consistency and acceptance criteria.
-- **Execution/deployment agents** — may build, test, deploy and diagnose within the boundaries defined in the repository. They do not silently redefine architecture or product behaviour.
+- **Владелец проекта** — определяет цели продукта и принимает пользовательский результат.
+- **Ведущий архитектор/разработчик (ChatGPT)** — отвечает за архитектуру, декомпозицию, изменения кода, ревью, согласованность документации и критерии приёмки.
+- **Агенты исполнения/развёртывания** — могут собирать, тестировать, разворачивать и диагностировать систему в рамках правил репозитория. Они не меняют архитектуру или продуктовое поведение без явного решения в документации.
 
-## Development rules
+## Правила разработки
 
-1. Prefer small, reviewable changes with explicit acceptance criteria.
-2. Do not modify protocol/core code unless configuration, adapters or product layers cannot solve the requirement cleanly.
-3. Security-sensitive failures must fail closed. No silent fallback to public or untrusted infrastructure.
-4. Never commit private keys, passwords, signing secrets or production credentials.
-5. Keep user-facing terminology FuntiDesk-specific. Upstream names belong only in engineering, licensing and attribution contexts where needed.
-6. Do not copy upstream UI mechanically. New screens should follow FuntiDesk information architecture and interaction patterns.
-7. Preserve required open-source notices and licence obligations.
-8. Every production-impacting change must be reproducible from the repository.
-9. Update relevant documentation when architecture, deployment, security or operational behaviour changes.
-10. Linear issue state must reflect actual work state; GitHub history remains the evidence of implementation.
+1. Предпочитать небольшие и проверяемые изменения с явными критериями приёмки.
+2. Не менять протокол и ядро, если задачу можно корректно решить конфигурацией, адаптерами или продуктовым слоем.
+3. Ошибки, связанные с безопасностью, должны завершаться по принципу fail closed. Никакого скрытого fallback на публичную или недоверенную инфраструктуру.
+4. Никогда не коммитить приватные ключи, пароли, signing secrets и production credentials.
+5. Пользовательская терминология должна быть FuntiDesk-специфичной. Названия исходных проектов допустимы только в инженерном, лицензионном и атрибуционном контексте, где это действительно нужно.
+6. Не копировать исходный UI механически. Новые экраны должны следовать собственной информационной архитектуре и пользовательским сценариям FuntiDesk.
+7. Соблюдать обязательные open-source уведомления и лицензионные требования.
+8. Любое изменение, влияющее на production, должно быть воспроизводимо из репозитория.
+9. При изменении архитектуры, развёртывания, безопасности или эксплуатации обновлять соответствующую документацию.
+10. Статус задачи в Linear должен отражать реальное состояние работы; GitHub остаётся доказательством реализации.
+11. Основная проектная документация ведётся на русском языке. Английский используется только там, где это технически необходимо: идентификаторы, имена компонентов, протоколов, API, файлов, команд и исходных сущностей upstream.
 
-## Delivery order
+## Порядок поставки
 
-M0 Architecture → M1 Server → M2 Windows MVP → M3 E2E validation → M4 Family release → Android → iOS → optional device/account management.
+M0 Архитектура → M1 Сервер → M2 Windows MVP → M3 E2E-приёмка → M4 Family Release → Android → iOS → при необходимости слой управления устройствами/аккаунтами.
 
-## Acceptance philosophy
+## Подход к приёмке
 
-The project is considered working only when behaviour is verified end-to-end on real clients. A successful compile is not acceptance.
+Проект считается работающим только после проверки поведения end-to-end на реальных клиентах. Успешная компиляция сама по себе не считается приёмкой.
