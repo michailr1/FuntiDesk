@@ -1,6 +1,6 @@
 # Windows baseline build
 
-Статус: MIK-19.
+Статус: MIK-19 — выполнено.
 
 Цель этапа — получить рабочую Windows x64-сборку **неизменённого импортированного baseline** до любых FuntiDesk security/branding-патчей. Это позволяет отделить проблемы toolchain от наших изменений.
 
@@ -43,6 +43,37 @@ cd <путь-к-FuntiDesk>
 .\scripts\windows\build-baseline.ps1
 ```
 
+## Фактическая приёмка
+
+Успешная контрольная сборка выполнена на Windows-машине владельца без изменений production source.
+
+Зафиксированная среда:
+
+- Windows: `Windows 11 Pro`, build `22631`, x64;
+- MSVC: `14.44.35207`;
+- Windows SDK: `10.0.22621.0`;
+- Rust: `1.75.0`;
+- Flutter bridge: `3.22.3`;
+- Flutter build: `3.24.5`;
+- `flutter_rust_bridge_codegen`: `1.80.1`;
+- LLVM: `15.0.6`;
+- vcpkg: `120deac3062162151622ca4860575a33844ba10b`;
+- Python: `3.11.15`.
+
+Результат:
+
+- executable: `client/flutter/build/windows/x64/runner/Release/rustdesk.exe`;
+- SHA256: `B341C0536496662ADFF3D73F2BCE7DA18AB5F77C06D94DEA63B52AF655DD16C2`;
+- file/product version: `1.4.9+67`;
+- Flutter UI успешно открылся;
+- процесс оставался жив не менее 20 секунд;
+- Sciter для x64 Flutter build не потребовался;
+- production source не изменялся.
+
+Перед runtime-проверкой ранее установленный экземпляр исходного клиента был закрыт, чтобы исключить single-instance forwarding и гарантировать запуск именно собранного бинарника.
+
+Build log локально сохранялся в `artifacts/logs/baseline-build.log`; бинарник и локальные toolchain-каталоги в git не коммитятся.
+
 ## Артефакты приёмки
 
 Успешная сборка должна вывести:
@@ -54,11 +85,9 @@ SHA256=...
 LOG=...
 ```
 
-Build log сохраняется в локальном `build-logs/`. В репозиторий бинарники и локальные toolchain-каталоги не коммитятся.
-
 ## Что на этом этапе запрещено
 
-До прохождения MIK-19 не меняются:
+До прохождения MIK-19 не менялись:
 
 - rendezvous/relay endpoints;
 - server public key;
@@ -68,8 +97,8 @@ Build log сохраняется в локальном `build-logs/`. В реп�
 - Rust core;
 - протокол.
 
-Любая ошибка должна сначала трактоваться как проблема воспроизводимости baseline/toolchain, а не исправляться продуктовым патчем.
+Этап завершён: дальнейшие FuntiDesk security/product patches теперь можно отличать от проблем baseline/toolchain.
 
 ## Sciter
 
-Для целевой x64 Windows Flutter-сборки upstream использует Flutter job. Sciter остаётся в импортированном исходном дереве, но удалять его в MIK-19 нельзя: сначала подтверждаем baseline. Решение об удалении legacy UI принимается отдельным изменением после успешной сборки.
+Для целевой x64 Windows Flutter-сборки Sciter не потребовался. Legacy Sciter-код остаётся в импортированном исходном дереве и может быть рассмотрен на отдельном этапе очистки после появления стабильной FuntiDesk-сборки.
