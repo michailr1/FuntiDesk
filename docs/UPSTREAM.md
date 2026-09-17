@@ -1,30 +1,30 @@
-# Upstream baseline and merge policy
+# Upstream baseline и политика синхронизации
 
 ## Baseline
 
-FuntiDesk starts from the latest stable upstream releases verified on 2026-09-17:
+FuntiDesk стартует со стабильных версий исходных проектов, зафиксированных на 2026-09-17:
 
-- Client: `rustdesk/rustdesk` tag `1.4.9`, commit `6c578292e8ebbbec708b76986ba8c4bc7c509747`.
-- Server: `rustdesk/rustdesk-server` tag `1.1.16`, commit `73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`.
+- Client: `rustdesk/rustdesk`, tag `1.4.9`, commit `6c578292e8ebbbec708b76986ba8c4bc7c509747`.
+- Server: `rustdesk/rustdesk-server`, tag `1.1.16`, commit `73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`.
 
-We intentionally do not baseline on a moving `master` branch.
+Мы сознательно не используем плавающий `master` как baseline.
 
-## Repository layout
+## Структура репозитория
 
-FuntiDesk is planned as a single product repository with two upstream-derived trees:
+FuntiDesk планируется как единый продуктовый репозиторий с двумя деревьями, происходящими от upstream:
 
 ```text
-/client   # rustdesk/rustdesk derived source
-/server   # rustdesk/rustdesk-server derived source
+/client   # клиентская кодовая база
+/server   # серверная кодовая база
 /docs
 /infra
 ```
 
-The initial source import should preserve upstream history where practical (preferred: `git subtree`/history-preserving import rather than copy-paste snapshots).
+Начальный импорт исходного кода по возможности должен сохранять историю upstream. Предпочтителен history-preserving import (`git subtree` или эквивалент), а не copy-paste snapshot.
 
 ## Upstream remotes
 
-Recommended local remotes:
+Рекомендуемые локальные remotes:
 
 ```text
 origin            -> github.com/michailr1/FuntiDesk
@@ -32,33 +32,33 @@ upstream-client   -> github.com/rustdesk/rustdesk
 upstream-server   -> github.com/rustdesk/rustdesk-server
 ```
 
-## Merge policy
+## Политика merge
 
-1. Product-specific changes should be kept small and isolated.
-2. Avoid protocol changes unless required for a documented FuntiDesk feature or security property.
-3. Prefer build-time configuration, branding modules and policy wrappers over invasive edits to core networking/media code.
-4. Track stable upstream releases, not nightly/master by default.
-5. Review upstream security fixes promptly and merge them independently from feature upgrades when practical.
-6. Every upstream rebase/merge must pass the FuntiDesk E2E matrix before release.
+1. FuntiDesk-специфичные изменения должны оставаться небольшими и изолированными.
+2. Изменения протокола допускаются только при необходимости для задокументированной функции или security property.
+3. Предпочтительны build-time configuration, branding modules и policy wrappers вместо инвазивных изменений сетевого/media core.
+4. По умолчанию отслеживаются стабильные upstream-релизы, а не nightly/master.
+5. Upstream security fixes проверяются оперативно и по возможности переносятся независимо от функциональных обновлений.
+6. Любой upstream merge/rebase перед релизом должен пройти E2E-матрицу FuntiDesk.
 
-## Areas expected to diverge
+## Области ожидаемого расхождения
 
-- product name, icons and UI text;
-- default/pinned rendezvous and relay endpoints;
-- server public-key trust policy;
-- prevention of fallback to public RustDesk infrastructure;
-- packaging/installers and update channel;
-- later: saved-device UX and friendly aliases layered over the existing numeric ID.
+- название продукта, иконки и пользовательский текст;
+- default/pinned rendezvous и relay endpoints;
+- trust policy публичного ключа сервера;
+- запрет fallback на публичную стороннюю инфраструктуру;
+- packaging/installers и update channel;
+- позже — saved-device UX и понятные aliases поверх существующего числового ID.
 
-## Areas expected to stay close to upstream
+## Области, которые стараемся держать близко к upstream
 
 - video/audio pipeline;
 - screen capture;
 - keyboard/mouse transport;
 - clipboard/file transfer protocol;
-- NAT traversal and relay protocol;
+- NAT traversal и relay protocol;
 - platform-specific low-level code.
 
-## Versioning
+## Версионирование
 
-FuntiDesk releases will use their own product version while recording the incorporated upstream client/server baselines in release notes and build metadata.
+FuntiDesk использует собственную версию продукта. В release notes и build metadata фиксируются версии/commits клиентского и серверного upstream baseline, вошедшие в конкретный релиз.
