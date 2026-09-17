@@ -1,60 +1,60 @@
-# FuntiDesk Product Identity
+# Продуктовая идентичность FuntiDesk
 
-## Positioning
+## Позиционирование
 
-FuntiDesk is a small private remote-access product for the owner, family and trusted friends. It should feel intentionally designed for this use case rather than like a generic enterprise remote-desktop tool.
+FuntiDesk — небольшой частный продукт удалённого доступа для владельца, семьи и доверенных друзей. Он должен восприниматься как специально спроектированный под этот сценарий продукт, а не как универсальный корпоративный remote-desktop инструмент.
 
-## Naming
+## Именование
 
-User-facing naming should use **FuntiDesk** consistently.
+В пользовательском интерфейсе используется только бренд **FuntiDesk**.
 
-Avoid upstream project names in:
+Названия исходных проектов не используются в:
 
-- window titles;
-- installer names;
-- tray/menu labels;
+- заголовках окон;
+- именах installer-файлов;
+- tray/menu;
 - onboarding;
-- settings labels;
-- help text intended for end users;
-- screenshots and release notes intended for family/friends.
+- пользовательских настройках;
+- help-тексте;
+- скриншотах и release notes для семьи и друзей.
 
-Upstream references remain only where required or useful for engineering history, licensing, attribution and update tracking.
+Ссылки на upstream остаются только там, где они нужны для инженерной истории, лицензирования, атрибуции и отслеживания обновлений.
 
-## UX separation
+## Отделение UX
 
-FuntiDesk must not be a cosmetic recolour of the upstream interface.
+FuntiDesk не должен быть косметически перекрашенной копией исходного интерфейса.
 
-The first family-facing UI should be redesigned around these primary actions:
+Первая версия интерфейса для семьи строится вокруг следующих основных действий:
 
-1. **My device** — device name, numeric ID, connection state and access controls.
-2. **Connect** — one clear field for device ID/name plus recent/favourite devices.
-3. **My devices** — friendly names and status, added after MVP.
-4. **Settings** — simplified settings relevant to trusted personal use.
+1. **Мой компьютер** — имя устройства, числовой ID, статус соединения и управление доступом.
+2. **Подключиться** — одно понятное поле для имени/ID устройства плюс недавние и избранные устройства.
+3. **Мои устройства** — понятные имена и статусы; добавляется после MVP.
+4. **Настройки** — упрощённый набор настроек, действительно нужных для доверенного личного использования.
 
-Advanced transport/server configuration should not be part of normal end-user flows because production builds are bound to FuntiDesk infrastructure.
+Расширенные настройки транспорта и сервера не должны входить в обычные пользовательские сценарии, потому что production-сборки привязаны к инфраструктуре FuntiDesk.
 
-## Visual direction
+## Визуальное направление
 
-- independent iconography and application icon;
-- independent typography/spacing/layout decisions where practical;
-- avoid reproducing the same home-screen hierarchy and component arrangement;
-- simple, calm interface with few primary actions;
-- Russian-first UX initially, with localisation architecture retained;
-- infrastructure details hidden from normal users;
-- clear security state: temporary access vs unattended access must never look interchangeable.
+- собственная иконка приложения и собственная iconography;
+- собственные решения по typography, spacing и layout там, где это практично;
+- не повторять иерархию и расположение компонентов исходного домашнего экрана;
+- простой и спокойный интерфейс с небольшим количеством основных действий;
+- русский язык — основной на первом этапе, при этом архитектура локализации сохраняется;
+- инфраструктурные детали скрыты от обычного пользователя;
+- временный доступ и unattended access должны визуально и логически различаться.
 
-## Device identity
+## Идентичность устройства
 
-Keep the numeric device ID for compatibility and easy one-off support.
+Числовой ID сохраняется для совместимости и удобства разовой поддержки.
 
-Preferred presentation:
+Предпочтительное отображение:
 
-**Home PC**  
+**Домашний ПК**  
 ID: `123 456 789`  
-Online
+В сети
 
-The friendly name is primary; numeric ID is secondary but always accessible.
+Понятное имя устройства является основным, числовой ID — вторичным, но всегда доступным.
 
-## Product rule
+## Правило продукта
 
-Whenever there is a choice between preserving upstream UI similarity and creating a clearer FuntiDesk-specific workflow, prefer the FuntiDesk-specific workflow unless doing so would materially destabilise the core remote-control functionality.
+Если приходится выбирать между сохранением сходства с upstream UI и более понятным FuntiDesk-специфичным сценарием, выбираем самостоятельный сценарий FuntiDesk, если это не создаёт существенного риска для стабильности ядра удалённого управления.
