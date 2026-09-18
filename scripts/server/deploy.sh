@@ -41,4 +41,4 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/de
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d
 
-"$REPO_DIR/scripts/server/verify.sh"
+bash "$REPO_DIR/scripts/server/verify.sh"
