@@ -1,0 +1,30 @@
+services:
+  hbbs:
+    image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
+    container_name: funtidesk-hbbs
+    command: ["hbbs", "-r", "${FUNTIDESK_FQDN}:21117"]
+    restart: unless-stopped
+    ports:
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+    volumes:
+      - "${FUNTIDESK_DATA_DIR:-/opt/funtidesk/data}:/root"
+    networks:
+      - funtidesk
+
+  hbbr:
+    image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
+    container_name: funtidesk-hbbr
+    command: ["hbbr"]
+    restart: unless-stopped
+    ports:
+      - "21117:21117/tcp"
+    volumes:
+      - "${FUNTIDESK_DATA_DIR:-/opt/funtidesk/data}:/root"
+    networks:
+      - funtidesk
+
+networks:
+  funtidesk:
+    name: funtidesk-server
