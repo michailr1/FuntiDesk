@@ -56,7 +56,7 @@ Runtime root:
 Deployment:
 
 ```bash
-sudo /opt/funtidesk/repo/scripts/server/deploy.sh
+sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 ```
 
 После запуска выполняется `verify.sh`, который проверяет containers, listeners, отсутствие WebSocket ports и наличие persistent server identity.
@@ -66,11 +66,12 @@ sudo /opt/funtidesk/repo/scripts/server/deploy.sh
 До публичной приёмки агент должен:
 
 1. сохранить работающий SSH-доступ;
-2. применить default-deny inbound firewall;
-3. разрешить SSH `22/TCP`;
-4. разрешить только `21115/TCP`, `21116/TCP+UDP`, `21117/TCP`;
-5. не открывать `80/443` без отдельной задачи;
-6. не открывать `21118/21119`.
+2. убедиться, что текущая SSH-сессия стабильна;
+3. выполнить `sudo bash scripts/server/apply-firewall.sh`;
+4. проверить, что новая SSH-сессия по-прежнему открывается;
+5. убедиться, что разрешены только SSH и минимальные FuntiDesk-порты;
+6. не открывать `80/443` без отдельной задачи;
+7. не открывать `21118/21119`.
 
 Изменение SSH root/password policy выполняется только после подтверждения key-based доступа, чтобы исключить lockout.
 
