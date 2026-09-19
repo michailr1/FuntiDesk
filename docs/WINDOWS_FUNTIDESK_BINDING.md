@@ -36,8 +36,7 @@ user environment variable to select another rendezvous/key.
     `custom-rendezvous-server`, `rendezvous-servers`, `relay-server`,
     `api-server`, `key`, and `other-server-key`;
   - always returns the compile-time rendezvous host;
-  - constrains upstream STUN compatibility probes to `desk.funti.cc:21116`
-    instead of third-party Google/Cloudflare/Nextcloud hosts.
+  - does not use runtime rendezvous/key overrides.
 - `client/src/common.rs`
   - returns only the compile-time server key;
   - makes upstream signed custom-client payload processing a no-op, per
@@ -45,8 +44,9 @@ user environment variable to select another rendezvous/key.
 - `client/src/client.rs`
   - makes a rendezvous signing-key mismatch terminal (`bail!`); the old
     insecure fallback is removed;
-  - rejects the `numeric-id@foreign-server?key=...` connection form rather
-    than using it as an alternate trust/configuration path.
+  - strips the `@foreign-server?key=...` suffix from a peer ID, so it cannot
+    select an alternate rendezvous/trust path; the numeric peer ID is resolved
+    only through FuntiDesk infrastructure.
 - `client/src/rendezvous_mediator.rs`
   - preserves hbbs-provided relay selection; if hbbs omits a relay it uses the
     standard `host + 1` RustDesk rule, yielding `desk.funti.cc:21117`.
@@ -58,6 +58,20 @@ user environment variable to select another rendezvous/key.
 The production policy is fail closed: DNS failure, unavailable `desk.funti.cc`,
 or a key mismatch produces a connection failure. No branch may select public
 RustDesk rendezvous/relay or downgrade a mismatched server key.
+
+## External network endpoints
+
+MIK-15 distinguishes trust-critical infrastructure from auxiliary network
+services. Rendezvous and relay are FuntiDesk-only. The upstream NAT diagnostics
+still use the following public STUN endpoints:
+
+- `stun.l.google.com:19302`
+- `stun.cloudflare.com:3478`
+- `stun.nextcloud.com:3478`
+
+They are not RustDesk rendezvous/relay servers and cannot provide a FuntiDesk
+server key or redirect a peer connection. They remain an explicit external
+dependency to review again before Family Release, per `docs/SECURITY.md`.
 
 ## Custom client and runtime override decision
 
@@ -82,9 +96,9 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 ```
 
 The validator fails unless the compiled FuntiDesk endpoint/key are present,
-public rendezvous and third-party STUN endpoints are absent from the effective
-source paths, custom-client loading is a no-op, insecure key fallback is gone,
-and runtime server/key overrides are blocked.
+public RustDesk rendezvous endpoints are absent from the effective production
+path, custom-client loading is a no-op, insecure key fallback is gone, and
+runtime server/key overrides are blocked.
 
 Latest result: `FUNTIDESK_BINDING_VALIDATION_OK=true`.
 
