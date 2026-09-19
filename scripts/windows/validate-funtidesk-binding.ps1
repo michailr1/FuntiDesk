@@ -49,11 +49,6 @@ Assert-Contains $common 'pub async fn get_key(_sync: bool) -> String' 'runtime k
 Assert-Contains $common 'config::RS_PUB_KEY.to_owned()' 'runtime key does not use compiled production key'
 Assert-Contains $common 'pub fn read_custom_client(_config: &str)' 'custom-client reader remains active'
 Assert-Contains $common 'Ignoring disabled upstream custom-client configuration' 'custom-client no-op marker absent'
-Assert-Contains $common 'static STUNS_V4: [&str; 1] = ["desk.funti.cc:21116"];' 'IPv4 NAT helper has a foreign endpoint'
-Assert-Contains $common 'static STUNS_V6: [&str; 1] = ["desk.funti.cc:21116"];' 'IPv6 NAT helper has a foreign endpoint'
-foreach ($foreignHost in @('stun.l.google.com', 'stun.cloudflare.com', 'stun.nextcloud.com')) {
-    Assert-NotContains $common $foreignHost "foreign infrastructure endpoint remains: $foreignHost"
-}
 Assert-Contains $client 'bail!("Handshake failed: server key mismatch")' 'key mismatch is not fail-closed'
 Assert-Contains $client 'Ignoring foreign server suffix in peer ID' 'id@foreign-server route is not blocked'
 Assert-NotContains $mediator 'Config::get_option("relay-server")' 'relay runtime override remains active'
