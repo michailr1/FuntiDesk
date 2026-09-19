@@ -128,27 +128,20 @@ validator. Flutter plugin operations require Windows symbolic-link privilege;
 this host uses the verified per-user `Hermes_Gateway_Elevated` task for that
 build context rather than enabling Developer Mode.
 
-Artifact:
-
-```text
-C:\Users\micha\workspace\FuntiDesk\client\flutter\build\windows\x64\runner\Release\rustdesk.exe
-SHA256  151B6B5D319D8E6CAB43E5BA67EAE463F3053A240ECB2F3766BFC08C72ADF1CB
-Version 1.4.9+67
-```
-
-Build log:
-
-```text
-C:\Users\micha\workspace\FuntiDesk\artifacts\logs\windows-baseline-20260919-134130.log
-```
+The earlier pre-review artifact (SHA-256
+`151B6B5D319D8E6CAB43E5BA67EAE463F3053A240ECB2F3766BFC08C72ADF1CB`)
+was built from head `83201432e9bd3324a87ec402ab3ce7eaf809dd50`.
+It is retained only as historical evidence and is **not** the acceptance artifact
+for the architect-reviewed branch. A fresh build and SHA-256 are required after
+the review corrections.
 
 ## Acceptance matrix
 
 | Scenario | Result | Evidence |
 |---|---|---|
-| Build and launch | PASS | artifact above; native `RustDesk` window was visible, responding, and process remained alive after 20 seconds |
-| Normal rendezvous | PASS | current runtime log: mediator `desk.funti.cc`, UDP `desk.funti.cc:21116`, NAT responses from `desk.funti.cc:21115/21116` |
-| Public RustDesk connection | PASS | current FuntiDesk source has no public rendezvous host; process observation found no established public RustDesk TCP connection |
+| Build and launch | REBUILD REQUIRED | pre-review artifact passed; architect-reviewed HEAD requires a fresh build |
+| Normal rendezvous | RECHECK REQUIRED | pre-review artifact used only `desk.funti.cc`; repeat after fresh build |
+| Public RustDesk connection | RECHECK REQUIRED | source invariant is present; repeat runtime observation after fresh build |
 | Server unavailable fail-closed | PASS (local network isolation) | temporarily blocked only `107.172.76.106` for this artifact using two temporary outbound firewall rules; process stayed up, established TCP count was `0`, public RustDesk TCP count was `0`; rules were removed in `finally` |
 | `custom.txt` override | PASS | malicious local `custom.txt` attempting app name, ID server, relay, key, default and override settings was ignored; artifact launched with the normal `RustDesk` title and made no public RustDesk TCP connection |
 | Wrong server key | SOURCE-LEVEL PASS; runtime peer handshake pending | mismatch branch is terminal `Handshake failed: server key mismatch`, with no insecure fallback. A live peer handshake needs a second test endpoint. |
