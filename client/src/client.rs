@@ -813,11 +813,7 @@ impl Client {
                                 conn.send(&Message::new()).await?;
                             }
                         } else {
-                            // fall back to non-secure connection in case pk mismatch
-                            log::info!("pk mismatch, fall back to non-secure");
-                            let mut msg_out = Message::new();
-                            msg_out.set_public_key(PublicKey::new());
-                            conn.send(&msg_out).await?;
+                            bail!("Handshake failed: server key mismatch");
                         }
                     } else {
                         log::error!("Handshake failed: invalid message type");
@@ -1797,33 +1793,16 @@ impl LoginConfigHandler {
     ) {
         let mut id = id;
         if id.contains("@") {
-            let mut v = id.split("@");
-            let raw_id: &str = v.next().unwrap_or_default();
-            let mut server_key = v.next().unwrap_or_default().split('?');
-            let server = server_key.next().unwrap_or_default();
-            let args = server_key.next().unwrap_or_default();
-            let key = if server == PUBLIC_SERVER {
-                config::RS_PUB_KEY.to_owned()
-            } else {
-                let mut args_map: HashMap<String, &str> = HashMap::new();
-                for arg in args.split('&') {
-                    if let Some(kv) = arg.find('=') {
-                        let k = arg[0..kv].to_lowercase();
-                        let v = &arg[kv + 1..];
-                        args_map.insert(k, v);
-                    }
-                }
-                let key = args_map.remove("key").unwrap_or_default();
-                key.to_owned()
-            };
-
-            // here we can check <id>/r@server
+            // A production FuntiDesk client accepts the numeric peer ID only.
+            // The upstream `id@server?key=` route would create an alternate
+            // rendezvous/trust path, so discard its foreign-server suffix.
+            let raw_id = id.split('@').next().unwrap_or_default();
+            log::warn!("Ignoring foreign server suffix in peer ID");
             let real_id = crate::ui_interface::handle_relay_id(raw_id).to_string();
             if real_id != raw_id {
                 force_relay = true;
             }
-            self.other_server = Some((real_id.clone(), server.to_owned(), key));
-            id = format!("{real_id}@{server}");
+            id = real_id;
         } else {
             let real_id = crate::ui_interface::handle_relay_id(&id);
             if real_id != id {

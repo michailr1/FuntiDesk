@@ -688,12 +688,6 @@ pub async fn get_rendezvous_server(ms_timeout: u64) -> (String, Vec<String>, boo
     let (mut a, mut b) = get_rendezvous_server_(ms_timeout);
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let (mut a, mut b) = get_rendezvous_server_(ms_timeout).await;
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::get_license_from_exe_name() {
-        if !lic.host.is_empty() {
-            a = lic.host;
-        }
-    }
     let mut b: Vec<String> = b
         .drain(..)
         .map(|x| socket_client::check_port(x, config::RENDEZVOUS_PORT))
@@ -1801,26 +1795,10 @@ pub fn decode64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, base64::DecodeError
     base64::decode(input)
 }
 
-pub async fn get_key(sync: bool) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.key.is_empty() {
-            return lic.key;
-        }
-    }
-    #[cfg(target_os = "ios")]
-    let mut key = Config::get_option("key");
-    #[cfg(not(target_os = "ios"))]
-    let mut key = if sync {
-        Config::get_option("key")
-    } else {
-        let mut options = crate::ipc::get_options_async().await;
-        options.remove("key").unwrap_or_default()
-    };
-    if key.is_empty() {
-        key = config::RS_PUB_KEY.to_owned();
-    }
-    key
+pub async fn get_key(_sync: bool) -> String {
+    // Production FuntiDesk trusts exactly the compiled server key. Do not accept
+    // executable-name licences, persisted options, IPC, or environment input.
+    config::RS_PUB_KEY.to_owned()
 }
 
 pub fn pk_to_fingerprint(pk: Vec<u8>) -> String {
@@ -2178,77 +2156,11 @@ pub fn get_dst_align_rgba() -> usize {
     1
 }
 
-pub fn read_custom_client(config: &str) {
-    let Ok(data) = decode64(config) else {
-        log::error!("Failed to decode custom client config");
-        return;
-    };
-    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
-    let Some(pk) = get_rs_pk(KEY) else {
-        log::error!("Failed to parse public key of custom client");
-        return;
-    };
-    let Ok(data) = sign::verify(&data, &pk) else {
-        log::error!("Failed to dec custom client config");
-        return;
-    };
-    let Ok(mut data) =
-        serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&data)
-    else {
-        log::error!("Failed to parse custom client config");
-        return;
-    };
-
-    if let Some(app_name) = data.remove("app-name") {
-        if let Some(app_name) = app_name.as_str() {
-            *config::APP_NAME.write().unwrap() = app_name.to_owned();
-        }
-    }
-
-    let mut map_display_settings = HashMap::new();
-    for s in keys::KEYS_DISPLAY_SETTINGS {
-        map_display_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut map_local_settings = HashMap::new();
-    for s in keys::KEYS_LOCAL_SETTINGS {
-        map_local_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut map_settings = HashMap::new();
-    for s in keys::KEYS_SETTINGS {
-        map_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut buildin_settings = HashMap::new();
-    for s in keys::KEYS_BUILDIN_SETTINGS {
-        buildin_settings.insert(s.replace("_", "-"), s);
-    }
-    if let Some(default_settings) = data.remove("default-settings") {
-        read_custom_client_advanced_settings(
-            default_settings,
-            &map_display_settings,
-            &map_local_settings,
-            &map_settings,
-            &buildin_settings,
-            false,
-        );
-    }
-    if let Some(overwrite_settings) = data.remove("override-settings") {
-        read_custom_client_advanced_settings(
-            overwrite_settings,
-            &map_display_settings,
-            &map_local_settings,
-            &map_settings,
-            &buildin_settings,
-            true,
-        );
-    }
-    for (k, v) in data {
-        if let Some(v) = v.as_str() {
-            config::HARD_SETTINGS
-                .write()
-                .unwrap()
-                .insert(k, v.to_owned());
-        };
-    }
+pub fn read_custom_client(_config: &str) {
+    // ADR-002: FuntiDesk production builds intentionally do not consume the
+    // upstream signed custom-client payload. In particular it cannot alter
+    // endpoints, trust keys, names, default settings, or override settings.
+    log::warn!("Ignoring disabled upstream custom-client configuration");
 }
 
 #[inline]
@@ -2365,17 +2277,11 @@ async fn stun_ipv4_test(stun_server: &str) -> ResultType<(SocketAddr, String)> {
     })
 }
 
-static STUNS_V4: [&str; 3] = [
-    "stun.l.google.com:19302",
-    "stun.cloudflare.com:3478",
-    "stun.nextcloud.com:3478",
-];
-
-static STUNS_V6: [&str; 3] = [
-    "stun.l.google.com:19302",
-    "stun.cloudflare.com:3478",
-    "stun.nextcloud.com:3478",
-];
+// Do not contact third-party STUN providers. The standard hbbs NAT path is
+// authoritative for FuntiDesk; these compatibility probes are constrained to
+// the same production endpoint if they are reached by an upstream helper.
+static STUNS_V4: [&str; 1] = ["desk.funti.cc:21116"];
+static STUNS_V6: [&str; 1] = ["desk.funti.cc:21116"];
 
 pub async fn test_nat_ipv4() -> ResultType<(SocketAddr, String)> {
     use hbb_common::futures::future::{select_ok, FutureExt};

@@ -117,8 +117,14 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["rs-ny.rustdesk.com"];
-pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+/// Immutable production infrastructure binding for the FuntiDesk Windows client.
+///
+/// These values must not be sourced from user configuration, executable names,
+/// custom-client payloads, or environment variables. Keeping the policy beside
+/// the configuration accessors makes every rendezvous selection use this trust
+/// anchor and prevents a public RustDesk fallback.
+pub const RENDEZVOUS_SERVERS: &[&str] = &["desk.funti.cc"];
+pub const RS_PUB_KEY: &str = "2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
@@ -910,54 +916,27 @@ impl Config {
         }
     }
 
+    /// Returns true for settings that could redirect a production client away
+    /// from the compiled FuntiDesk infrastructure trust anchor.
+    #[inline]
+    pub fn is_locked_server_option(k: &str) -> bool {
+        matches!(
+            k,
+            "custom-rendezvous-server"
+                | "rendezvous-servers"
+                | "relay-server"
+                | "api-server"
+                | "key"
+                | "other-server-key"
+        )
+    }
+
     pub fn get_rendezvous_server() -> String {
-        let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_option("custom-rendezvous-server");
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_rendezvous_servers()
-                .drain(..)
-                .next()
-                .unwrap_or_default();
-        }
-        if !rendezvous_server.contains(':') {
-            rendezvous_server = format!("{rendezvous_server}:{RENDEZVOUS_PORT}");
-        }
-        rendezvous_server
+        format!("{}:{RENDEZVOUS_PORT}", RENDEZVOUS_SERVERS[0])
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
-        let s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = Self::get_option("custom-rendezvous-server");
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let serial_obsolute = CONFIG2.read().unwrap().serial > SERIAL;
-        if serial_obsolute {
-            let ss: Vec<String> = Self::get_option("rendezvous-servers")
-                .split(',')
-                .filter(|x| x.contains('.'))
-                .map(|x| x.to_owned())
-                .collect();
-            if !ss.is_empty() {
-                return ss;
-            }
-        }
-        return RENDEZVOUS_SERVERS.iter().map(|x| x.to_string()).collect();
+        RENDEZVOUS_SERVERS.iter().map(|x| x.to_string()).collect()
     }
 
     pub fn reset_online() {
@@ -1224,11 +1203,13 @@ impl Config {
         let mut res = DEFAULT_SETTINGS.read().unwrap().clone();
         res.extend(CONFIG2.read().unwrap().options.clone());
         res.extend(OVERWRITE_SETTINGS.read().unwrap().clone());
+        res.retain(|k, _| !Self::is_locked_server_option(k));
         res
     }
 
     #[inline]
     fn purify_options(v: &mut HashMap<String, String>) {
+        v.retain(|k, _| !Self::is_locked_server_option(k));
         v.retain(|k, v| is_option_can_save(&OVERWRITE_SETTINGS, k, &DEFAULT_SETTINGS, v));
     }
 
@@ -1243,6 +1224,9 @@ impl Config {
     }
 
     pub fn get_option(k: &str) -> String {
+        if Self::is_locked_server_option(k) {
+            return String::new();
+        }
         get_or(
             &OVERWRITE_SETTINGS,
             &CONFIG2.read().unwrap().options,
@@ -1257,6 +1241,14 @@ impl Config {
     }
 
     pub fn set_option(k: String, v: String) {
+        if Self::is_locked_server_option(&k) {
+            let mut config = CONFIG2.write().unwrap();
+            if config.options.remove(&k).is_some() {
+                config.store();
+            }
+            log::warn!("Ignored locked FuntiDesk infrastructure option: {k}");
+            return;
+        }
         if !is_option_can_save(&OVERWRITE_SETTINGS, &k, &DEFAULT_SETTINGS, &v) {
             let mut config = CONFIG2.write().unwrap();
             if config.options.remove(&k).is_some() {
