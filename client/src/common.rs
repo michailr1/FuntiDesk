@@ -2277,11 +2277,17 @@ async fn stun_ipv4_test(stun_server: &str) -> ResultType<(SocketAddr, String)> {
     })
 }
 
-// Do not contact third-party STUN providers. The standard hbbs NAT path is
-// authoritative for FuntiDesk; these compatibility probes are constrained to
-// the same production endpoint if they are reached by an upstream helper.
-static STUNS_V4: [&str; 1] = ["desk.funti.cc:21116"];
-static STUNS_V6: [&str; 1] = ["desk.funti.cc:21116"];
+static STUNS_V4: [&str; 3] = [
+    "stun.l.google.com:19302",
+    "stun.cloudflare.com:3478",
+    "stun.nextcloud.com:3478",
+];
+
+static STUNS_V6: [&str; 3] = [
+    "stun.l.google.com:19302",
+    "stun.cloudflare.com:3478",
+    "stun.nextcloud.com:3478",
+];
 
 pub async fn test_nat_ipv4() -> ResultType<(SocketAddr, String)> {
     use hbb_common::futures::future::{select_ok, FutureExt};
