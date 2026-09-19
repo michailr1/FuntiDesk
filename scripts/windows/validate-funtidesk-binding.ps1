@@ -50,7 +50,7 @@ Assert-Contains $common 'config::RS_PUB_KEY.to_owned()' 'runtime key does not us
 Assert-Contains $common 'pub fn read_custom_client(_config: &str)' 'custom-client reader remains active'
 Assert-Contains $common 'Ignoring disabled upstream custom-client configuration' 'custom-client no-op marker absent'
 Assert-Contains $client 'bail!("Handshake failed: server key mismatch")' 'key mismatch is not fail-closed'
-Assert-Contains $client 'Ignoring foreign server suffix in peer ID' 'id@foreign-server route is not blocked'
+Assert-Contains $client 'Ignoring foreign server suffix in peer ID' 'foreign server suffix handling is absent'
 Assert-NotContains $mediator 'Config::get_option("relay-server")' 'relay runtime override remains active'
 Assert-Contains $settings 'const hideServer = true;' 'desktop ID/relay settings remain exposed'
 
