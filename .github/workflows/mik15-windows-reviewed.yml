@@ -53,6 +53,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-pc-windows-msvc
+          components: rustfmt
 
       - name: Install Flutter bridge SDK
         id: flutter_bridge
