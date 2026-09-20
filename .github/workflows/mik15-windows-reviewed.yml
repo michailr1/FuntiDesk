@@ -1,0 +1,215 @@
+name: MIK-15 Windows reviewed candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - michailr/mik-15-funtidesk-client-binding
+    paths:
+      - ".github/workflows/mik15-windows-reviewed.yml"
+      - "client/**"
+      - "scripts/windows/validate-funtidesk-binding.ps1"
+
+permissions:
+  contents: read
+
+env:
+  RUST_VERSION: "1.75.0"
+  FLUTTER_BRIDGE_VERSION: "3.22.3"
+  FLUTTER_BUILD_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout reviewed branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Record reviewed source
+        shell: pwsh
+        run: |
+          git status --short
+          git rev-parse HEAD
+          "MIK15_HEAD=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Validate FuntiDesk binding
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/validate-funtidesk-binding.ps1
+
+      - name: Install LLVM 15.0.6
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0 # v2.0.9
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Rust 1.75
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Flutter bridge SDK
+        id: flutter_bridge
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_BRIDGE_VERSION }}
+          architecture: x64
+
+      - name: Generate flutter-rust-bridge files
+        shell: powershell
+        working-directory: client
+        run: |
+          cargo install cargo-expand --version 1.0.95 --locked
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked
+
+          $pubspec = Join-Path $PWD 'flutter\pubspec.yaml'
+          $pubspecLock = Join-Path $PWD 'flutter\pubspec.lock'
+          $pubspecBak = "$pubspec.mik15.bak"
+          $lockBak = "$pubspecLock.mik15.bak"
+
+          Copy-Item $pubspec $pubspecBak -Force
+          if (Test-Path $pubspecLock) { Copy-Item $pubspecLock $lockBak -Force }
+
+          try {
+            (Get-Content $pubspec -Raw).Replace('extended_text: 14.0.0','extended_text: 13.0.0') | Set-Content $pubspec -NoNewline
+            Push-Location flutter
+            flutter pub get
+            Pop-Location
+
+            & "$env:USERPROFILE\.cargo\bin\flutter_rust_bridge_codegen.exe" --rust-input .\src\flutter_ffi.rs --dart-output .\flutter\lib\generated_bridge.dart --c-output .\flutter\macos\Runner\bridge_generated.h
+            if ($LASTEXITCODE -ne 0) { throw "flutter_rust_bridge_codegen failed: $LASTEXITCODE" }
+            Copy-Item .\flutter\macos\Runner\bridge_generated.h .\flutter\ios\Runner\bridge_generated.h -Force
+          }
+          finally {
+            Move-Item $pubspecBak $pubspec -Force
+            if (Test-Path $lockBak) { Move-Item $lockBak $pubspecLock -Force }
+          }
+
+      - name: Install Flutter build SDK
+        id: flutter_build
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_BUILD_VERSION }}
+          architecture: x64
+
+      - name: Prepare RustDesk Flutter engine and patch
+        shell: powershell
+        working-directory: client
+        run: |
+          flutter config --enable-windows-desktop
+          flutter precache --windows
+
+          $flutterRoot = (Split-Path (Split-Path (Get-Command flutter).Source -Parent) -Parent)
+          Write-Host "Flutter root: $flutterRoot"
+
+          $patch = Join-Path $PWD '.github\patches\flutter_3.24.4_dropdown_menu_enableFilter.diff'
+          Push-Location $flutterRoot
+          try {
+            git apply --check $patch 2>$null
+            $applicable = $LASTEXITCODE -eq 0
+            if (-not $applicable) {
+              git apply --reverse --check $patch 2>$null
+              $alreadyApplied = $LASTEXITCODE -eq 0
+            } else {
+              $alreadyApplied = $false
+            }
+
+            if ($applicable) {
+              git apply $patch
+              if ($LASTEXITCODE -ne 0) { throw "Flutter patch apply failed" }
+            } elseif ($alreadyApplied) {
+              Write-Host "Flutter patch already applied"
+            } else {
+              throw "Flutter patch is neither applicable nor already applied"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile "$env:RUNNER_TEMP\windows-x64-release.zip"
+          Expand-Archive "$env:RUNNER_TEMP\windows-x64-release.zip" -DestinationPath "$env:RUNNER_TEMP\windows-x64-release" -Force
+          $engineDest = Join-Path $flutterRoot 'bin\cache\artifacts\engine\windows-x64-release'
+          New-Item -ItemType Directory -Force -Path $engineDest | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\windows-x64-release\*" $engineDest -Recurse -Force
+
+      - name: Setup pinned vcpkg
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install pinned vcpkg dependencies
+        shell: bash
+        working-directory: client
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build reviewed FuntiDesk Windows x64 candidate
+        shell: powershell
+        working-directory: client
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          python .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+          if ($LASTEXITCODE -ne 0) { throw "build.py failed: $LASTEXITCODE" }
+
+      - name: Validate artifact and write manifest
+        id: artifact
+        shell: powershell
+        run: |
+          $exe = Resolve-Path 'client\flutter\build\windows\x64\runner\Release\rustdesk.exe'
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          $out = Join-Path $PWD 'artifacts\mik15-ci-candidate'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item $exe (Join-Path $out 'rustdesk.exe') -Force
+
+          @"
+          $hash *rustdesk.exe
+          "@.Trim() | Set-Content -Encoding ascii (Join-Path $out 'SHA256SUMS.txt')
+
+          @"
+          project=FuntiDesk
+          issue=MIK-15
+          branch=michailr/mik-15-funtidesk-client-binding
+          head_sha=$env:MIK15_HEAD
+          artifact=rustdesk.exe
+          artifact_sha256=$hash
+          server=desk.funti.cc
+          server_public_key=2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=
+          build_origin=github-actions-windows-2022
+          "@.Trim() | Set-Content -Encoding ascii (Join-Path $out 'MIK15_CANDIDATE.txt')
+
+          Write-Host "MIK15_CI_BUILD_OK=true"
+          Write-Host "ARTIFACT_SHA256=$hash"
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload reviewed candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mik15-windows-x64-${{ github.sha }}
+          path: artifacts/mik15-ci-candidate/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Job summary
+        shell: powershell
+        run: |
+          @"
+          ## MIK-15 reviewed Windows candidate
+          - Commit: `$env:MIK15_HEAD`
+          - SHA-256: `${{ steps.artifact.outputs.sha256 }}`
+          - Runner: windows-2022
+          - Rendezvous binding validator: passed
+          "@ | Add-Content $env:GITHUB_STEP_SUMMARY
