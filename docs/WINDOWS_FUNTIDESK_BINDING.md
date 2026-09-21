@@ -135,11 +135,31 @@ It is retained only as historical evidence and is **not** the acceptance artifac
 for the architect-reviewed branch. A fresh build and SHA-256 are required after
 the review corrections.
 
+## Reviewed CI candidate
+
+The architect-reviewed Windows x64 candidate is built by the root GitHub Actions
+workflow `.github/workflows/mik15-windows-reviewed.yml`.
+
+Accepted CI build:
+
+```text
+workflow_run=35493953962
+head_sha=538a83c16133efdc2830f63fd48095f9fb56f24a
+artifact_name=mik15-windows-x64-538a83c16133efdc2830f63fd48095f9fb56f24a
+artifact_id=10600518871
+rustdesk.exe_sha256=F47936E2CC1A9A02A218ADF27F64CAD733925684300776129EFA8C4E053CB7C0
+runner=windows-2022
+```
+
+The workflow completed successfully through binding validation, bridge generation,
+pinned LLVM/Rust/Flutter/vcpkg setup, Windows x64 build, manifest generation and
+artifact upload.
+
 ## Acceptance matrix
 
 | Scenario | Result | Evidence |
 |---|---|---|
-| Build and launch | REBUILD REQUIRED | pre-review artifact passed; architect-reviewed HEAD requires a fresh build |
+| Build and launch | CI BUILD PASS; runtime launch pending | reviewed candidate built successfully by GitHub Actions run `35493953962`; local runtime launch still required |
 | Normal rendezvous | RECHECK REQUIRED | pre-review artifact used only `desk.funti.cc`; repeat after fresh build |
 | Public RustDesk connection | RECHECK REQUIRED | source invariant is present; repeat runtime observation after fresh build |
 | Server unavailable fail-closed | PASS (local network isolation) | temporarily blocked only `107.172.76.106` for this artifact using two temporary outbound firewall rules; process stayed up, established TCP count was `0`, public RustDesk TCP count was `0`; rules were removed in `finally` |
