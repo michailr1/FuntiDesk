@@ -143,11 +143,13 @@ workflow `.github/workflows/mik15-windows-reviewed.yml`.
 Accepted CI build:
 
 ```text
-workflow_run=35493953962
-head_sha=538a83c16133efdc2830f63fd48095f9fb56f24a
-artifact_name=mik15-windows-x64-538a83c16133efdc2830f63fd48095f9fb56f24a
-artifact_id=10600518871
-rustdesk.exe_sha256=F47936E2CC1A9A02A218ADF27F64CAD733925684300776129EFA8C4E053CB7C0
+workflow_run=35569932541
+head_sha=4ef3719cf0ea830deb5cfcabeeef45718fcb4ffa
+artifact_name=mik15-windows-x64-4ef3719cf0ea830deb5cfcabeeef45718fcb4ffa
+artifact_id=10626907901
+artifact_bundle_size=32402450
+artifact_file_count=93
+rustdesk.exe_sha256=C19CA395239258BAF0FFF5D939679CE2B3C0CF2F8045E5EBD730CA7A3ACA3698
 runner=windows-2022
 ```
 
@@ -159,7 +161,7 @@ artifact upload.
 
 | Scenario | Result | Evidence |
 |---|---|---|
-| Build and launch | CI BUILD PASS; runtime launch pending | reviewed candidate built successfully by GitHub Actions run `35493953962`; local runtime launch still required |
+| Build and launch | CI BUILD PASS; runtime launch pending | reviewed full runtime bundle built successfully by GitHub Actions run `35569932541`; local runtime launch still required |
 | Normal rendezvous | RECHECK REQUIRED | pre-review artifact used only `desk.funti.cc`; repeat after fresh build |
 | Public RustDesk connection | RECHECK REQUIRED | source invariant is present; repeat runtime observation after fresh build |
 | Server unavailable fail-closed | PASS (local network isolation) | temporarily blocked only `107.172.76.106` for this artifact using two temporary outbound firewall rules; process stayed up, established TCP count was `0`, public RustDesk TCP count was `0`; rules were removed in `finally` |
