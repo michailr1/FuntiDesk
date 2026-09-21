@@ -170,11 +170,17 @@ jobs:
         id: artifact
         shell: powershell
         run: |
-          $exe = Resolve-Path 'client\flutter\build\windows\x64\runner\Release\rustdesk.exe'
+          $release = Resolve-Path 'client\flutter\build\windows\x64\runner\Release'
+          $exe = Join-Path $release 'rustdesk.exe'
+          if (-not (Test-Path $exe)) { throw "rustdesk.exe is missing from Release bundle" }
+
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
           $out = Join-Path $PWD 'artifacts\mik15-ci-candidate'
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item $exe (Join-Path $out 'rustdesk.exe') -Force
+
+          # Flutter Windows applications require the entire Release runtime
+          # bundle (DLLs/plugins/data), not only the small runner EXE.
+          Copy-Item (Join-Path $release '*') $out -Recurse -Force
 
           @"
           $hash *rustdesk.exe
