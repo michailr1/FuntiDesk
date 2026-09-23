@@ -1621,8 +1621,10 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   }
 
   Widget network(BuildContext context) {
-    final hideServer =
-        bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
+    // Endpoint/key selection is compiled into the FuntiDesk production client.
+    // Keep unrelated proxy/WebSocket controls, but do not expose a misleading
+    // ID/relay/API/key editor whose values are rejected by the Rust policy.
+    const hideServer = true;
     final hideProxy =
         isWeb || bind.mainGetBuildinOption(key: kOptionHideProxySetting) == 'Y';
     final hideWebSocket = isWeb ||
