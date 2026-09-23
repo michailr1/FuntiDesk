@@ -164,7 +164,7 @@ artifact upload.
 | Build and launch | CI BUILD PASS; runtime launch pending | reviewed full runtime bundle built successfully by GitHub Actions run `35569932541`; local runtime launch still required |
 | Normal rendezvous | RECHECK REQUIRED | pre-review artifact used only `desk.funti.cc`; repeat after fresh build |
 | Public RustDesk connection | RECHECK REQUIRED | source invariant is present; repeat runtime observation after fresh build |
-| Server unavailable fail-closed | PASS (local network isolation) | temporarily blocked only `107.172.76.106` for this artifact using two temporary outbound firewall rules; process stayed up, established TCP count was `0`, public RustDesk TCP count was `0`; rules were removed in `finally` |
+| Server unavailable fail-closed | PASS (local network isolation) | temporarily blocked only `107.172.73.97` for this artifact using two temporary outbound firewall rules; process stayed up, established TCP count was `0`, public RustDesk TCP count was `0`; rules were removed in `finally` |
 | `custom.txt` override | PASS | malicious local `custom.txt` attempting app name, ID server, relay, key, default and override settings was ignored; artifact launched with the normal `RustDesk` title and made no public RustDesk TCP connection |
 | Wrong server key | SOURCE-LEVEL PASS; runtime peer handshake pending | mismatch branch is terminal `Handshake failed: server key mismatch`, with no insecure fallback. A live peer handshake needs a second test endpoint. |
 | Direct P2P | PENDING | current NAT is `ASYMMETRIC`; a second Windows endpoint is not available in this test run |
@@ -189,3 +189,33 @@ and record one direct attempt, one forced/natural hbbr relay attempt on
 `desk.funti.cc:21117`, a wrong-key variant handshake, remote control,
 clipboard, and file transfer. No server runtime, firewall, deployment, ports,
 or server identity was changed for this work.
+
+
+## RackNerd route degradation note (2026-09-23)
+
+Production DNS currently resolves:
+
+```text
+desk.funti.cc -> 107.172.73.97
+```
+
+The previous address `107.172.76.106` must not be used for current acceptance.
+
+Observed from a Russian network:
+- TCP connectivity to 21115/21116/21117 succeeds.
+- TCP 443/8443 also connects.
+- Bulk HTTP/HTTPS transfer from the RackNerd VPS is degraded to roughly 1-2 KB/s.
+- Changing the RackNerd public IP did not remove the degradation.
+
+Current working hypothesis is route/provider-network shaping or degradation rather than
+a specific FuntiDesk port, TLS, or Caddy issue.
+
+Acceptance implications:
+- hbbs/rendezvous may still be usable because control traffic is small.
+- Direct P2P sessions may avoid most of the issue.
+- hbbr relay sessions and especially relay file transfer may be severely degraded.
+- MIK-15/MIK-16 must distinguish direct/P2P from relay and measure relay throughput
+  before any server migration decision.
+
+Do not move hbbs/hbbr, change the production hostname/key, or restart production services
+solely because of this observation. First collect runtime evidence.
