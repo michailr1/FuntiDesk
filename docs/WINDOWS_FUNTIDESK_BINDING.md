@@ -191,15 +191,23 @@ clipboard, and file transfer. No server runtime, firewall, deployment, ports,
 or server identity was changed for this work.
 
 
-## RackNerd route degradation note (2026-09-23)
+## Existing RustDesk profile compatibility (2026-09-23)
 
-Production DNS currently resolves:
+Runtime acceptance found an important upgrade/migration case: a machine with a pre-existing upstream RustDesk profile in `%APPDATA%\RustDesk` can retain stale `access_token` / session state. The reviewed FuntiDesk binary reused that state and failed before `PunchHoleRequest` with `Failed to secure tcp: deadline has elapsed`. Moving the old profile aside and starting the same binary with a clean profile immediately advanced to normal password authentication.
+
+Production requirement: FuntiDesk must not require users to manually delete a RustDesk profile. The product should use an isolated FuntiDesk profile namespace or an explicit reviewed migration layer that drops incompatible session/access tokens and server-routing metadata. This scenario must be part of Windows acceptance on machines where RustDesk was previously installed.
+
+## Infrastructure migration history (2026-09-23 — 2026-09-28)
+
+Current production DNS resolves:
 
 ```text
-desk.funti.cc -> 107.172.73.97
+desk.funti.cc -> 173.249.195.36
 ```
 
-The previous address `107.172.76.106` must not be used for current acceptance.
+FuntiDesk hbbs/hbbr now run on shared GreenCloud `core.funti.cc`. The server Ed25519 identity was preserved across migration, so the client trust anchor did not change.
+
+Historical RackNerd addresses `107.172.76.106`, `107.172.73.97` and later source `23.94.233.131` are obsolete for current acceptance. The old `ai.funti.cc` source VM was subsequently cleaned of FuntiDesk containers, image, `/opt/funtidesk`, private identity copy and FuntiDesk firewall rules.
 
 Observed from a Russian network:
 - TCP connectivity to 21115/21116/21117 succeeds.
@@ -210,12 +218,6 @@ Observed from a Russian network:
 Current working hypothesis is route/provider-network shaping or degradation rather than
 a specific FuntiDesk port, TLS, or Caddy issue.
 
-Acceptance implications:
-- hbbs/rendezvous may still be usable because control traffic is small.
-- Direct P2P sessions may avoid most of the issue.
-- hbbr relay sessions and especially relay file transfer may be severely degraded.
-- MIK-15/MIK-16 must distinguish direct/P2P from relay and measure relay throughput
-  before any server migration decision.
+Historical acceptance evidence showed RackNerd relay sessions on `:21117` stalling while direct Russian-path bulk traffic to that VPS degraded to roughly 1-2 KB/s. That evidence motivated migration, but it is no longer a statement about the current GreenCloud production path.
 
-Do not move hbbs/hbbr, change the production hostname/key, or restart production services
-solely because of this observation. First collect runtime evidence.
+Post-migration acceptance must be rerun against `desk.funti.cc -> 173.249.195.36` for rendezvous, direct/P2P, relay, clipboard and file transfer.
