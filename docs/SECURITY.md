@@ -63,3 +63,15 @@ Production-клиент не должен иметь скрытого fallback �
 - отсутствует скрытая подмена server endpoint пользовательской настройкой в обычной production-сборке;
 - временный и постоянный доступ проверяются отдельно;
 - список внешних сетевых endpoint задокументирован и проверен.
+
+
+## Расширенная security acceptance M2 (R-16)
+
+Перед передачей Windows-сборки людям должны быть подтверждены следующие свойства:
+
+- **P7 / secure handshake:** `client/src/client.rs::secure_connection()` и `client/src/server.rs::create_tcp_connection()` отказывают при отсутствующем/невалидном signed peer key, несовпадении peer ID, пустом/невалидном `PublicKey`, пустом encryption material и попытке plaintext session.
+- **P8 / executable-name channel:** имя EXE не может изменить rendezvous, relay, API endpoint или server key.
+- **P9 / trust anchor:** `get_key()` всегда возвращает закреплённый FuntiDesk server public key; upstream `RS_PUB_KEY` не является fallback.
+- **P10 / exposure policy:** direct-server, LAN discovery, remote config modification и insecure TLS fallback заблокированы production policy; clean-install authentication defaults используют temporary password.
+
+Автоматические source-policy tests не заменяют E2E. Для R-10 обязательно остаются live/negative проверки с wrong key/fake rendezvous/invalid handshake. Для R-14 — packet/DNS capture чистой Windows VM по `docs/NETWORK_ALLOWLIST.md`.
