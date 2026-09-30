@@ -1,0 +1,42 @@
+name: R21 Windows clean build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - michailr/r-01-relay-key-auth
+    paths:
+      - ".github/workflows/r21-windows-clean-build.yml"
+      - "scripts/windows/**"
+      - "docs/WINDOWS_BASELINE_BUILD.md"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Bootstrap pinned toolchain
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/bootstrap.ps1
+
+      - name: Build baseline from pinned dependencies
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: r21-windows-build-logs-${{ github.sha }}
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 14
