@@ -5,6 +5,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# FUNTIDESK: pin the RustDesk custom Flutter engine by immutable GitHub asset ID and SHA256.
+$EngineAssetUrl = 'https://api.github.com/repos/rustdesk/engine/releases/assets/210168939'
+$EngineSha256 = 'ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e'
+
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $ClientRoot = Join-Path $RepoRoot 'client'
 $FlutterBridge = Join-Path $ToolsRoot 'flutter-3.22.3'
@@ -93,8 +97,13 @@ try {
 
     $engineZip = Join-Path $env:TEMP 'funtidesk-windows-x64-release.zip'
     $engineTmp = Join-Path $env:TEMP 'funtidesk-windows-x64-release'
+    Remove-Item $engineZip -Force -ErrorAction SilentlyContinue
     Remove-Item $engineTmp -Recurse -Force -ErrorAction SilentlyContinue
-    Invoke-WebRequest 'https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip' -OutFile $engineZip
+    Invoke-WebRequest -Uri $EngineAssetUrl -Headers @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' } -OutFile $engineZip
+    $engineHash = (Get-FileHash $engineZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($engineHash -ne $EngineSha256) {
+        throw "Custom Flutter engine SHA256 mismatch. expected=$EngineSha256 actual=$engineHash"
+    }
     Expand-Archive $engineZip -DestinationPath $engineTmp -Force
     $engineDest = Join-Path $FlutterBuild 'bin\cache\artifacts\engine\windows-x64-release'
     New-Item -ItemType Directory -Force -Path $engineDest | Out-Null
