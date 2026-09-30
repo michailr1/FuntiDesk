@@ -16,22 +16,9 @@ FuntiDesk стартует со стабильных версий исходны
 
 ## Структура репозитория
 
-Решение принято в `docs/ADR-001-repository-layout.md`.
+Архитектурное решение и обоснование структуры являются **авторитетными только в** `docs/ADR-001-repository-layout.md`. Здесь фиксируются текущие upstream pins и политика синхронизации, без дублирования ADR.
 
-FuntiDesk — единый продуктовый монорепозиторий, содержащий исходники трёх upstream-репозиториев в четырёх независимых импортированных деревьях:
-
-```text
-/client                    # rustdesk/rustdesk 1.4.9
-/client/libs/hbb_common    # hbb_common на клиентском пине
-/server                    # rustdesk/rustdesk-server 1.1.16
-/server/libs/hbb_common    # hbb_common на серверном пине
-/docs
-/infra
-```
-
-`hbb_common` импортируется дважды. Версии не унифицируются автоматически: каждая копия следует своему client/server baseline.
-
-Начальный импорт исходного кода должен сохранять историю upstream настолько, насколько это практически возможно. Предпочтителен history-preserving import (`git subtree` или эквивалент), а не copy-paste snapshot. В production-дереве не оставляем внешние git submodule как обязательный источник кода для сборки.
+Кратко: product repository — монорепозиторий; client/server и две независимые копии `hbb_common` импортированы в дерево репозитория и не требуют внешних submodule для production build.
 
 ## Upstream remotes
 
