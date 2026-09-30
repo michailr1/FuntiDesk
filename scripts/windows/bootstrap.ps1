@@ -42,11 +42,10 @@ $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe
 $needVs = $true
 if (Test-Path $vswhere) {
     $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
-    $clPath = (& $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\cl.exe' | Select-Object -First 1)
     if ($vsPath) {
         $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
-        if ((Test-Path $vsDevCmd) -and $clPath -and (Test-Path $clPath)) {
-            Write-Host "Using preinstalled MSVC: $clPath"
+        if (Test-Path $vsDevCmd) {
+            Write-Host "Using preinstalled Visual Studio: $vsPath"
             $needVs = $false
         }
     }
