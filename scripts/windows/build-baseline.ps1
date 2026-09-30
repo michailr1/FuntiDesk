@@ -31,13 +31,11 @@ try {
     # FUNTIDESK: activate an existing verified MSVC x64 environment.
     $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) { throw 'vswhere not found' }
-    $vsPath = & $vswhere -latest -products * -property installationPath
-    if (-not $vsPath) { throw 'Visual Studio installation not found' }
+    $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
+    $clPath = (& $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\cl.exe' | Select-Object -First 1)
+    if (-not $vsPath -or -not $clPath) { throw 'Visual C++ x64 toolchain not found' }
     $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
-    $cl = Get-ChildItem (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -like '*\bin\Hostx64\x64\cl.exe' } |
-        Select-Object -First 1
-    if (-not (Test-Path $vsDevCmd) -or -not $cl) { throw 'Visual C++ x64 toolchain not found' }
+    if (-not (Test-Path $vsDevCmd) -or -not (Test-Path $clPath)) { throw 'Visual C++ x64 toolchain incomplete' }
     cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
         if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "Env:$($matches[1])" -Value $matches[2] }
     }
