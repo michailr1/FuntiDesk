@@ -28,21 +28,25 @@ try {
     if (-not (Test-Path "$FlutterBuild\bin\flutter.bat")) { throw 'Flutter 3.24.5 не найден. Сначала bootstrap.ps1' }
     if (-not (Test-Path "$VcpkgRoot\vcpkg.exe")) { throw 'vcpkg не найден. Сначала bootstrap.ps1' }
 
-    # FUNTIDESK R-21: activate a verified existing MSVC x64 environment.
-    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) { throw 'vswhere not found' }
-    $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
-    $clPath = (& $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\cl.exe' | Select-Object -First 1)
-    if (-not $vsPath -or -not $clPath) { throw 'Visual C++ x64 toolchain not found' }
-    $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
-    if (-not (Test-Path $vsDevCmd) -or -not (Test-Path $clPath)) { throw 'Visual C++ x64 toolchain incomplete' }
-    cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
-        $parts = $_.Split('=', 2)
-        if ($parts.Count -eq 2) {
-            Set-Item -Path ("Env:" + $parts[0]) -Value $parts[1]
+    # FUNTIDESK R-21: activate an existing Visual Studio x64 environment.
+    $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vsDevCmd = $null
+    if (Test-Path $vswhere) {
+        $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
+        if ($vsPath) {
+            $candidate = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
+            if (Test-Path $candidate) { $vsDevCmd = $candidate }
         }
     }
-
+    if (-not $vsDevCmd) {
+        $candidate = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter VsDevCmd.bat -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like '*\Common7\Tools\VsDevCmd.bat' } |
+            Select-Object -First 1
+        if ($candidate) { $vsDevCmd = $candidate.FullName }
+    }
+    if (-not $vsDevCmd) { throw 'Visual Studio VsDevCmd.bat not found' }
+    cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
+        if ($_ -match '^([^=]+)=(.*)
     $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
     $env:VCPKG_ROOT = $VcpkgRoot
     $env:VCPKG_DEFAULT_HOST_TRIPLET = 'x64-windows-static'
@@ -90,41 +94,15 @@ try {
 
     $patch = Join-Path $ClientRoot '.github\patches\flutter_3.24.4_dropdown_menu_enableFilter.diff'
     Push-Location $FlutterBuild
-    try {
-        # PowerShell 5.1 may promote native stderr to NativeCommandError while
-        # $ErrorActionPreference='Stop'. For idempotency probes, a non-zero
-        # git exit code is expected and must be inspected via $LASTEXITCODE.
-        $previousErrorAction = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        try {
-            git apply --check $patch 2>$null
-            $patchApplicable = $LASTEXITCODE -eq 0
-
-            if (-not $patchApplicable) {
-                git apply --reverse --check $patch 2>$null
-                $patchAlreadyApplied = $LASTEXITCODE -eq 0
-            } else {
-                $patchAlreadyApplied = $false
-            }
-        }
-        finally {
-            $ErrorActionPreference = $previousErrorAction
-        }
-
-        if ($patchApplicable) {
-            git apply $patch
-            if ($LASTEXITCODE -ne 0) { throw 'Flutter patch apply failed' }
-        }
-        elseif ($patchAlreadyApplied) {
-            Write-Host 'Flutter patch уже применён'
-        }
-        else {
-            throw 'Flutter patch нельзя ни применить, ни определить как уже применённый'
-        }
+    git apply --check $patch 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        git apply $patch
+    } else {
+        git apply --reverse --check $patch 2>$null
+        if ($LASTEXITCODE -ne 0) { throw 'Flutter patch нельзя ни применить, ни определить как уже применённый' }
+        Write-Host 'Flutter patch уже применён'
     }
-    finally {
-        Pop-Location
-    }
+    Pop-Location
 
     $engineZip = Join-Path $env:TEMP 'funtidesk-windows-x64-release.zip'
     $engineTmp = Join-Path $env:TEMP 'funtidesk-windows-x64-release'
@@ -165,6 +143,9 @@ finally {
 }
 ) { Set-Item -Path "Env:$($matches[1])" -Value $matches[2] }
     }
+    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+        throw 'MSVC cl.exe not available after VsDevCmd activation'
+    }
 
     $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
     $env:VCPKG_ROOT = $VcpkgRoot
@@ -213,41 +194,15 @@ finally {
 
     $patch = Join-Path $ClientRoot '.github\patches\flutter_3.24.4_dropdown_menu_enableFilter.diff'
     Push-Location $FlutterBuild
-    try {
-        # PowerShell 5.1 may promote native stderr to NativeCommandError while
-        # $ErrorActionPreference='Stop'. For idempotency probes, a non-zero
-        # git exit code is expected and must be inspected via $LASTEXITCODE.
-        $previousErrorAction = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        try {
-            git apply --check $patch 2>$null
-            $patchApplicable = $LASTEXITCODE -eq 0
-
-            if (-not $patchApplicable) {
-                git apply --reverse --check $patch 2>$null
-                $patchAlreadyApplied = $LASTEXITCODE -eq 0
-            } else {
-                $patchAlreadyApplied = $false
-            }
-        }
-        finally {
-            $ErrorActionPreference = $previousErrorAction
-        }
-
-        if ($patchApplicable) {
-            git apply $patch
-            if ($LASTEXITCODE -ne 0) { throw 'Flutter patch apply failed' }
-        }
-        elseif ($patchAlreadyApplied) {
-            Write-Host 'Flutter patch уже применён'
-        }
-        else {
-            throw 'Flutter patch нельзя ни применить, ни определить как уже применённый'
-        }
+    git apply --check $patch 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        git apply $patch
+    } else {
+        git apply --reverse --check $patch 2>$null
+        if ($LASTEXITCODE -ne 0) { throw 'Flutter patch нельзя ни применить, ни определить как уже применённый' }
+        Write-Host 'Flutter patch уже применён'
     }
-    finally {
-        Pop-Location
-    }
+    Pop-Location
 
     $engineZip = Join-Path $env:TEMP 'funtidesk-windows-x64-release.zip'
     $engineTmp = Join-Path $env:TEMP 'funtidesk-windows-x64-release'
