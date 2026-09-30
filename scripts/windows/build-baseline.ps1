@@ -29,7 +29,7 @@ try {
     if (-not (Test-Path "$VcpkgRoot\vcpkg.exe")) { throw 'vcpkg не найден. Сначала bootstrap.ps1' }
 
     # FUNTIDESK R-21: activate an existing Visual Studio x64 environment.
-    $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     $vsDevCmd = $null
     if (Test-Path $vswhere) {
         $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
