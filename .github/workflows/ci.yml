@@ -21,3 +21,15 @@ jobs:
         run: bash scripts/ci/check-upstream-guard.sh
       - name: Guard negative self-test
         run: bash scripts/ci/test-upstream-guard.sh
+
+  hbb-common:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Rust 1.75
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          rustup override set 1.75.0
+      - name: Test client hbb_common
+        run: cargo test --manifest-path client/libs/hbb_common/Cargo.toml --lib
