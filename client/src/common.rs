@@ -585,7 +585,7 @@ impl Drop for CheckTestNatType {
 // A UDP connect selects a local source address without sending any packets.
 #[cfg(target_os = "windows")]
 fn rendezvous_route_source() -> Option<std::net::IpAddr> {
-    let server = socket_client::check_port(Config::get_rendezvous_server(), RENDEZVOUS_PORT);
+    let server = socket_client::check_port(&*Config::get_rendezvous_server(), RENDEZVOUS_PORT);
     let remote = server.to_socket_addrs().ok()?.find(|addr| addr.is_ipv4())?;
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect(remote).ok()?;
