@@ -605,30 +605,48 @@ fn start_nat_network_monitor() {
             const POLL: StdDuration = StdDuration::from_secs(4);
             const PERIODIC_REFRESH: StdDuration = StdDuration::from_secs(120);
             let mut previous = rendezvous_route_source();
+            let mut unavailable = previous.is_none();
+            log::info!("Rendezvous route monitor started, initial source: {:?}", previous);
             let mut last_test = StdInstant::now();
             loop {
                 std::thread::sleep(POLL);
                 let current = match rendezvous_route_source() {
                     Some(ip) => ip,
-                    None => continue, // network temporarily unavailable
-                };
-                let changed = previous.map(|ip| ip != current).unwrap_or(false);
-                if changed {
-                    // Ignore transient switching states until the route settles.
-                    std::thread::sleep(StdDuration::from_secs(2));
-                    if rendezvous_route_source() != Some(current) {
+                    None => {
+                        if !unavailable {
+                            log::warn!("Rendezvous route unavailable; waiting for recovery");
+                        }
+                        unavailable = true;
+                        // A recovered route may reuse the same local address but
+                        // have a different NAT; it still requires a new test.
                         continue;
                     }
-                    log::info!("Rendezvous route changed: {:?} -> {}", previous, current);
-                    // The old classification MUST NOT leak into a new connection.
+                };
+                let changed = unavailable || previous != Some(current);
+                if changed {
+                    // Wait for the new route to settle; if it changes again,
+                    // the next poll will retry rather than testing a transient path.
+                    std::thread::sleep(StdDuration::from_secs(2));
+                    if rendezvous_route_source() != Some(current) {
+                        log::debug!("Rendezvous route not yet stable");
+                        continue;
+                    }
+                    log::info!(
+                        "Rendezvous route changed or recovered: {:?} -> {} (recovered={})",
+                        previous,
+                        current,
+                        unavailable
+                    );
+                    unavailable = false;
+                    previous = Some(current);
+                    // Invalidate before triggering an asynchronous test; new
+                    // sessions must never use the old route's classification.
                     Config::set_nat_type(NatType::UNKNOWN_NAT as _);
-                    // Force the receiving endpoint to register its new address too.
                     crate::rendezvous_mediator::RendezvousMediator::restart();
                     test_nat_type();
                     last_test = StdInstant::now();
                 } else if last_test.elapsed() >= PERIODIC_REFRESH {
-                    // Same local IP does not guarantee the same external NAT.
-                    log::info!("Refreshing rendezvous NAT classification");
+                    log::info!("Refreshing rendezvous NAT classification (source={})", current);
                     test_nat_type();
                     last_test = StdInstant::now();
                 }
@@ -739,8 +757,20 @@ async fn test_nat_type_() -> ResultType<bool> {
         } else {
             NatType::SYMMETRIC
         };
+        let old_nat_type = Config::get_nat_type();
         Config::set_nat_type(t as _);
         log::info!("Tested nat type: {:?} in {:?}", t, start.elapsed());
+        // A mobile hotspot or ISP can change its mapping behind an unchanged
+        // local route. The process that owns the mediator must re-register
+        // after a NAT classification transition, not merely cache the result.
+        #[cfg(target_os = "windows")]
+        if old_nat_type != NatType::UNKNOWN_NAT as i32 && old_nat_type != t as i32 {
+            log::info!(
+                "Rendezvous NAT classification changed: {} -> {:?}; restarting mediator",
+                old_nat_type, t
+            );
+            crate::rendezvous_mediator::RendezvousMediator::restart();
+        }
     }
     Ok(ok)
 }
