@@ -580,15 +580,95 @@ impl Drop for CheckTestNatType {
     }
 }
 
+// Check the source address selected for the pinned rendezvous server, not
+// merely the OS default route: VPN split tunneling can route this host differently.
+// A UDP connect selects a local source address without sending any packets.
+#[cfg(target_os = "windows")]
+fn rendezvous_route_source() -> Option<std::net::IpAddr> {
+    let server = socket_client::check_port(&*Config::get_rendezvous_server(), RENDEZVOUS_PORT);
+    let remote = server.to_socket_addrs().ok()?.find(|addr| addr.is_ipv4())?;
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect(remote).ok()?;
+    Some(socket.local_addr().ok()?.ip())
+}
+
+// The reviewed Windows client previously cached its NAT type until restart or
+// SOCKS/WS setting changes. Watch the actual path to hbbs and also periodically
+// refresh the NAT result: a router or mobile network may change its external
+// mapping without changing the local interface address.
+#[cfg(target_os = "windows")]
+fn start_nat_network_monitor() {
+    static START: std::sync::Once = std::sync::Once::new();
+    START.call_once(|| {
+        std::thread::spawn(|| {
+            use std::time::{Duration as StdDuration, Instant as StdInstant};
+            const POLL: StdDuration = StdDuration::from_secs(4);
+            const PERIODIC_REFRESH: StdDuration = StdDuration::from_secs(120);
+            let mut previous = rendezvous_route_source();
+            let mut unavailable = previous.is_none();
+            log::info!("Rendezvous route monitor started, initial source: {:?}", previous);
+            let mut last_test = StdInstant::now();
+            loop {
+                std::thread::sleep(POLL);
+                let current = match rendezvous_route_source() {
+                    Some(ip) => ip,
+                    None => {
+                        if !unavailable {
+                            log::warn!("Rendezvous route unavailable; waiting for recovery");
+                        }
+                        unavailable = true;
+                        // A recovered route may reuse the same local address but
+                        // have a different NAT; it still requires a new test.
+                        continue;
+                    }
+                };
+                let changed = unavailable || previous != Some(current);
+                if changed {
+                    // Wait for the new route to settle; if it changes again,
+                    // the next poll will retry rather than testing a transient path.
+                    std::thread::sleep(StdDuration::from_secs(2));
+                    if rendezvous_route_source() != Some(current) {
+                        log::debug!("Rendezvous route not yet stable");
+                        continue;
+                    }
+                    log::info!(
+                        "Rendezvous route changed or recovered: {:?} -> {} (recovered={})",
+                        previous,
+                        current,
+                        unavailable
+                    );
+                    unavailable = false;
+                    previous = Some(current);
+                    // Invalidate before triggering an asynchronous test; new
+                    // sessions must never use the old route's classification.
+                    Config::set_nat_type(NatType::UNKNOWN_NAT as _);
+                    crate::rendezvous_mediator::RendezvousMediator::restart();
+                    test_nat_type();
+                    last_test = StdInstant::now();
+                } else if last_test.elapsed() >= PERIODIC_REFRESH {
+                    log::info!("Refreshing rendezvous NAT classification (source={})", current);
+                    test_nat_type();
+                    last_test = StdInstant::now();
+                }
+                previous = Some(current);
+            }
+        });
+    });
+}
+
 pub fn test_nat_type() {
+    #[cfg(target_os = "windows")]
+    start_nat_network_monitor();
     test_ipv6_sync();
     use std::sync::atomic::{AtomicBool, Ordering};
     std::thread::spawn(move || {
         static IS_RUNNING: AtomicBool = AtomicBool::new(false);
-        if IS_RUNNING.load(Ordering::SeqCst) {
+        if IS_RUNNING
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return;
         }
-        IS_RUNNING.store(true, Ordering::SeqCst);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         crate::ipc::get_socks_ws();
@@ -677,8 +757,20 @@ async fn test_nat_type_() -> ResultType<bool> {
         } else {
             NatType::SYMMETRIC
         };
+        let old_nat_type = Config::get_nat_type();
         Config::set_nat_type(t as _);
         log::info!("Tested nat type: {:?} in {:?}", t, start.elapsed());
+        // A mobile hotspot or ISP can change its mapping behind an unchanged
+        // local route. The process that owns the mediator must re-register
+        // after a NAT classification transition, not merely cache the result.
+        #[cfg(target_os = "windows")]
+        if old_nat_type != NatType::UNKNOWN_NAT as i32 && old_nat_type != t as i32 {
+            log::info!(
+                "Rendezvous NAT classification changed: {} -> {:?}; restarting mediator",
+                old_nat_type, t
+            );
+            crate::rendezvous_mediator::RendezvousMediator::restart();
+        }
     }
     Ok(ok)
 }

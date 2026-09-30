@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - michailr/mik-15-funtidesk-client-binding
+      - michailr/mik-16-network-nat-refresh
     paths:
       - ".github/workflows/mik15-windows-reviewed.yml"
       - "client/**"
