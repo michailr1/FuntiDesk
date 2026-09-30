@@ -28,18 +28,16 @@ try {
     if (-not (Test-Path "$FlutterBuild\bin\flutter.bat")) { throw 'Flutter 3.24.5 не найден. Сначала bootstrap.ps1' }
     if (-not (Test-Path "$VcpkgRoot\vcpkg.exe")) { throw 'vcpkg не найден. Сначала bootstrap.ps1' }
 
-    # Поднять MSVC environment без запуска Visual Studio IDE.
+    # FUNTIDESK: activate an existing verified MSVC x64 environment.
     $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) { throw 'vswhere не найден' }
-    $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if (-not $vsPath) {
-        # FUNTIDESK: fall back to a verified preinstalled MSVC layout when
-        # vswhere component metadata is incomplete (for example hosted runners).
-        $candidate = & $vswhere -latest -products * -property installationPath
-        if ($candidate) {
-            $candidateDevCmd = Join-Path $candidate 'Common7\Tools\VsDevCmd.bat'
-            $candidateCl = Get-ChildItem (Join-Path $candidate 'VC\Tools\MSVC') -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
-                Where-Object { $_.FullName -match '\\bin\\Hostx64\\x64\\cl\.exe
+    if (-not (Test-Path $vswhere)) { throw 'vswhere not found' }
+    $vsPath = & $vswhere -latest -products * -property installationPath
+    if (-not $vsPath) { throw 'Visual Studio installation not found' }
+    $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
+    $cl = Get-ChildItem (Join-Path $vsPath 'VC\Tools\MSVC') -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like '*\bin\Hostx64\x64\cl.exe' } |
+        Select-Object -First 1
+    if (-not (Test-Path $vsDevCmd) -or -not $cl) { throw 'Visual C++ x64 toolchain not found' }
     cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
         if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "Env:$($matches[1])" -Value $matches[2] }
     }
