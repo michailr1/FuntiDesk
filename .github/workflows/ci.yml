@@ -56,4 +56,4 @@ jobs:
 
       - name: Test client hbb_common
         run: |
-          cargo +1.75.0 test --manifest-path client/libs/hbb_common/Cargo.toml --lib
+          cargo +1.75.0 test --manifest-path client/Cargo.toml -p hbb_common --lib --locked
