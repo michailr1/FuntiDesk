@@ -202,57 +202,61 @@ pub async fn create_tcp_connection(
 ) -> ResultType<()> {
     let mut stream = stream;
     let id = server.write().unwrap().get_new_id();
-    let (sk, pk) = Config::get_key_pair();
-    if secure && pk.len() == sign::PUBLICKEYBYTES && sk.len() == sign::SECRETKEYBYTES {
-        let mut sk_ = [0u8; sign::SECRETKEYBYTES];
-        sk_[..].copy_from_slice(&sk);
-        let sk = sign::SecretKey(sk_);
-        let mut msg_out = Message::new();
-        let (our_pk_b, our_sk_b) = box_::gen_keypair();
-        msg_out.set_signed_id(SignedId {
-            id: sign::sign(
-                &IdPk {
-                    id: Config::get_id(),
-                    pk: Bytes::from(our_pk_b.0.to_vec()),
-                    ..Default::default()
-                }
-                .write_to_bytes()
-                .unwrap_or_default(),
-                &sk,
-            )
-            .into(),
-            ..Default::default()
-        });
-        timeout(CONNECT_TIMEOUT, stream.send(&msg_out)).await??;
-        match timeout(CONNECT_TIMEOUT, stream.next()).await? {
-            Some(res) => {
-                let bytes = res?;
-                if let Ok(msg_in) = Message::parse_from_bytes(&bytes) {
-                    if let Some(message::Union::PublicKey(pk)) = msg_in.union {
-                        if pk.asymmetric_value.len() == box_::PUBLICKEYBYTES {
-                            stream.set_key(tcp::Encrypt::decode(
-                                &pk.symmetric_value,
-                                &pk.asymmetric_value,
-                                &our_sk_b,
-                            )?);
-                        } else if pk.asymmetric_value.is_empty() {
-                            Config::set_key_confirmed(false);
-                            log::info!("Force to update pk");
-                        } else {
-                            bail!("Handshake failed: invalid public sign key length from peer");
-                        }
-                    } else {
-                        log::error!("Handshake failed: invalid message type");
-                    }
-                } else {
-                    bail!("Handshake failed: invalid message format");
-                }
-            }
-            None => {
-                bail!("Failed to receive public key");
-            }
-        }
+    // FUNTIDESK R-10: all production peer sessions require the authenticated
+    // encrypted handshake. Direct-IP/LAN/relay paths are not allowed to downgrade.
+    if !secure {
+        bail!("Handshake failed: insecure session rejected by FuntiDesk policy");
     }
+
+    let (sk, pk) = Config::get_key_pair();
+    if pk.len() != sign::PUBLICKEYBYTES || sk.len() != sign::SECRETKEYBYTES {
+        bail!("Handshake failed: local device identity key pair is invalid");
+    }
+
+    let mut sk_ = [0u8; sign::SECRETKEYBYTES];
+    sk_[..].copy_from_slice(&sk);
+    let sk = sign::SecretKey(sk_);
+    let mut msg_out = Message::new();
+    let (our_pk_b, our_sk_b) = box_::gen_keypair();
+    msg_out.set_signed_id(SignedId {
+        id: sign::sign(
+            &IdPk {
+                id: Config::get_id(),
+                pk: Bytes::from(our_pk_b.0.to_vec()),
+                ..Default::default()
+            }
+            .write_to_bytes()
+            .unwrap_or_default(),
+            &sk,
+        )
+        .into(),
+        ..Default::default()
+    });
+    timeout(CONNECT_TIMEOUT, stream.send(&msg_out)).await??;
+
+    let bytes = match timeout(CONNECT_TIMEOUT, stream.next()).await? {
+        Some(res) => res?,
+        None => bail!("Handshake failed: peer did not send PublicKey"),
+    };
+    let msg_in = Message::parse_from_bytes(&bytes)
+        .map_err(|_| anyhow!("Handshake failed: invalid message format"))?;
+    let peer_key = match msg_in.union {
+        Some(message::Union::PublicKey(pk)) => pk,
+        _ => bail!("Handshake failed: expected PublicKey"),
+    };
+    if peer_key.asymmetric_value.len() != box_::PUBLICKEYBYTES {
+        bail!("Handshake failed: empty or invalid peer asymmetric key");
+    }
+    if peer_key.symmetric_value.is_empty() {
+        bail!("Handshake failed: empty peer symmetric key");
+    }
+
+    let session_key = tcp::Encrypt::decode(
+        &peer_key.symmetric_value,
+        &peer_key.asymmetric_value,
+        &our_sk_b,
+    )?;
+    stream.set_key(session_key);
 
     #[cfg(target_os = "macos")]
     {

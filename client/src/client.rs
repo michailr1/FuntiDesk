@@ -763,75 +763,56 @@ impl Client {
         key: &str,
         conn: &mut Stream,
     ) -> ResultType<Option<Vec<u8>>> {
-        let rs_pk = get_rs_pk(if key.is_empty() {
-            config::RS_PUB_KEY
+        // FUNTIDESK R-10: a production session must never fall back to plaintext.
+        if signed_id_pk.is_empty() {
+            bail!("Handshake failed: rendezvous server did not provide a signed peer key");
+        }
+
+        let trust_key = if key.is_empty() {
+            config::FUNTIDESK_SERVER_PUBLIC_KEY
         } else {
             key
-        });
-        let mut sign_pk = None;
-        let mut option_pk = None;
-        if !signed_id_pk.is_empty() {
-            if let Some(rs_pk) = rs_pk {
-                if let Ok((id, pk)) = decode_id_pk(&signed_id_pk, &rs_pk) {
-                    if id == peer_id {
-                        sign_pk = Some(sign::PublicKey(pk));
-                        option_pk = Some(pk.to_vec());
-                    }
-                }
-            }
-            if sign_pk.is_none() {
-                log::error!("Handshake failed: invalid public key from rendezvous server");
-            }
-        }
-        let sign_pk = match sign_pk {
-            Some(v) => v,
-            None => {
-                // send an empty message out in case server is setting up secure and waiting for first message
-                conn.send(&Message::new()).await?;
-                return Ok(option_pk);
-            }
         };
-        match timeout(READ_TIMEOUT, conn.next()).await? {
-            Some(res) => {
-                let bytes = res?;
-                if let Ok(msg_in) = Message::parse_from_bytes(&bytes) {
-                    if let Some(message::Union::SignedId(si)) = msg_in.union {
-                        if let Ok((id, their_pk_b)) = decode_id_pk(&si.id, &sign_pk) {
-                            if id == peer_id {
-                                let (asymmetric_value, symmetric_value, key) =
-                                    create_symmetric_key_msg(their_pk_b);
-                                let mut msg_out = Message::new();
-                                msg_out.set_public_key(PublicKey {
-                                    asymmetric_value,
-                                    symmetric_value,
-                                    ..Default::default()
-                                });
-                                timeout(CONNECT_TIMEOUT, conn.send(&msg_out)).await??;
-                                conn.set_key(key);
-                            } else {
-                                log::error!("Handshake failed: sign failure");
-                                conn.send(&Message::new()).await?;
-                            }
-                        } else {
-                            // fall back to non-secure connection in case pk mismatch
-                            log::info!("pk mismatch, fall back to non-secure");
-                            let mut msg_out = Message::new();
-                            msg_out.set_public_key(PublicKey::new());
-                            conn.send(&msg_out).await?;
-                        }
-                    } else {
-                        log::error!("Handshake failed: invalid message type");
-                        conn.send(&Message::new()).await?;
-                    }
-                } else {
-                    log::error!("Handshake failed: invalid message format");
-                    conn.send(&Message::new()).await?;
-                }
-            }
-            None => {
-                bail!("Reset by the peer");
-            }
+        let rs_pk = get_rs_pk(trust_key)
+            .ok_or_else(|| anyhow!("Handshake failed: invalid FuntiDesk server public key"))?;
+        let (signed_peer_id, pk) = decode_id_pk(&signed_id_pk, &rs_pk)
+            .map_err(|_| anyhow!("Handshake failed: invalid signed peer key"))?;
+        if signed_peer_id != peer_id {
+            bail!("Handshake failed: signed peer id mismatch");
         }
+
+        let sign_pk = sign::PublicKey(pk);
+        let option_pk = Some(pk.to_vec());
+        let bytes = match timeout(READ_TIMEOUT, conn.next()).await? {
+            Some(res) => res?,
+            None => bail!("Handshake failed: peer did not send SignedId"),
+        };
+        let msg_in = Message::parse_from_bytes(&bytes)
+            .map_err(|_| anyhow!("Handshake failed: invalid message format"))?;
+        let si = match msg_in.union {
+            Some(message::Union::SignedId(si)) => si,
+            _ => bail!("Handshake failed: expected SignedId"),
+        };
+        let (id, their_pk_b) = decode_id_pk(&si.id, &sign_pk)
+            .map_err(|_| anyhow!("Handshake failed: invalid peer SignedId"))?;
+        if id != peer_id {
+            bail!("Handshake failed: peer identity mismatch");
+        }
+
+        let (asymmetric_value, symmetric_value, session_key) =
+            create_symmetric_key_msg(their_pk_b);
+        if asymmetric_value.is_empty() || symmetric_value.is_empty() {
+            bail!("Handshake failed: empty encryption material");
+        }
+
+        let mut msg_out = Message::new();
+        msg_out.set_public_key(PublicKey {
+            asymmetric_value,
+            symmetric_value,
+            ..Default::default()
+        });
+        timeout(CONNECT_TIMEOUT, conn.send(&msg_out)).await??;
+        conn.set_key(session_key);
         Ok(option_pk)
     }
 
