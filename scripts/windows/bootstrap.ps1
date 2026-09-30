@@ -5,6 +5,21 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# FUNTIDESK: immutable external dependency identities for reproducible Windows builds.
+$LlvmAssetUrl = 'https://api.github.com/repos/llvm/llvm-project/releases/assets/87177143'
+$LlvmSha256 = '22e2f2c38be4c44db7a1e9da5e67de2a453c5b4be9cf91e139592a63877ac0a2'
+$FlutterPins = @{
+    '3.22.3' = 'b0850beeb25f6d5b10426284f506557f66181b36'
+    '3.24.5' = 'dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668'
+}
+
+function Assert-Sha256([string]$Path, [string]$Expected) {
+    $actual = (Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $Expected.ToLowerInvariant()) {
+        throw "SHA256 mismatch for $Path. expected=$Expected actual=$actual"
+    }
+}
+
 function Ensure-WingetPackage([string]$Id, [string]$Override = '') {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw 'winget не найден. Нужен App Installer из Microsoft Store либо ручная установка prerequisites.'
@@ -47,16 +62,28 @@ if (Test-Path $clangExe) {
 }
 if ($needLlvm) {
     $llvmInstaller = Join-Path $env:TEMP 'LLVM-15.0.6-win64.exe'
-    Invoke-WebRequest 'https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/LLVM-15.0.6-win64.exe' -OutFile $llvmInstaller
+    Remove-Item $llvmInstaller -Force -ErrorAction SilentlyContinue
+    Invoke-WebRequest -Uri $LlvmAssetUrl -Headers @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' } -OutFile $llvmInstaller
+    Assert-Sha256 $llvmInstaller $LlvmSha256
     Start-Process -FilePath $llvmInstaller -ArgumentList '/S' -Wait
 }
 
 Write-Host '== Flutter =='
 function Ensure-Flutter([string]$Version) {
+    $expectedCommit = $FlutterPins[$Version]
+    if (-not $expectedCommit) { throw "No pinned Flutter commit for $Version" }
+
     $dir = Join-Path $ToolsRoot "flutter-$Version"
     if (-not (Test-Path (Join-Path $dir 'bin\flutter.bat'))) {
         git clone --depth 1 --branch $Version https://github.com/flutter/flutter.git $dir
+        if ($LASTEXITCODE -ne 0) { throw "Flutter clone failed: $Version" }
     }
+
+    $actualCommit = (& git -C $dir rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) {
+        throw "Flutter $Version commit mismatch. expected=$expectedCommit actual=$actualCommit"
+    }
+
     & (Join-Path $dir 'bin\flutter.bat') config --enable-windows-desktop
     & (Join-Path $dir 'bin\flutter.bat') precache --windows
     return $dir
