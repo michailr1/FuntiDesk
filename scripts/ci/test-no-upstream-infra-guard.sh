@@ -5,11 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-mkdir -p "$TMP/client/src"
-printf 'const SAFE: &str = "desk.funti.cc";\n' > "$TMP/client/src/safe.rs"
+mkdir -p "$TMP/client/libs/hbb_common/src" "$TMP/client/src"
+printf 'pub const SAFE: &str = "desk.funti.cc";\n' > "$TMP/client/libs/hbb_common/src/config.rs"
+printf 'pub fn safe() {}\n' > "$TMP/client/src/common.rs"
+printf 'pub fn safe() {}\n' > "$TMP/client/src/client.rs"
+printf 'pub fn safe() {}\n' > "$TMP/client/src/server.rs"
+printf 'pub fn safe() {}\n' > "$TMP/client/src/rendezvous_mediator.rs"
+
 bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null
 
-printf 'const BAD: &str = "rs-ny.rustdesk.com";\n' > "$TMP/client/src/bad.rs"
+printf 'pub const BAD: &str = "rs-ny.rustdesk.com";\n' >> "$TMP/client/libs/hbb_common/src/config.rs"
 if bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null 2>&1; then
   echo "ERROR: upstream infrastructure guard accepted forbidden endpoint" >&2
   exit 1
