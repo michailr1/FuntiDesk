@@ -1,6 +1,6 @@
 # Архитектура FuntiDesk
 
-Статус: черновик M0.
+Статус: архитектурный baseline принят; документ поддерживается по мере прохождения M1–M4.
 
 ## Область проекта
 
@@ -66,10 +66,13 @@ Android и iOS планируются после Windows MVP и E2E-приёмк
 
 Дополнительная E2E-проверка включает разные NAT, перезапуск/reconnect, Windows login/UAC, буфер обмена и передачу файлов.
 
-## Открытые решения M0
+## Открытые решения после M0
 
-- структура импорта исходного кода в репозиторий;
-- финальная политика обновлений и merge из upstream;
-- окончательные branding assets;
-- hostname(s) и разделение окружений;
-- release signing и update trust chain.
+Структура монорепозитория и двойной pin `hbb_common` уже приняты в `ADR-001-repository-layout.md`. Базовая политика upstream merge зафиксирована в `UPSTREAM.md`.
+
+Остаются открытыми и относятся к последующим milestone:
+
+- окончательные branding assets и новая Flutter UI-система;
+- формальная схема production/staging окружений, если появится staging;
+- release signing и update trust chain (M4);
+- политика собственного server build: production M1 использует pinned upstream image, переход на нашу сборку сервера допускается только при необходимости собственного server-side patch или невозможности закрыть security requirement конфигурацией.
