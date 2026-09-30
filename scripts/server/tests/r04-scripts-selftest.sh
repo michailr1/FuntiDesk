@@ -54,7 +54,15 @@ chmod +x "$TMP/bin/docker"
 
 cat > "$TMP/bin/ss" <<'EOF'
 #!/usr/bin/env bash
-echo "LISTEN fixture"
+set -euo pipefail
+case "$*" in
+  *:21118*|*:21119*)
+    exit 0
+    ;;
+  *)
+    echo "LISTEN fixture"
+    ;;
+esac
 EOF
 chmod +x "$TMP/bin/ss"
 
