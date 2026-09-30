@@ -76,6 +76,7 @@
 - Installer и portable-дистрибутив.
 - Безопасные настройки unattended access по умолчанию.
 - Каждый передаваемый бинарный релиз связан с конкретным source tag и license notice.
+- Автоматизировать цепочку release: source tag → reproducible build → SHA256 → release notes со ссылкой на Corresponding Source и license notice; допускается интеграция с основным CI.
 
 ## Дальше
 
