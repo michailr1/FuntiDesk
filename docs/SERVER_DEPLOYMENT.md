@@ -89,6 +89,21 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 - скопировать backup **off-host** в разрешённое владельцем хранилище;
 - не удалять единственную копию server private key.
 
+## Фактическая приёмка M1
+
+Этот раздел заполняется только данными, снятыми с production-хоста после успешного deploy/verify; значения не должны подставляться из локальной конфигурации или предположений.
+
+- Дата приёмки: _pending live acceptance_
+- Развёрнутый commit: _pending; источник — `/opt/funtidesk/DEPLOYED_COMMIT`_
+- Image digest: `sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54`
+- `PUBLIC_KEY`: _pending live verification_
+- `verify.sh`: _pending live output_
+- `restore-check.sh`: _pending R-03 acceptance_
+- Off-host backup: _pending confirmation; location recorded without secrets_
+- External port check: _pending; record source host and result_
+
+`deploy.sh` refuses production deployment when the repository has staged, unstaged, or untracked changes. On success it prints the exact Git commit and records it in `/opt/funtidesk/DEPLOYED_COMMIT`.
+
 ## Acceptance
 
 M1 считается готовым, когда подтверждены:

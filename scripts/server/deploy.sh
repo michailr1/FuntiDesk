@@ -26,6 +26,15 @@ if [[ ! -d "$REPO_DIR/.git" ]]; then
   exit 1
 fi
 
+# FUNTIDESK: production deployments must be reproducible from a committed tree.
+if [[ -n "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)" ]]; then
+  echo "ERROR: repository has uncommitted or untracked changes" >&2
+  exit 1
+fi
+
+DEPLOYED_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD)"
+echo "DEPLOYED_COMMIT=$DEPLOYED_COMMIT"
+
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 0640 "$COMPOSE_DIR/.env.example" "$ENV_FILE"
 fi
@@ -42,3 +51,6 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d
 
 bash "$REPO_DIR/scripts/server/verify.sh"
+
+printf '%s\n' "$DEPLOYED_COMMIT" > "$ROOT_DIR/DEPLOYED_COMMIT"
+chmod 0644 "$ROOT_DIR/DEPLOYED_COMMIT"
