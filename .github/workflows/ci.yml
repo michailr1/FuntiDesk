@@ -1,0 +1,57 @@
+name: FuntiDesk CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server-and-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck age
+
+      - name: Shellcheck
+        run: |
+          find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck
+
+      - name: Server self-tests
+        run: |
+          bash scripts/server/tests/r03-backup-selftest.sh
+          bash scripts/server/tests/r04-scripts-selftest.sh
+
+      - name: Validate server compose
+        run: |
+          docker compose             --env-file infra/funtidesk-server/.env.example             -f infra/funtidesk-server/compose.yaml             config >/dev/null
+
+      - name: Security guard self-test
+        run: bash scripts/ci/test-no-upstream-infra-guard.sh
+
+      - name: Enforce production infrastructure guard
+        if: ${{ hashFiles('client/.funtidesk-security-pinned') != '' }}
+        run: bash scripts/ci/guard-no-upstream-infra.sh client
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  hbb-common:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.75
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+
+      - name: Test client hbb_common
+        run: |
+          cargo +1.75.0 test --manifest-path client/libs/hbb_common/Cargo.toml --lib
