@@ -1,0 +1,23 @@
+name: R21 dependency hash probe
+
+on:
+  push:
+    branches:
+      - michailr/r-01-relay-key-auth
+
+permissions:
+  contents: read
+
+jobs:
+  hash-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hash pinned external Windows dependencies
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3             https://api.github.com/repos/rustdesk/engine/releases/assets/210168939             -H 'Accept: application/octet-stream'             -o windows-x64-release.zip
+          curl -fL --retry 3             https://api.github.com/repos/llvm/llvm-project/releases/assets/87177143             -H 'Accept: application/octet-stream'             -o LLVM-15.0.6-win64.exe
+          echo "ENGINE_SHA256=$(sha256sum windows-x64-release.zip | awk '{print $1}')"
+          echo "LLVM_SHA256=$(sha256sum LLVM-15.0.6-win64.exe | awk '{print $1}')"
+          echo "FLUTTER_3_22_3=$(git ls-remote https://github.com/flutter/flutter.git refs/tags/3.22.3 | awk '{print $1}')"
+          echo "FLUTTER_3_24_5=$(git ls-remote https://github.com/flutter/flutter.git refs/tags/3.24.5 | awk '{print $1}')"
