@@ -20,6 +20,19 @@
 
 Flutter 3.24.5 получает upstream patch `flutter_3.24.4_dropdown_menu_enableFilter.diff` и custom Windows x64 engine так же, как upstream CI.
 
+## Закреплённые внешние бинарные зависимости (R-21)
+
+Для воспроизводимости загрузки теперь привязаны не только к версиям, но и к неизменяемым идентификаторам/хэшам:
+
+- Flutter `3.22.3` → commit `b0850beeb25f6d5b10426284f506557f66181b36`;
+- Flutter `3.24.5` → commit `dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668`;
+- RustDesk custom Windows x64 Flutter engine → GitHub release asset ID `210168939`, SHA256 `ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e`;
+- LLVM `15.0.6` Windows x64 installer → GitHub release asset ID `87177143`, SHA256 `22e2f2c38be4c44db7a1e9da5e67de2a453c5b4be9cf91e139592a63877ac0a2`.
+
+`bootstrap.ps1` после clone проверяет `git rev-parse HEAD` для обеих версий Flutter. LLVM проверяется по SHA256 до запуска installer. `build-baseline.ps1` скачивает custom engine через immutable asset API URL и проверяет SHA256 до распаковки. Любое несовпадение останавливает сборку.
+
+Хэши были независимо сняты GitHub Actions на чистом Ubuntu runner прямой загрузкой release assets и затем зафиксированы в скриптах.
+
 ## Почему полная Visual Studio не нужна
 
 Для сборки необходим MSVC toolchain и Windows SDK, но IDE не требуется. `bootstrap.ps1` устанавливает Visual Studio 2022 **Build Tools** с workload C++.
