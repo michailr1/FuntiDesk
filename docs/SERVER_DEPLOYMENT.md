@@ -70,7 +70,7 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 
 1. сохранить работающий SSH-доступ;
 2. убедиться, что текущая SSH-сессия стабильна;
-3. выполнить `sudo bash scripts/server/apply-firewall.sh`;
+3. выполнить `sudo bash scripts/server/apply-firewall.sh`; скрипт определяет фактический SSH port через `sshd -T` либо требует явный `SSH_PORT` и отказывается продолжать, если порт определить нельзя;
 4. проверить, что новая SSH-сессия по-прежнему открывается;
 5. убедиться, что разрешены только SSH и минимальные FuntiDesk-порты;
 6. не открывать `80/443` без отдельной задачи;
@@ -78,9 +78,12 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 
 Изменение SSH root/password policy выполняется только после подтверждения key-based доступа, чтобы исключить lockout.
 
+
+> **Docker/UFW:** опубликованные Docker-порты проходят через DNAT/FORWARD и не гарантированно ограничиваются правилами UFW INPUT. Поэтому UFW рассматривается как один из слоёв, а `verify.sh` отдельно сверяет фактически опубликованные контейнерами порты с разрешённым списком. Любой лишний published port является ошибкой приёмки.
+
 ## Backup
 
-`scripts/server/backup.sh` создаёт root-only archive persistent `data` и SHA-256.
+`scripts/server/backup.sh` создаёт зашифрованный `age`-артефакт persistent `data` и SHA-256 sidecar; plaintext archive не сохраняется как backup-артефакт.
 
 Минимум для M1:
 
@@ -139,4 +142,4 @@ Clean restore procedure:
 6. Confirm both `hbbs` and `hbbr` report the recorded `PUBLIC_KEY`.
 7. Delete temporary plaintext material immediately.
 
-A repository self-test covers a valid encrypted backup, checksum tampering rejection, and mismatched key-pair rejection. A real clean-environment restore with the production identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.
+The repository self-test covers key-pair validation, checksum success, checksum tampering rejection, and mismatched key-pair rejection. End-to-end `age` encryption/decryption is verified during the live clean-restore acceptance. A real clean-environment restore with the production identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.

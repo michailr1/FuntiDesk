@@ -46,6 +46,14 @@ set +a
 
 : "${FUNTIDESK_FQDN:?FUNTIDESK_FQDN is required}"
 
+# FUNTIDESK: deployment owns file permissions; verify.sh must remain read-only.
+if [[ -f "$DATA_DIR/id_ed25519" ]]; then
+  chmod 600 "$DATA_DIR/id_ed25519"
+fi
+if [[ -f "$DATA_DIR/id_ed25519.pub" ]]; then
+  chmod 644 "$DATA_DIR/id_ed25519.pub"
+fi
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/dev/null
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d

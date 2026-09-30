@@ -5,7 +5,6 @@ SERVER_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# FUNTIDESK: deterministic structural fixture; no production key material.
 dd if=/dev/zero of="$TMP/private.raw" bs=64 count=1 status=none
 dd if=/dev/zero of="$TMP/public.raw" bs=32 count=1 status=none
 base64 -w0 "$TMP/private.raw" > "$TMP/id_ed25519"

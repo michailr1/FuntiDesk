@@ -36,11 +36,27 @@ for port in 21118 21119; do
   fi
 done
 
+# FUNTIDESK: Docker-published ports bypass UFW INPUT, so verify the actual published set.
+check_published_ports() {
+  local container="$1"
+  local expected="$2"
+  local actual
+  actual="$(docker port "$container" 2>/dev/null | awk '{print $1}' | sort -u | paste -sd, -)"
+  [[ "$actual" == "$expected" ]] || {
+    echo "ERROR: $container published ports '$actual', expected '$expected'" >&2
+    exit 1
+  }
+}
+check_published_ports funtidesk-hbbs "21115/tcp,21116/tcp,21116/udp"
+check_published_ports funtidesk-hbbr "21117/tcp"
+
 [[ -f "$DATA_DIR/id_ed25519" ]] || { echo "ERROR: server private key missing" >&2; exit 1; }
 [[ -f "$DATA_DIR/id_ed25519.pub" ]] || { echo "ERROR: server public key missing" >&2; exit 1; }
 
-chmod 600 "$DATA_DIR/id_ed25519"
-chmod 644 "$DATA_DIR/id_ed25519.pub"
+private_mode="$(stat -c '%a' "$DATA_DIR/id_ed25519")"
+public_mode="$(stat -c '%a' "$DATA_DIR/id_ed25519.pub")"
+[[ "$private_mode" == "600" ]] || { echo "ERROR: id_ed25519 mode=$private_mode, expected 600" >&2; exit 1; }
+[[ "$public_mode" == "644" ]] || { echo "ERROR: id_ed25519.pub mode=$public_mode, expected 644" >&2; exit 1; }
 
 expected_key="$(tr -d '\r\n' < "$DATA_DIR/id_ed25519.pub")"
 [[ -n "$expected_key" ]] || { echo "ERROR: server public key empty" >&2; exit 1; }
