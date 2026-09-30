@@ -42,6 +42,19 @@ done
 chmod 600 "$DATA_DIR/id_ed25519"
 chmod 644 "$DATA_DIR/id_ed25519.pub"
 
+expected_key="$(tr -d '\r\n' < "$DATA_DIR/id_ed25519.pub")"
+[[ -n "$expected_key" ]] || { echo "ERROR: server public key empty" >&2; exit 1; }
+
+# FUNTIDESK: both rendezvous and relay must advertise the same persistent identity.
+for c in funtidesk-hbbs funtidesk-hbbr; do
+  logged_key="$(docker logs "$c" 2>&1 | grep -oE 'Key: [^[:space:]]+' | tail -n1 | awk '{print $2}')"
+  [[ -n "$logged_key" ]] || { echo "ERROR: $c did not log server Key" >&2; exit 1; }
+  [[ "$logged_key" == "$expected_key" ]] || {
+    echo "ERROR: $c key mismatch" >&2
+    exit 1
+  }
+done
+
 echo "SERVER_VERIFY_OK=true"
 echo "FQDN=$FUNTIDESK_FQDN"
-echo "PUBLIC_KEY=$(cat "$DATA_DIR/id_ed25519.pub")"
+echo "PUBLIC_KEY=$expected_key"

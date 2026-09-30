@@ -14,6 +14,9 @@ Container image фиксируется по tag + amd64 digest:
 ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
 ```
 
+Оба сервиса запускаются с явной проверкой ключа: `hbbs ... -k _` и `hbbr -k _`.
+Это не позволяет использовать `hbbr` как keyless public relay. `hbbr` зависит от `hbbs`, чтобы на чистом развёртывании persistent server identity была создана до старта relay. `verify.sh` сверяет ключ, объявленный обоими сервисами, с `id_ed25519.pub`.
+
 ## Порты
 
 Для Windows MVP открываем только минимально необходимый набор:
@@ -59,7 +62,7 @@ Deployment:
 sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 ```
 
-После запуска выполняется `verify.sh`, который проверяет containers, listeners, отсутствие WebSocket ports и наличие persistent server identity.
+После запуска выполняется `verify.sh`, который проверяет containers, listeners, отсутствие WebSocket ports, наличие persistent server identity и совпадение публичного ключа у `hbbs`/`hbbr`.
 
 ## Firewall / SSH
 
@@ -91,6 +94,7 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 M1 считается готовым, когда подтверждены:
 
 - `hbbs` и `hbbr` running;
+- оба сервиса используют одну persistent server identity и key verification;
 - listeners только на минимальных RustDesk ports;
 - public key получен и сохранён для последующего client binding;
 - server identity переживает container restart/recreate;
