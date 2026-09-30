@@ -38,7 +38,7 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) { Ensure-WingetPack
 if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { Ensure-WingetPackage 'Kitware.CMake' }
 if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) { Ensure-WingetPackage 'Rustlang.Rustup' }
 
-$vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $needVs = $true
 if (Test-Path $vswhere) {
     $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
