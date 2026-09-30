@@ -46,7 +46,12 @@ try {
     }
     if (-not $vsDevCmd) { throw 'Visual Studio VsDevCmd.bat not found' }
     cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
-        if ($_ -match '^([^=]+)=(.*)
+        $parts = $_.Split('=', 2)
+        if ($parts.Count -eq 2) {
+            Set-Item -Path ("Env:" + $parts[0]) -Value $parts[1]
+        }
+    }
+
     $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
     $env:VCPKG_ROOT = $VcpkgRoot
     $env:VCPKG_DEFAULT_HOST_TRIPLET = 'x64-windows-static'
