@@ -14,6 +14,8 @@ Container image фиксируется по tag + amd64 digest:
 ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
 ```
 
+Production M1 разворачивается из зафиксированного upstream container image `ghcr.io/rustdesk/rustdesk-server`; импортированное дерево `/server` сейчас **не участвует** в production server build. Оно хранится для аудита upstream, возможных security backport и будущего контролируемого собственного server build. Переход на собственный image выполняется только если потребуется серверная правка, которой нет в upstream release; тогда добавляются отдельный воспроизводимый CI build, image digest, rollback и повторная M1/M3 acceptance.
+
 Оба сервиса запускаются с явной проверкой ключа: `hbbs ... -k _` и `hbbr -k _`.
 Это не позволяет использовать `hbbr` как keyless public relay. `hbbr` зависит от `hbbs`, чтобы на чистом развёртывании persistent server identity была создана до старта relay. `verify.sh` сверяет ключ, объявленный обоими сервисами, с `id_ed25519.pub`.
 
