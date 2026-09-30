@@ -1,0 +1,23 @@
+name: Dependency Hash Probe
+
+on:
+  push:
+    branches:
+      - michailr/r-21-dependency-probe
+
+jobs:
+  hashes:
+    runs-on: windows-2022
+    steps:
+      - name: Hash pinned external binaries
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = Join-Path $env:TEMP 'windows-x64-release.zip'
+          $llvm = Join-Path $env:TEMP 'LLVM-15.0.6-win64.exe'
+          Invoke-WebRequest 'https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip' -OutFile $engine
+          Invoke-WebRequest 'https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/LLVM-15.0.6-win64.exe' -OutFile $llvm
+          Write-Host "ENGINE_SHA256=$((Get-FileHash $engine -Algorithm SHA256).Hash)"
+          Write-Host "LLVM_SHA256=$((Get-FileHash $llvm -Algorithm SHA256).Hash)"
+          Write-Host "ENGINE_SIZE=$((Get-Item $engine).Length)"
+          Write-Host "LLVM_SIZE=$((Get-Item $llvm).Length)"
