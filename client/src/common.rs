@@ -1027,20 +1027,10 @@ pub fn is_setup(name: &str) -> bool {
     name.to_lowercase().ends_with("install.exe")
 }
 
-pub fn get_custom_rendezvous_server(custom: String) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.host.is_empty() {
-            return lic.host.clone();
-        }
-    }
-    if !custom.is_empty() {
-        return custom;
-    }
-    if !config::PROD_RENDEZVOUS_SERVER.read().unwrap().is_empty() {
-        return config::PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-    }
-    "".to_owned()
+pub fn get_custom_rendezvous_server(_custom: String) -> String {
+    // FUNTIDESK: production infrastructure is not configurable by executable
+    // filename, user input, or mutable runtime state.
+    config::FUNTIDESK_RENDEZVOUS_SERVER.to_owned()
 }
 
 #[inline]
@@ -1061,17 +1051,9 @@ pub fn get_api_server(api: String, custom: String) -> String {
     res
 }
 
-fn get_api_server_(api: String, custom: String) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.api.is_empty() {
-            return lic.api.clone();
-        }
-    }
-    if !api.is_empty() {
-        return api.to_owned();
-    }
-    let s0 = get_custom_rendezvous_server(custom);
+fn get_api_server_(_api: String, _custom: String) -> String {
+    // FUNTIDESK: executable-name licensing must never redirect infrastructure.
+    let s0 = config::FUNTIDESK_RENDEZVOUS_SERVER.to_owned();
     if !s0.is_empty() {
         let s = crate::increase_port(&s0, -2);
         if s == s0 {
