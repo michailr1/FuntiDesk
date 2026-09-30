@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 COMMON="client/src/common.rs"
+
 python3 - "$COMMON" <<'PY'
 import sys
 s=open(sys.argv[1],encoding="utf-8").read()
-for fn,nextfn in [
-    ("pub fn get_custom_rendezvous_server","#[inline]\npub fn get_api_server"),
-    ("fn get_api_server_","pub fn get_audit_server"),
-    ("pub async fn get_key","pub fn pk_to_fingerprint"),
-]:
-    a=s.index(fn)
-    b=s.index(nextfn,a)
+
+checks=[
+    ("pub fn get_custom_rendezvous_server", "#[inline]\npub fn get_api_server"),
+    ("pub async fn get_key", "pub fn pk_to_fingerprint"),
+]
+for start,end in checks:
+    a=s.index(start)
+    b=s.index(end,a)
     block=s[a:b]
     if "get_license_from_exe_name" in block:
-        raise SystemExit(f"ERROR: exe-name infrastructure override remains in {fn}")
+        raise SystemExit(f"ERROR: exe-name infrastructure override remains in {start}")
+
+api_a=s.index("pub fn get_api_server")
+api_b=s.index("#[inline]\npub fn is_public",api_a)
+if "get_license_from_exe_name" in s[api_a:api_b]:
+    raise SystemExit("ERROR: exe-name API override remains")
+
 print("R11_EXE_NAME_CONFIG_TEST_OK=true")
 PY
