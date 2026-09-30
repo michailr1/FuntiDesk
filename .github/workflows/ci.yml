@@ -1,0 +1,51 @@
+name: Minimal CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'michailr/**'
+      - 'claude/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server-scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Shellcheck
+        run: find scripts -type f -name '*.sh' -print0 | xargs -0 --no-run-if-empty shellcheck
+      - name: Compose config
+        run: docker compose --env-file infra/funtidesk-server/.env.example -f infra/funtidesk-server/compose.yaml config >/dev/null
+      - name: Upstream production guard
+        run: bash scripts/ci/check-upstream-guard.sh
+      - name: Guard negative self-test
+        run: bash scripts/ci/test-upstream-guard.sh
+
+  hbb-common:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Rust 1.75
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal
+          rustup override set 1.75.0
+      - name: Test client hbb_common
+        run: cargo test --manifest-path client/libs/hbb_common/Cargo.toml --lib
+
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Install pinned gitleaks
+        run: go install github.com/gitleaks/gitleaks/v8@v8.28.0
+      - name: Scan working tree
+        run: "$(go env GOPATH)/bin/gitleaks" dir --redact --no-banner .
