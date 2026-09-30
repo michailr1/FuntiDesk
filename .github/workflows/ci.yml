@@ -4,11 +4,20 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  smoke:
+  server-scripts:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Smoke
-        run: echo CI_OK
+      - name: Shellcheck
+        run: find scripts -type f -name '*.sh' -print0 | xargs -0 --no-run-if-empty shellcheck
+      - name: Compose config
+        run: docker compose --env-file infra/funtidesk-server/.env.example -f infra/funtidesk-server/compose.yaml config >/dev/null
+      - name: Upstream production guard
+        run: bash scripts/ci/check-upstream-guard.sh
+      - name: Guard negative self-test
+        run: bash scripts/ci/test-upstream-guard.sh
