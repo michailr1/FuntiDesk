@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+<title id="title">FuntiDesk</title><desc id="desc">Blue shield with a white desktop window and cursor.</desc>
+<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1BC0E8"/><stop offset=".49" stop-color="#138FF5"/><stop offset="1" stop-color="#064BEB"/></linearGradient><clipPath id="c"><path d="M128 15C133 15 143 22 160 31C180 41 200 46 220 51C227 53 231 60 231 69V138C231 183 193 217 128 241C64 217 25 183 25 138V69C25 60 29 53 36 51C56 46 76 41 96 31C113 22 123 15 128 15Z"/></clipPath></defs>
+<path fill="url(#b)" d="M128 15C133 15 143 22 160 31C180 41 200 46 220 51C227 53 231 60 231 69V138C231 183 193 217 128 241C64 217 25 183 25 138V69C25 60 29 53 36 51C56 46 76 41 96 31C113 22 123 15 128 15Z"/>
+<g clip-path="url(#c)" fill="#fff"><path d="M69 132V111C69 92 80 80 99 76L236 52V68L102 92C89 95 84 101 84 113V224L69 216Z"/><path d="M99 94L234 70V83L106 106C98 107 95 112 95 120V226L84 221V119C84 106 89 99 99 94Z" opacity=".96"/></g>
+<g fill="#fff"><circle cx="115" cy="124" r="7"/><circle cx="139" cy="120" r="7"/><circle cx="163" cy="116" r="7"/></g>
+<path fill="#fff" stroke="#fff" stroke-linejoin="round" stroke-width="2" d="M144 150Q141 146 144 143Q146 141 150 143L201 171Q207 174 205 180Q204 183 199 184L179 186L171 207Q169 212 164 211Q160 211 158 207Z"/>
+</svg>
