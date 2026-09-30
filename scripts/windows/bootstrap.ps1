@@ -42,6 +42,83 @@ $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe
 $needVs = $true
 if (Test-Path $vswhere) {
     $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $vs) {
+        # FUNTIDESK: hosted runners can have a usable MSVC toolchain even when
+        # vswhere component metadata does not satisfy the -requires query.
+        $candidate = & $vswhere -latest -products * -property installationPath
+        if ($candidate) {
+            $vsDevCmd = Join-Path $candidate 'Common7\Tools\VsDevCmd.bat'
+            $cl = Get-ChildItem (Join-Path $candidate 'VC\Tools\MSVC') -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match '\\bin\\Hostx64\\x64\\cl\.exe
+
+Write-Host '== Rust 1.75 =='
+& rustup toolchain install 1.75.0-x86_64-pc-windows-msvc --profile minimal --component rustfmt
+& rustup target add x86_64-pc-windows-msvc --toolchain 1.75.0-x86_64-pc-windows-msvc
+
+Write-Host '== LLVM 15.0.6 =='
+$llvmDir = 'C:\Program Files\LLVM'
+$clangExe = Join-Path $llvmDir 'bin\clang.exe'
+$needLlvm = $true
+if (Test-Path $clangExe) {
+    $ver = (& $clangExe --version | Select-Object -First 1)
+    if ($ver -match '15\.0\.6') { $needLlvm = $false }
+}
+if ($needLlvm) {
+    $llvmInstaller = Join-Path $env:TEMP 'LLVM-15.0.6-win64.exe'
+    Remove-Item $llvmInstaller -Force -ErrorAction SilentlyContinue
+    Invoke-WebRequest -Uri $LlvmAssetUrl -Headers @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' } -OutFile $llvmInstaller
+    Assert-Sha256 $llvmInstaller $LlvmSha256
+    Start-Process -FilePath $llvmInstaller -ArgumentList '/S' -Wait
+}
+
+Write-Host '== Flutter =='
+function Ensure-Flutter([string]$Version) {
+    $expectedCommit = $FlutterPins[$Version]
+    if (-not $expectedCommit) { throw "No pinned Flutter commit for $Version" }
+
+    $dir = Join-Path $ToolsRoot "flutter-$Version"
+    if (-not (Test-Path (Join-Path $dir 'bin\flutter.bat'))) {
+        git clone --depth 1 --branch $Version https://github.com/flutter/flutter.git $dir
+        if ($LASTEXITCODE -ne 0) { throw "Flutter clone failed: $Version" }
+    }
+
+    $actualCommit = (& git -C $dir rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) {
+        throw "Flutter $Version commit mismatch. expected=$expectedCommit actual=$actualCommit"
+    }
+
+    & (Join-Path $dir 'bin\flutter.bat') config --enable-windows-desktop
+    & (Join-Path $dir 'bin\flutter.bat') precache --windows
+    return $dir
+}
+$flutterBridge = Ensure-Flutter '3.22.3'
+$flutterBuild = Ensure-Flutter '3.24.5'
+
+Write-Host '== vcpkg =='
+$vcpkgDir = Join-Path $ToolsRoot 'vcpkg'
+if (-not (Test-Path (Join-Path $vcpkgDir '.git'))) {
+    git clone https://github.com/microsoft/vcpkg.git $vcpkgDir
+}
+pushd $vcpkgDir
+git fetch --all --tags --prune
+git checkout --detach 120deac3062162151622ca4860575a33844ba10b
+& .\bootstrap-vcpkg.bat -disableMetrics
+popd
+
+Write-Host ''
+Write-Host 'BOOTSTRAP_OK=true'
+Write-Host "TOOLS_ROOT=$ToolsRoot"
+Write-Host "FLUTTER_BRIDGE=$flutterBridge"
+Write-Host "FLUTTER_BUILD=$flutterBuild"
+Write-Host "VCPKG_ROOT=$vcpkgDir"
+Write-Host 'Перезапусти PowerShell перед сборкой, чтобы PATH обновился после установщиков.'
+ } |
+                Select-Object -First 1
+            if ((Test-Path $vsDevCmd) -and $cl) {
+                $vs = $candidate
+            }
+        }
+    }
     if ($vs) { $needVs = $false }
 }
 if ($needVs) {
