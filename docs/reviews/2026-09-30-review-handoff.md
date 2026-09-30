@@ -289,21 +289,21 @@ _Заполняется ведущим разработчиком: по кажд
 
 | ID | Решение | Commit | Доказательства | Статус |
 |----|---------|--------|----------------|--------|
-| R-01 | | | | |
-| R-02 | | | | |
-| R-03 | | | | |
-| R-04 | | | | |
-| R-10 | | | | |
-| R-11 | | | | |
-| R-12 | | | | |
-| R-13 | | | | |
-| R-14 | | | | |
-| R-15 | | | | |
-| R-16 | | | | |
-| R-20 | | | | |
-| R-21 | | | | |
-| R-22 | | | | |
-| R-30 | | | | |
-| R-31 | | | | |
-| R-32 | | | | |
-| R-33 | | | | |
+| R-01 | Принято | — | Linear [MIK-26](https://linear.app/michailr/issue/MIK-26); реализация/серверная приёмка ещё не выполнялись | Открыто — P0 / M1 |
+| R-02 | Принято | — | Linear [MIK-27](https://linear.app/michailr/issue/MIK-27); фактические acceptance-данные должны быть сняты с live server при исполнении | Открыто — P0 / M1 |
+| R-03 | Принято; для шифрования предпочтение `age`, окончательно фиксируется отдельным commit/документацией | — | Linear [MIK-28](https://linear.app/michailr/issue/MIK-28); tamper/key-pair/real-restore acceptance ещё не выполнялись | Открыто — P0 / M1 |
+| R-04 | Принято | — | Linear [MIK-29](https://linear.app/michailr/issue/MIK-29); shellcheck/idempotence/extra-port negative test ещё не выполнялись | Открыто — P0 / M1 |
+| R-10 | Принято; блокер передачи production-сборок | — | Linear [MIK-36](https://linear.app/michailr/issue/MIK-36); fake-hbbs/wrong-key/empty-PublicKey tests ещё не выполнены | Запланировано — P1 / M2 blocker |
+| R-11 | Принято; production не должен получать infrastructure config из имени exe | — | Linear [MIK-34](https://linear.app/michailr/issue/MIK-34); rename negative test ещё не выполнен | Запланировано — P1 / M2 blocker |
+| R-12 | Принято; build-time pin FuntiDesk endpoints/key, без upstream fallback | — | Linear [MIK-33](https://linear.app/michailr/issue/MIK-33); unit/network acceptance ещё не выполнены | Запланировано — P1 / M2 blocker |
+| R-13 | Принято; production custom client configuration отключается согласно ADR-002 | — | Linear [MIK-35](https://linear.app/michailr/issue/MIK-35); signed `custom.txt` negative test ещё не выполнен | Запланировано — P1 / M2 blocker |
+| R-14 | Принято; нужен явный endpoint allowlist и сетевой аудит чистой Windows VM | — | Linear [MIK-38](https://linear.app/michailr/issue/MIK-38); capture/audit ещё не выполнялся | Запланировано — P1 / M2 blocker |
+| R-15 | Принято; defaults и user-mutability будут зафиксированы как production policy | — | Linear [MIK-37](https://linear.app/michailr/issue/MIK-37); clean-install acceptance ещё не выполнен | Запланировано — P1 / M2 blocker |
+| R-16 | Принято | — | Linear [MIK-39](https://linear.app/michailr/issue/MIK-39); P7–P10 и расширенная acceptance-матрица будут добавлены после/вместе с R-10…R-15 | Запланировано — P1 / M2 |
+| R-20 | Принято; минимальный root CI обязателен до security-патчей M2 | — | Linear [MIK-30](https://linear.app/michailr/issue/MIK-30); green/negative CI acceptance ещё не выполнены | Запланировано — P2 / до кода M2 |
+| R-21 | Принято | — | Linear [MIK-31](https://linear.app/michailr/issue/MIK-31); immutable asset/SHA256/clean rebuild acceptance ещё не выполнены | Запланировано — P2 / до кода M2 |
+| R-22 | Принято | — | Linear [MIK-32](https://linear.app/michailr/issue/MIK-32); документация будет синхронизирована после P0 и до завершения M2 | Запланировано — P2 / до кода M2 |
+| R-30 | Принято; минимум manual verified update в M4, auto-update отдельным ADR | — | Linear [MIK-40](https://linear.app/michailr/issue/MIK-40), milestone M4 | Запланировано — P3 / M4 |
+| R-31 | Принято | — | Linear [MIK-41](https://linear.app/michailr/issue/MIK-41), milestone M4 | Запланировано — P3 / M4 |
+| R-32 | Принято | — | Linear [MIK-42](https://linear.app/michailr/issue/MIK-42), milestone M3; update/rollback/monitoring/relay quota входят в scope | Запланировано — P3 / M3 |
+| R-33 | Принято; допускается интеграция с R-20, но release-chain изменение остаётся отдельным коммитом/acceptance | — | Linear [MIK-43](https://linear.app/michailr/issue/MIK-43), milestone M4 | Запланировано — P3 / M4 |
