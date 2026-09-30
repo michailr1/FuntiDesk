@@ -32,9 +32,16 @@ try {
     $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) { throw 'vswhere not found' }
     $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
-    if (-not $vsPath) { throw 'Visual Studio installation not found' }
-    $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
-    if (-not (Test-Path $vsDevCmd)) { throw 'VsDevCmd.bat not found' }
+    $vsDevCmd = if ($vsPath) { Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat' } else { $null }
+    if (-not $vsDevCmd -or -not (Test-Path $vsDevCmd)) {
+        $candidate = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter VsDevCmd.bat -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like '*\Common7\Tools\VsDevCmd.bat' } |
+            Select-Object -First 1
+        if ($candidate) {
+            $vsDevCmd = $candidate.FullName
+        }
+    }
+    if (-not $vsDevCmd -or -not (Test-Path $vsDevCmd)) { throw 'Visual Studio VsDevCmd.bat not found' }
     cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
         if ($_ -match '^([^=]+)=(.*)
     $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
