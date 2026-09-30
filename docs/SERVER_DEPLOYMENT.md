@@ -119,3 +119,24 @@ M1 считается готовым, когда подтверждены:
 - нет зависимости от публичных RustDesk rendezvous/relay.
 
 Client security binding выполняется позже в M2.
+
+
+### Encrypted server backup (R-03)
+
+Production backup is encrypted with `age` before it becomes a persistent/off-host artifact. The repository does not contain the owner's private age identity.
+
+Before running `backup.sh`, set `AGE_RECIPIENT` to the owner's age public recipient (for example `age1...`). The script creates only `*.tar.gz.age` plus its SHA-256 sidecar; the plaintext tar archive exists only as a temporary file and is deleted before success is reported.
+
+Restore verification requires the owner's private age identity via `AGE_IDENTITY_FILE`. It verifies the encrypted artifact SHA-256, decrypts into a temporary directory, validates server-key encoding and decoded sizes (64-byte private value, 32-byte public value), and requires the final 32 bytes of the private key to equal the public key. `EXPECTED_PUBLIC_KEY` can additionally pin the expected production server identity.
+
+Clean restore procedure:
+
+1. Install `age` on the clean VM/container.
+2. Copy the encrypted backup, its `.sha256` sidecar, and the owner's age identity using an approved secure channel.
+3. Run `AGE_IDENTITY_FILE=/secure/path/owner.agekey EXPECTED_PUBLIC_KEY='<recorded public server key>' scripts/server/restore-check.sh <archive.tar.gz.age>`.
+4. Only after `RESTORE_CHECK_OK=true`, decrypt the archive into a temporary location and restore `data/` under `/opt/funtidesk`.
+5. Ensure `id_ed25519` is mode `600`, then run the normal deploy/verify.
+6. Confirm both `hbbs` and `hbbr` report the recorded `PUBLIC_KEY`.
+7. Delete temporary plaintext material immediately.
+
+A repository self-test covers a valid encrypted backup, checksum tampering rejection, and mismatched key-pair rejection. A real clean-environment restore with the production identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.
