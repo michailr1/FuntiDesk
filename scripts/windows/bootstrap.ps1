@@ -22,7 +22,7 @@ function Assert-Sha256([string]$Path, [string]$Expected) {
 
 function Ensure-WingetPackage([string]$Id, [string]$Override = '') {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        throw 'winget не найден. Нужен App Installer из Microsoft Store либо ручная установка prerequisites.'
+        throw "winget не найден; требуется установить отсутствующий prerequisite: $Id"
     }
     $args = @('install','--id',$Id,'--exact','--accept-source-agreements','--accept-package-agreements','--silent')
     if ($Override) { $args += @('--override',$Override) }
