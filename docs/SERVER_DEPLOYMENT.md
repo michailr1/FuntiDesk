@@ -1,6 +1,6 @@
 # FuntiDesk Server — M1 deployment
 
-Целевой хост M1: `desk.funti.cc` (`107.172.76.106`).
+Целевой production hostname M1: `desk.funti.cc`. Текущий production IP фиксируется в live acceptance/inventory, а не используется клиентом как trust anchor.
 
 На этом этапе разворачиваются только OSS-компоненты `hbbs` и `hbbr`. Другие будущие сервисы на VM не проектируются.
 
@@ -13,6 +13,10 @@ Container image фиксируется по tag + amd64 digest:
 ```text
 ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
 ```
+
+Production M1 запускает этот upstream image; импортированное дерево `/server` в текущем production build/deploy **не компилируется и не используется**. Оно хранится для аудита upstream, воспроизводимости baseline и возможных будущих server-side patch.
+
+На собственную сборку `/server` переходим только если появляется server-side security/product requirement, который нельзя реализовать безопасной конфигурацией pinned upstream image. Такой переход оформляется отдельным решением, CI/build provenance и новой acceptance.
 
 ## Порты
 
@@ -74,6 +78,8 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 7. не открывать `21118/21119`.
 
 Изменение SSH root/password policy выполняется только после подтверждения key-based доступа, чтобы исключить lockout.
+
+**Docker/UFW:** опубликованные Docker ports проходят через Docker NAT/FORWARD и могут обходить ожидания, основанные только на UFW `INPUT`. Поэтому allowlist published ports должен проверяться по фактической Docker-конфигурации/`docker port`, а не только по `ufw status`.
 
 ## Backup
 
