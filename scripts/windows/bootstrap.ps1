@@ -41,14 +41,12 @@ if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) { Ensure-WingetPack
 $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 $needVs = $true
 if (Test-Path $vswhere) {
-    # FUNTIDESK: accept a preinstalled VS instance only when VsDevCmd and an x64 cl.exe exist.
-    $candidate = & $vswhere -latest -products * -property installationPath
-    if ($candidate) {
-        $vsDevCmd = Join-Path $candidate 'Common7\Tools\VsDevCmd.bat'
-        $cl = Get-ChildItem (Join-Path $candidate 'VC\Tools\MSVC') -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -like '*\bin\Hostx64\x64\cl.exe' } |
-            Select-Object -First 1
-        if ((Test-Path $vsDevCmd) -and $cl) {
+    $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
+    $clPath = (& $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\cl.exe' | Select-Object -First 1)
+    if ($vsPath) {
+        $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
+        if ((Test-Path $vsDevCmd) -and $clPath -and (Test-Path $clPath)) {
+            Write-Host "Using preinstalled MSVC: $clPath"
             $needVs = $false
         }
     }
