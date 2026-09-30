@@ -939,63 +939,13 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
-    if is_custom_client() {
-        return;
-    }
-    let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
-    if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
-        std::thread::spawn(move || allow_err!(do_check_software_update()));
-    }
+    // FUNTIDESK R-14: upstream background update checks are disabled.
 }
 
-// No need to check `danger_accept_invalid_cert` for now.
-// Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    let (request, url) =
-        hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
-    let proxy_conf = Config::get_socks();
-    let tls_url = get_url_for_tls(&url, &proxy_conf);
-    let tls_type = get_cached_tls_type(tls_url);
-    let is_tls_not_cached = tls_type.is_none();
-    let tls_type = tls_type.unwrap_or(TlsType::Rustls);
-    let client = create_http_client_async(tls_type, false);
-    let latest_release_response = match client.post(&url).json(&request).send().await {
-        Ok(resp) => {
-            upsert_tls_cache(tls_url, tls_type, false);
-            resp
-        }
-        Err(err) => {
-            if is_tls_not_cached && err.is_request() {
-                let tls_type = TlsType::NativeTls;
-                let client = create_http_client_async(tls_type, false);
-                let resp = client.post(&url).json(&request).send().await?;
-                upsert_tls_cache(tls_url, tls_type, false);
-                resp
-            } else {
-                return Err(err.into());
-            }
-        }
-    };
-    let bytes = latest_release_response.bytes().await?;
-    let resp: hbb_common::VersionCheckResponse = serde_json::from_slice(&bytes)?;
-    let response_url = resp.url;
-    let latest_release_version = response_url.rsplit('/').next().unwrap_or_default();
-
-    if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
-        #[cfg(feature = "flutter")]
-        {
-            let mut m = HashMap::new();
-            m.insert("name", "check_software_update_finish");
-            m.insert("url", &response_url);
-            if let Ok(data) = serde_json::to_string(&m) {
-                let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
-            }
-        }
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
-    } else {
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
-    }
+    // FUNTIDESK R-14: update transport will be reintroduced only through the
+    // owned release channel planned for R-30.
     Ok(())
 }
 
@@ -1034,35 +984,10 @@ pub fn get_custom_rendezvous_server(_custom: String) -> String {
 }
 
 #[inline]
-pub fn get_api_server(api: String, custom: String) -> String {
-    if Config::no_register_device() {
-        return "".to_owned();
-    }
-    let mut res = get_api_server_(api, custom);
-    if res.ends_with('/') {
-        res.pop();
-    }
-    if res.starts_with("https")
-        && res.ends_with(":21114")
-        && get_builtin_option(keys::OPTION_ALLOW_HTTPS_21114) != "Y"
-    {
-        return res.replace(":21114", "");
-    }
-    res
-}
-
-fn get_api_server_(_api: String, _custom: String) -> String {
-    // FUNTIDESK: executable-name licensing must never redirect infrastructure.
-    let s0 = config::FUNTIDESK_RENDEZVOUS_SERVER.to_owned();
-    if !s0.is_empty() {
-        let s = crate::increase_port(&s0, -2);
-        if s == s0 {
-            return format!("http://{}:{}", s, config::RENDEZVOUS_PORT - 2);
-        } else {
-            return format!("http://{}", s);
-        }
-    }
-    "https://admin.rustdesk.com".to_owned()
+pub fn get_api_server(_api: String, _custom: String) -> String {
+    // FUNTIDESK R-14: no account/API service is part of the current production
+    // perimeter. Returning empty prevents background calls to upstream admin/API.
+    String::new()
 }
 
 #[inline]
