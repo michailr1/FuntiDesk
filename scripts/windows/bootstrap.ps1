@@ -99,8 +99,8 @@ function Ensure-Flutter([string]$Version) {
         throw "Flutter $Version commit mismatch. expected=$expectedCommit actual=$actualCommit"
     }
 
-    & (Join-Path $dir 'bin\flutter.bat') config --enable-windows-desktop
-    & (Join-Path $dir 'bin\flutter.bat') precache --windows
+    & (Join-Path $dir 'bin\flutter.bat') config --enable-windows-desktop | Out-Host
+    & (Join-Path $dir 'bin\flutter.bat') precache --windows | Out-Host
     return $dir
 }
 $flutterBridge = Ensure-Flutter '3.22.3'
