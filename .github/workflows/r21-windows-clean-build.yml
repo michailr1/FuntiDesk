@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - michailr/r-01-relay-key-auth
+      - michailr/m2-security-review-fixes
     paths:
       - ".github/workflows/r21-windows-clean-build.yml"
       - "scripts/windows/**"
