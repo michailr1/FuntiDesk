@@ -51,6 +51,15 @@ if (Test-Path $vswhere) {
     }
 }
 if ($needVs) {
+    $vsDevCmdCandidate = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter VsDevCmd.bat -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like '*\Common7\Tools\VsDevCmd.bat' } |
+        Select-Object -First 1
+    if ($vsDevCmdCandidate) {
+        Write-Host "Using Visual Studio discovered by filesystem: $($vsDevCmdCandidate.FullName)"
+        $needVs = $false
+    }
+}
+if ($needVs) {
     Ensure-WingetPackage 'Microsoft.VisualStudio.2022.BuildTools' '--wait --norestart --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
 }
 
