@@ -15,6 +15,11 @@ fi
 grep -Fq 'rendezvous server did not provide a signed peer key' "$CLIENT"
 grep -Fq 'signed peer id mismatch' "$CLIENT"
 grep -Fq 'empty encryption material' "$CLIENT"
+grep -Fq 'insecure relay session rejected by FuntiDesk policy' "$CLIENT"
+if grep -Fq '!signed_id_pk.is_empty()' "$CLIENT"; then
+  echo "ERROR: relay secure flag still depends on presence of signed peer key" >&2
+  exit 1
+fi
 grep -Fq 'insecure session rejected by FuntiDesk policy' "$SERVER"
 grep -Fq 'empty or invalid peer asymmetric key' "$SERVER"
 grep -Fq 'empty peer symmetric key' "$SERVER"
