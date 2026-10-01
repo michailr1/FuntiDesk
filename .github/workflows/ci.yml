@@ -41,8 +41,10 @@ jobs:
 
       - name: Server self-tests
         run: |
-          bash scripts/server/tests/r03-backup-selftest.sh
-          bash scripts/server/tests/r04-scripts-selftest.sh
+          for test_script in scripts/server/tests/*.sh; do
+            echo "==> $test_script"
+            bash "$test_script"
+          done
 
       - name: Validate server compose
         run: |
