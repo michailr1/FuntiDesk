@@ -1670,12 +1670,8 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     );
     let src_exe = std::env::current_exe()?.to_str().unwrap_or("").to_string();
 
-    // potential bug here: if run_cmd cancelled, but config file is changed.
-    if let Some(lic) = get_license() {
-        Config::set_option("key".into(), lic.key);
-        Config::set_option("custom-rendezvous-server".into(), lic.host);
-        Config::set_option("api-server".into(), lic.api);
-    }
+    // FUNTIDESK R-11: never persist infrastructure parameters derived from
+    // executable names or legacy installer licensing metadata.
 
     let tray_shortcuts = if config::is_outgoing_only() {
         "".to_owned()
@@ -2161,9 +2157,8 @@ pub fn is_win_10_or_greater() -> bool {
 }
 
 pub fn bootstrap() -> bool {
-    if let Ok(lic) = get_license_from_exe_name() {
-        *config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();
-    }
+    // FUNTIDESK R-11: executable names cannot select production infrastructure.
+    // EXE_RENDEZVOUS_SERVER intentionally remains unused.
 
     #[cfg(debug_assertions)]
     {
