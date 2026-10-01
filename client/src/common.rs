@@ -659,10 +659,8 @@ async fn test_nat_type_() -> ResultType<bool> {
                     port2 = tnr.port;
                 }
                 if let Some(cu) = tnr.cu.as_ref() {
-                    Config::set_option(
-                        "rendezvous-servers".to_owned(),
-                        cu.rendezvous_servers.join(","),
-                    );
+                    // FUNTIDESK R-12: never persist rendezvous endpoints supplied
+                    // by protocol responses. Production endpoint is build-time pinned.
                     Config::set_serial(cu.serial);
                 }
             }
