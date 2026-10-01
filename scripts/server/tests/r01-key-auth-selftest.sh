@@ -5,17 +5,9 @@ COMPOSE="infra/funtidesk-server/compose.yaml"
 DEPLOY="scripts/server/deploy.sh"
 VERIFY="scripts/server/verify.sh"
 
-python3 - "$COMPOSE" <<'PY'
-import sys, yaml
-p=sys.argv[1]
-with open(p,encoding="utf-8") as f:
-    d=yaml.safe_load(f)
-for svc in ("hbbs","hbbr"):
-    cmd=d["services"][svc]["command"]
-    if "-k" not in cmd or "_" not in cmd:
-        raise SystemExit(f"ERROR: {svc} command does not require -k _")
-print("R01_COMPOSE_KEY_AUTH_OK=true")
-PY
+grep -Fq 'command: ["hbbs", "-r", "${FUNTIDESK_FQDN}:21117", "-k", "_"]' "$COMPOSE"
+grep -Fq 'command: ["hbbr", "-k", "_"]' "$COMPOSE"
+echo "R01_COMPOSE_KEY_AUTH_OK=true"
 
 python3 - "$DEPLOY" <<'PY'
 import sys
