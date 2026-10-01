@@ -1979,6 +1979,10 @@ pub fn apply_funtidesk_security_policy() {
             keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK.to_owned(),
             "N".to_owned(),
         );
+        fixed.insert(
+            keys::OPTION_ALLOW_WEBSOCKET.to_owned(),
+            "N".to_owned(),
+        );
     }
 
     // FUNTIDESK R-15: safe clean-install defaults. These are defaults rather
