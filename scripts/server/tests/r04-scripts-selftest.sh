@@ -88,5 +88,14 @@ if grep -q 'ufw allow 22/tcp' "$SERVER_SCRIPTS/apply-firewall.sh"; then
   echo "ERROR: apply-firewall.sh still hard-codes SSH/22" >&2
   exit 1
 fi
+if grep -q 'ufw default deny incoming' "$SERVER_SCRIPTS/apply-firewall.sh"; then
+  echo "ERROR: apply-firewall.sh changes shared-host global incoming policy" >&2
+  exit 1
+fi
+if grep -q 'ufw default allow outgoing' "$SERVER_SCRIPTS/apply-firewall.sh"; then
+  echo "ERROR: apply-firewall.sh changes shared-host global outgoing policy" >&2
+  exit 1
+fi
+grep -q 'FUNTIDESK_ENABLE_UFW' "$SERVER_SCRIPTS/apply-firewall.sh"
 
 echo "R04_SELFTEST_OK=true"
