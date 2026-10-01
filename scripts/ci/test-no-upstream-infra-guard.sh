@@ -16,7 +16,14 @@ bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null
 
 printf 'pub const BAD: &str = "rs-ny.rustdesk.com";\n' >> "$TMP/client/libs/hbb_common/src/config.rs"
 if bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null 2>&1; then
-  echo "ERROR: upstream infrastructure guard accepted forbidden endpoint" >&2
+  echo "ERROR: upstream infrastructure guard accepted forbidden rendezvous endpoint" >&2
+  exit 1
+fi
+
+sed -i '/rs-ny\.rustdesk\.com/d' "$TMP/client/libs/hbb_common/src/config.rs"
+printf 'pub const BAD_API: &str = "api.rustdesk.com";\n' >> "$TMP/client/src/common.rs"
+if bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null 2>&1; then
+  echo "ERROR: upstream infrastructure guard accepted forbidden runtime API endpoint" >&2
   exit 1
 fi
 
