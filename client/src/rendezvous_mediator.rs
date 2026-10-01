@@ -822,15 +822,11 @@ impl RendezvousMediator {
         Ok(())
     }
 
-    fn get_relay_server(&self, provided_by_rendezvous_server: String) -> String {
-        let mut relay_server = Config::get_option("relay-server");
-        if relay_server.is_empty() {
-            relay_server = provided_by_rendezvous_server;
-        }
-        if relay_server.is_empty() {
-            relay_server = crate::increase_port(&self.host, 1);
-        }
-        relay_server
+    fn get_relay_server(&self, _provided_by_rendezvous_server: String) -> String {
+        // FUNTIDESK R-12: relay routing is part of the immutable production
+        // infrastructure. Ignore mutable config and any relay host supplied by
+        // rendezvous messages to prevent runtime redirection.
+        config::FUNTIDESK_RELAY_SERVER.to_owned()
     }
 }
 
