@@ -16,6 +16,8 @@ if grep -Fq 'let trust_key = if key.is_empty()' client/src/client.rs; then
 fi
 grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/client.rs
 grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/rendezvous_mediator.rs
+grep -Fq '_relay_server: String' client/src/rendezvous_mediator.rs
+grep -Fq 'let relay_server = config::FUNTIDESK_RELAY_SERVER.to_owned();' client/src/rendezvous_mediator.rs
 if grep -Fq 'Config::get_option("relay-server")' client/src/rendezvous_mediator.rs; then
   echo "ERROR: incoming relay path still consults mutable relay-server config" >&2
   exit 1
