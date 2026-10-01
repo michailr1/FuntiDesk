@@ -17,7 +17,7 @@ public_key="$(tr -d '\r\n' < "$DATA_DIR/id_ed25519.pub")"
   exit 1
 }
 
-verify_output="$(ROOT_DIR="$ROOT_DIR" REPO_DIR="$REPO_DIR" bash "$REPO_DIR/scripts/server/verify.sh")"
+verify_output="$(env ROOT_DIR="$ROOT_DIR" REPO_DIR="$REPO_DIR" bash "$REPO_DIR/scripts/server/verify.sh")"
 printf '%s\n' "$verify_output"
 
 hbbs_image="$(docker inspect -f '{{.Image}}' funtidesk-hbbs)"
