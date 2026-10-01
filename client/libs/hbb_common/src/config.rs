@@ -3311,6 +3311,54 @@ mod tests {
     }
 
     #[test]
+    fn test_funtidesk_rendezvous_pinning_ignores_mutable_sources() {
+        let _guard = CONFIG_STATE_TEST_LOCK.lock().unwrap();
+
+        struct Restore {
+            exe: String,
+            prod: String,
+            config2: Config2,
+        }
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                *EXE_RENDEZVOUS_SERVER.write().unwrap() = self.exe.clone();
+                *PROD_RENDEZVOUS_SERVER.write().unwrap() = self.prod.clone();
+                *CONFIG2.write().unwrap() = self.config2.clone();
+            }
+        }
+
+        let _restore = Restore {
+            exe: EXE_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            prod: PROD_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            config2: CONFIG2.read().unwrap().clone(),
+        };
+
+        *EXE_RENDEZVOUS_SERVER.write().unwrap() = "evil-exe.example:29999".to_owned();
+        *PROD_RENDEZVOUS_SERVER.write().unwrap() = "evil-prod.example:29998".to_owned();
+        {
+            let mut cfg = CONFIG2.write().unwrap();
+            cfg.rendezvous_server = "evil-stored.example:29997".to_owned();
+            cfg.options.insert(
+                "custom-rendezvous-server".to_owned(),
+                "evil-custom.example:29996".to_owned(),
+            );
+            cfg.options.insert(
+                "rendezvous-servers".to_owned(),
+                "evil-list.example".to_owned(),
+            );
+        }
+
+        assert_eq!(
+            Config::get_rendezvous_server(),
+            format!("{FUNTIDESK_RENDEZVOUS_SERVER}:{RENDEZVOUS_PORT}")
+        );
+        assert_eq!(
+            Config::get_rendezvous_servers(),
+            vec![FUNTIDESK_RENDEZVOUS_SERVER.to_owned()]
+        );
+    }
+
+    #[test]
     fn test_serialize() {
         let cfg: Config = Default::default();
         let res = toml::to_string_pretty(&cfg);
