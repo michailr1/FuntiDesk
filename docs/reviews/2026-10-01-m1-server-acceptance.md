@@ -16,6 +16,8 @@ Scope: live acceptance for R-01…R-04 on `desk.funti.cc` after PR #7 code/CI is
 Record, without exposing secrets:
 
 ```bash
+getent ahostsv4 desk.funti.cc | head
+hostname -f || hostname
 cd /opt/funtidesk/repo
 git status --short
 git rev-parse HEAD
@@ -24,7 +26,7 @@ sudo ss -lntup
 sudo cat /opt/funtidesk/data/id_ed25519.pub
 ```
 
-Copy the public key into the acceptance report. Never output the private key.
+Confirm that DNS/host identity is the intended current production machine, then copy the public key into the acceptance report. Never output the private key.
 
 ## 2. Encrypted backup
 
