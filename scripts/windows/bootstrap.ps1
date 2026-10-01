@@ -20,6 +20,14 @@ function Assert-Sha256([string]$Path, [string]$Expected) {
     }
 }
 
+function Get-GitHubAssetHeaders {
+    $headers = @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' }
+    if ($env:GITHUB_TOKEN) {
+        $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)"
+    }
+    return $headers
+}
+
 function Ensure-WingetPackage([string]$Id, [string]$Override = '') {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw "winget not found; missing prerequisite: $Id"
@@ -79,7 +87,7 @@ if (Test-Path $clangExe) {
 if ($needLlvm) {
     $llvmInstaller = Join-Path $env:TEMP 'LLVM-15.0.6-win64.exe'
     Remove-Item $llvmInstaller -Force -ErrorAction SilentlyContinue
-    Invoke-WebRequest -Uri $LlvmAssetUrl -Headers @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' } -OutFile $llvmInstaller
+    Invoke-WebRequest -Uri $LlvmAssetUrl -Headers (Get-GitHubAssetHeaders) -OutFile $llvmInstaller
     Assert-Sha256 $llvmInstaller $LlvmSha256
     Start-Process -FilePath $llvmInstaller -ArgumentList '/S' -Wait
 }
