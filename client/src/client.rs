@@ -722,7 +722,7 @@ impl Client {
                     peer_id,
                     relay_server.to_owned(),
                     rendezvous_server,
-                    !signed_id_pk.is_empty(),
+                    true,
                     key,
                     token,
                     conn_type,
@@ -828,6 +828,13 @@ impl Client {
         token: &str,
         conn_type: ConnType,
     ) -> ResultType<Stream> {
+        // FUNTIDESK R-10: relay negotiation itself must never request an
+        // insecure peer session. Missing/invalid signed peer identity will
+        // subsequently fail in secure_connection().
+        if !secure {
+            bail!("Handshake failed: insecure relay session rejected by FuntiDesk policy");
+        }
+
         let mut succeed = false;
         let mut uuid = "".to_owned();
         let mut ipv4 = true;
