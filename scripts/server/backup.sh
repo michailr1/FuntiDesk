@@ -19,6 +19,9 @@ command -v age >/dev/null 2>&1 || { echo "ERROR: age is not installed" >&2; exit
 [[ -f "$DATA_DIR/id_ed25519" ]] || { echo "ERROR: no server identity to back up" >&2; exit 1; }
 [[ -f "$DATA_DIR/id_ed25519.pub" ]] || { echo "ERROR: no server public key to back up" >&2; exit 1; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/validate-keypair.sh" "$DATA_DIR/id_ed25519" "$DATA_DIR/id_ed25519.pub" >/dev/null
+
 install -d -m 0700 "$BACKUP_DIR"
 TMP_ARCHIVE="$(mktemp "$BACKUP_DIR/.funtidesk-server-XXXXXX.tar.gz")"
 trap '[[ -n "$TMP_ARCHIVE" ]] && rm -f "$TMP_ARCHIVE"' EXIT
