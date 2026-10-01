@@ -146,4 +146,4 @@ Clean restore procedure:
 6. Confirm both `hbbs` and `hbbr` report the recorded `PUBLIC_KEY`.
 7. Delete temporary plaintext material immediately.
 
-The repository self-test covers key-pair validation, checksum success, checksum tampering rejection, and mismatched key-pair rejection. End-to-end `age` encryption/decryption is verified during the live clean-restore acceptance. A real clean-environment restore with the production identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.
+The repository self-test exercises `age` key generation, encrypted `backup.sh`, SHA-256 verification, `restore-check.sh` decryption, expected-public-key verification, tampering rejection, plaintext-artifact absence and mismatched server key-pair rejection. A real clean-environment restore with the **production** identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.
