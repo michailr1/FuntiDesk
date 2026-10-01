@@ -119,6 +119,7 @@ const CHARS: &[char] = &[
 
 // FUNTIDESK: production infrastructure is build-time pinned and has no upstream fallback.
 pub const FUNTIDESK_RENDEZVOUS_SERVER: &str = "desk.funti.cc";
+pub const FUNTIDESK_RELAY_SERVER: &str = "desk.funti.cc";
 pub const FUNTIDESK_SERVER_PUBLIC_KEY: &str = "2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=";
 pub const RENDEZVOUS_SERVERS: &[&str] = &[FUNTIDESK_RENDEZVOUS_SERVER];
 pub const RS_PUB_KEY: &str = FUNTIDESK_SERVER_PUBLIC_KEY;

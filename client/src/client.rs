@@ -509,7 +509,9 @@ impl Client {
                             peer_nat_type = ph.nat_type();
                             is_local = ph.is_local();
                             signed_id_pk = ph.pk.into();
-                            relay_server = ph.relay_server;
+                            // FUNTIDESK R-12: do not trust a rendezvous-provided
+                            // relay hostname to redirect production traffic.
+                            relay_server = config::FUNTIDESK_RELAY_SERVER.to_owned();
                             peer_addr = AddrMangle::decode(&ph.socket_addr);
                             feedback = ph.feedback;
                             let s = udp.0.take();
@@ -554,7 +556,7 @@ impl Client {
                         let fut = Self::create_relay(
                             &peer,
                             rr.uuid,
-                            rr.relay_server,
+                            config::FUNTIDESK_RELAY_SERVER.to_owned(),
                             &key,
                             conn_type,
                             my_addr.is_ipv4(),
