@@ -34,3 +34,11 @@ if grep -Fq '*config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();
   echo "ERROR: Windows bootstrap still applies exe-derived rendezvous" >&2
   exit 1
 fi
+
+grep -Fq 'FuntiDesk executable-name infrastructure configuration is disabled' "$WINDOWS"
+if grep -Fq 'get_custom_server_from_string(&exe)' "$WINDOWS"; then
+  echo "ERROR: executable-name parser is still active" >&2
+  exit 1
+fi
+
+echo "R11_WINDOWS_EXE_CHANNEL_DISABLED=true"
