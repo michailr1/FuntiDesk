@@ -9,6 +9,14 @@ Set-StrictMode -Version Latest
 $EngineAssetUrl = 'https://api.github.com/repos/rustdesk/engine/releases/assets/210168939'
 $EngineSha256 = 'ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e'
 
+function Get-GitHubAssetHeaders {
+    $headers = @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' }
+    if ($env:GITHUB_TOKEN) {
+        $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)"
+    }
+    return $headers
+}
+
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $ClientRoot = Join-Path $RepoRoot 'client'
 $FlutterBridge = Join-Path $ToolsRoot 'flutter-3.22.3'
@@ -143,7 +151,7 @@ try {
     $engineTmp = Join-Path $env:TEMP 'funtidesk-windows-x64-release'
     Remove-Item $engineZip -Force -ErrorAction SilentlyContinue
     Remove-Item $engineTmp -Recurse -Force -ErrorAction SilentlyContinue
-    Invoke-WebRequest -Uri $EngineAssetUrl -Headers @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' } -OutFile $engineZip
+    Invoke-WebRequest -Uri $EngineAssetUrl -Headers (Get-GitHubAssetHeaders) -OutFile $engineZip
     $engineHash = (Get-FileHash $engineZip -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($engineHash -ne $EngineSha256) {
         throw "Custom Flutter engine SHA256 mismatch. expected=$EngineSha256 actual=$engineHash"
