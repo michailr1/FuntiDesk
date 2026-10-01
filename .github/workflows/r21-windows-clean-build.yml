@@ -12,6 +12,10 @@ on:
       - "client/**"
       - "docs/WINDOWS_BASELINE_BUILD.md"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
