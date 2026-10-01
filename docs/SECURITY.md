@@ -65,6 +65,21 @@ Production-клиент не должен иметь скрытого fallback �
 - список внешних сетевых endpoint задокументирован и проверен.
 
 
+## Production access defaults (R-15)
+
+| Опция / поведение | Production значение | Пользователь может менять? | Причина |
+|---|---|---|---|
+| `direct-server` | `N` | Нет, hard/overwrite policy | Не разрешать обход rendezvous trust path через прямой IP-доступ |
+| `enable-lan-discovery` | `N` | Нет, hard/overwrite policy | LAN discovery не входит в M2 security perimeter |
+| `allow-remote-config-modification` | `N` | Нет, hard/overwrite policy | Удалённая сторона не должна менять локальную security-конфигурацию |
+| insecure TLS fallback | `N` | Нет, hard/overwrite policy | TLS/transport error приводит к отказу |
+| постоянный unattended password | Не задан на clean install | Да, только через явный будущий product flow владельца | Не включать скрытый постоянный доступ по умолчанию |
+| `approve-mode` | `password` | Да, если product policy позднее разрешит | Явная аутентификация до сессии |
+| `verification-method` | `use-temporary-password` | Да, если product policy позднее разрешит | Clean install использует временный пароль |
+| temporary password length | `8` | Да | Временный доступ остаётся основным clean-install режимом |
+
+Значения сетевого exposure (`direct-server`, LAN discovery, remote config и insecure fallback) задаются через `OVERWRITE_SETTINGS` и не должны быть отменяемы обычной пользовательской конфигурацией. Authentication defaults задаются через `DEFAULT_SETTINGS`: это безопасный clean-install baseline, а не запрет будущего явно включённого unattended-доступа.
+
 ## Расширенная security acceptance M2 (R-16)
 
 Перед передачей Windows-сборки людям должны быть подтверждены следующие свойства:
