@@ -762,21 +762,17 @@ impl Client {
     async fn secure_connection(
         peer_id: &str,
         signed_id_pk: Vec<u8>,
-        key: &str,
+        _key: &str,
         conn: &mut Stream,
     ) -> ResultType<Option<Vec<u8>>> {
-        // FUNTIDESK R-10: a production session must never fall back to plaintext.
+        // FUNTIDESK R-10/R-12: a production session must never fall back to
+        // plaintext and the rendezvous trust anchor is immutable at runtime.
         if signed_id_pk.is_empty() {
             bail!("Handshake failed: rendezvous server did not provide a signed peer key");
         }
 
-        let trust_key = if key.is_empty() {
-            config::FUNTIDESK_SERVER_PUBLIC_KEY
-        } else {
-            key
-        };
-        let rs_pk = get_rs_pk(trust_key)
-            .ok_or_else(|| anyhow!("Handshake failed: invalid FuntiDesk server public key"))?;
+        let rs_pk = get_rs_pk(config::FUNTIDESK_SERVER_PUBLIC_KEY)
+            .ok_or_else(|| anyhow!("Handshake failed: invalid built-in FuntiDesk server public key"))?;
         let (signed_peer_id, pk) = decode_id_pk(&signed_id_pk, &rs_pk)
             .map_err(|_| anyhow!("Handshake failed: invalid signed peer key"))?;
         if signed_peer_id != peer_id {
