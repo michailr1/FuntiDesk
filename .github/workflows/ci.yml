@@ -50,6 +50,10 @@ jobs:
         run: |
           docker compose             --env-file infra/funtidesk-server/.env.example             -f infra/funtidesk-server/compose.yaml             config >/dev/null
 
+      - name: Runtime server key-auth integration
+        run: bash scripts/server/tests/r01-runtime-integration.sh
+
+
       - name: Security guard self-test
         run: bash scripts/ci/test-no-upstream-infra-guard.sh
 
