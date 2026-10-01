@@ -14,6 +14,16 @@ if grep -Fq 'Config::get_option("relay-server")' client/src/rendezvous_mediator.
   echo "ERROR: incoming relay path still consults mutable relay-server config" >&2
   exit 1
 fi
+python3 - <<'PY'
+from pathlib import Path
+for p in [Path("client/src/rendezvous_mediator.rs"), Path("client/src/common.rs")]:
+    s=p.read_text(encoding="utf-8")
+    if '"rendezvous-servers".to_owned()' in s and "Config::set_option" in s:
+        # Narrow to exact legacy persistence form rather than rejecting unrelated tests/constants.
+        if 'Config::set_option(\n                    "rendezvous-servers".to_owned()' in s:
+            raise SystemExit(f"ERROR: {p} still persists server-provided rendezvous endpoints")
+print("R12_SERVER_LIST_PERSISTENCE_TEST_OK=true")
+PY
 if grep -Fq 'rs-ny.rustdesk.com' "$CFG"; then
   echo "ERROR: upstream rendezvous fallback remains in production config" >&2
   exit 1
