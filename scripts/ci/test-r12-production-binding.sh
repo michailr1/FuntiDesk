@@ -9,6 +9,11 @@ grep -Fq 'format!("{FUNTIDESK_RENDEZVOUS_SERVER}:{RENDEZVOUS_PORT}")' "$CFG"
 grep -Fq 'vec![FUNTIDESK_RENDEZVOUS_SERVER.to_owned()]' "$CFG"
 grep -Fq 'config::FUNTIDESK_SERVER_PUBLIC_KEY.to_owned()' "$COMMON"
 grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/client.rs
+grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/rendezvous_mediator.rs
+if grep -Fq 'Config::get_option("relay-server")' client/src/rendezvous_mediator.rs; then
+  echo "ERROR: incoming relay path still consults mutable relay-server config" >&2
+  exit 1
+fi
 if grep -Fq 'rs-ny.rustdesk.com' "$CFG"; then
   echo "ERROR: upstream rendezvous fallback remains in production config" >&2
   exit 1
