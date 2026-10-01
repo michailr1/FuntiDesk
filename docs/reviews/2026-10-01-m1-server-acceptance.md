@@ -1,182 +1,72 @@
-# FuntiDesk M1 — production server acceptance
+# FuntiDesk M1 — server live acceptance
 
-Scope: live acceptance for R-01…R-04 on `desk.funti.cc` after PR #7 code/CI is green.
+Scope: live production evidence for R-01…R-04 after automated CI is green.
+
+Target: `desk.funti.cc`.
 
 ## Preconditions
 
-- Preserve a working SSH session before firewall changes.
-- Record current deployed server public key before deployment.
-- Do not rotate `/opt/funtidesk/data/id_ed25519`.
-- Do not modify unrelated Docker/Caddy/Remnawave services or their existing firewall rules/listeners.
-- Repository on server must be clean; `deploy.sh` intentionally refuses dirty/untracked trees.
-- Use the exact reviewed PR #7 head unless a newer reviewed commit is explicitly recorded.
+- repository is on the reviewed P0 branch/commit and working tree is clean;
+- current production server public key is recorded before deployment;
+- working SSH access is confirmed in a second session;
+- old temporary relay-blocking firewall rules are absent;
+- owner-controlled `age` recipient exists; only the public recipient is placed on the server;
+- existing server identity is backed up before any destructive action.
 
-## 1. Pre-deploy snapshot
+## Deployment
 
-Record, without exposing secrets:
+Run the normal controlled deployment from `/opt/funtidesk/repo`.
 
-```bash
-getent ahostsv4 desk.funti.cc | head
-hostname -f || hostname
-cd /opt/funtidesk/repo
-git status --short
-git rev-parse HEAD
-sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
-sudo ss -lntup
-sudo cat /opt/funtidesk/data/id_ed25519.pub
-```
-
-Confirm that DNS/host identity is the intended current production machine. Copy the public key into the acceptance report and verify that it equals the production client pin:
-
-```text
-2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=
-```
-
-A mismatch is a hard STOP: do not rotate either side automatically. Never output the private key.
-
-## 2. Encrypted backup
-
-Install `age` if not already present. The owner age recipient must be supplied out-of-band as `AGE_RECIPIENT`; the private age identity must not be stored in Git.
+After deployment:
 
 ```bash
-sudo -E AGE_RECIPIENT="$AGE_RECIPIENT"   bash /opt/funtidesk/repo/scripts/server/backup.sh
+sudo bash /opt/funtidesk/repo/scripts/server/acceptance-report.sh
 ```
 
-Record:
-- encrypted archive path;
-- SHA256 sidecar path;
-- encrypted artifact SHA256;
-- confirmation that there is no persistent plaintext `.tar.gz` backup.
-
-Copy the encrypted archive and sidecar off-host using the owner's approved storage/channel.
-
-## 3. Deploy reviewed commit
-
-```bash
-cd /opt/funtidesk/repo
-git fetch --all --prune
-git checkout --detach <REVIEWED_PR7_SHA>
-git status --short
-sudo bash scripts/server/deploy.sh
-```
+Record the full output.
 
 PASS requires:
-- clean-tree check passes;
+
 - `SERVER_VERIFY_OK=true`;
-- `/opt/funtidesk/DEPLOYED_COMMIT` exactly matches the reviewed commit;
-- `PUBLIC_KEY` equals the pre-deploy server public key.
+- `DEPLOYED_COMMIT` equals the reviewed commit;
+- `PUBLIC_KEY` equals the pre-deployment server identity;
+- hbbs and hbbr are running from the same expected image;
+- both services advertise the same persistent public key;
+- only TCP/21115, TCP+UDP/21116 and TCP/21117 are published for FuntiDesk;
+- SSH remains reachable on its real configured port.
 
-## 4. R-01 relay key enforcement
+## Encrypted backup / restore
 
-```bash
-sudo docker inspect funtidesk-hbbs --format '{{json .Config.Cmd}}'
-sudo docker inspect funtidesk-hbbr --format '{{json .Config.Cmd}}'
-sudo docker logs funtidesk-hbbs 2>&1 | tail -n 80
-sudo docker logs funtidesk-hbbr 2>&1 | tail -n 80
-```
+1. Set only the owner-controlled public `AGE_RECIPIENT` on production.
+2. Run `scripts/server/backup.sh`.
+3. Copy the generated `.age` archive and `.sha256` sidecar off-host.
+4. On a separate clean environment, provide the owner's age private identity via `AGE_IDENTITY_FILE`.
+5. Run `restore-check.sh` with `EXPECTED_PUBLIC_KEY` set to the recorded server public key.
+6. Require `RESTORE_CHECK_OK=true` and the same `PUBLIC_KEY`.
+7. Do not leave the age private identity on the production server.
 
-PASS:
-- hbbs command includes `-k _`;
-- hbbr command includes `-k _`;
-- both report the same persistent public key;
-- public key equals `/opt/funtidesk/data/id_ed25519.pub`.
+## External reachability
 
-## 5. R-04 listener/published-port acceptance
+From a separate host verify:
 
-Run the repository verification twice:
+- TCP/21115 reachable;
+- TCP/21116 reachable;
+- UDP/21116 reachable/usable for registration;
+- TCP/21117 reachable;
+- TCP/21118 and TCP/21119 not exposed.
 
-```bash
-sudo bash /opt/funtidesk/repo/scripts/server/verify.sh
-sudo bash /opt/funtidesk/repo/scripts/server/verify.sh
-```
+Record source host, timestamp and commands/results.
 
-Then record:
+## Evidence to copy into the review handoff
 
-```bash
-sudo docker port funtidesk-hbbs
-sudo docker port funtidesk-hbbr
-sudo ss -lntup
-sudo stat -c '%a %n' /opt/funtidesk/data/id_ed25519 /opt/funtidesk/data/id_ed25519.pub
-```
+- acceptance date/time UTC;
+- exact deployed commit;
+- image digest / image ID;
+- public server key;
+- `verify.sh` result;
+- encrypted backup filename + SHA256;
+- clean restore-check result;
+- confirmation of off-host backup;
+- external port results.
 
-PASS:
-- hbbs publishes only 21115/tcp, 21116/tcp, 21116/udp;
-- hbbr publishes only 21117/tcp;
-- 21118/21119 are not exposed;
-- private key mode 600, public key mode 644;
-- running verify twice does not mutate key files.
-
-## 6. Firewall
-
-Before applying, record effective SSH port:
-
-```bash
-sudo sshd -T | awk '$1=="port"{print $2}'
-```
-
-First record existing firewall state and unrelated listeners:
-
-```bash
-sudo ufw status verbose
-sudo ss -lntup
-```
-
-If UFW is already active, keep the existing SSH session open and run:
-
-```bash
-sudo bash /opt/funtidesk/repo/scripts/server/apply-firewall.sh
-sudo ufw status verbose
-```
-
-If UFW is inactive, **do not enable it automatically on this shared host**. Inventory every required non-FuntiDesk service/rule first; use `FUNTIDESK_ENABLE_UFW=1` only after explicit owner approval of that inventory.
-
-Open a **new** SSH session before closing the old one.
-
-PASS: SSH still works on the real configured port; FuntiDesk ports remain reachable; unrelated pre-existing web/TLS/VPN/control services remain unchanged. Docker published ports traverse DNAT/FORWARD, so UFW INPUT alone is not the acceptance control.
-
-## 7. External port check
-
-From a host outside the VPS network, check:
-
-- TCP 21115 open;
-- TCP 21116 open;
-- UDP 21116 observable through actual client registration/NAT test;
-- TCP 21117 open;
-- TCP 21118 and 21119 closed.
-
-Record source host/network and timestamp.
-
-## 8. Restore-check
-
-On an isolated clean environment, not on the live production data directory:
-
-```bash
-AGE_IDENTITY_FILE=/secure/path/owner.agekey EXPECTED_PUBLIC_KEY='<recorded production public key>' bash scripts/server/restore-check.sh /path/to/funtidesk-server-*.tar.gz.age
-```
-
-PASS requires `RESTORE_CHECK_OK=true` and the same `PUBLIC_KEY`.
-
-For full M1 acceptance, perform an actual isolated restore from the encrypted backup and start hbbs/hbbr against the restored data. Both must report the same original public key.
-
-## 9. Evidence to return
-
-```text
-REVIEWED_COMMIT=
-DEPLOYED_COMMIT=
-PUBLIC_KEY=
-HBBS_KEY_CHECK=true/false
-HBBR_KEY_CHECK=true/false
-VERIFY_TWICE_PASS=
-PUBLISHED_PORTS_PASS=
-SSH_PORT=
-FIREWALL_PASS=
-EXTERNAL_PORT_CHECK_PASS=
-BACKUP_ENCRYPTED=
-BACKUP_SHA256=
-OFFHOST_COPY_CONFIRMED=
-RESTORE_CHECK_PASS=
-RESTORED_PUBLIC_KEY=
-ERRORS=
-```
-
-Do not include passwords, private keys, access tokens, or the private age identity.
+Do not record server private keys, age private identities, passwords or access tokens.
