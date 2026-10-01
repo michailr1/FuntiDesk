@@ -33,6 +33,13 @@ Flutter 3.24.5 получает upstream patch `flutter_3.24.4_dropdown_menu_ena
 
 Хэши были независимо сняты GitHub Actions на чистом Ubuntu runner прямой загрузкой release assets и затем зафиксированы в скриптах.
 
+
+## CI-артефакт для acceptance
+
+Workflow `.github/workflows/r21-windows-clean-build.yml` после успешной clean-runner сборки публикует полный каталог `client/flutter/build/windows/x64/runner/Release/` как artifact `funtidesk-windows-x64-<commit>`.
+
+Перед upload workflow создаёт в корне runtime файл `SHA256SUMS.txt` со SHA-256 каждого файла. Ручная M2-приёмка должна использовать только artifact, чей `github.sha` совпадает с зафиксированным acceptance commit; локально пересобранный или переупакованный runtime не считается тем же артефактом.
+
 ## Почему полная Visual Studio не нужна
 
 Для сборки необходим MSVC toolchain и Windows SDK, но IDE не требуется. `bootstrap.ps1` устанавливает Visual Studio 2022 **Build Tools** с workload C++.
