@@ -1823,18 +1823,15 @@ pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
     false
 }
 
-async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<()> {
-    // Skip additional encryption when using WebSocket connections (wss://)
-    // as WebSocket Secure (wss://) already provides transport layer encryption.
-    // This doesn't affect the end-to-end encryption between clients,
-    // it only avoids redundant encryption between client and server.
+async fn secure_tcp_impl(conn: &mut Stream, _key: &str, log_on_success: bool) -> ResultType<()> {
+    // FUNTIDESK R-12: rendezvous authentication always uses the build-time
+    // trust anchor. Caller-provided/runtime keys cannot override it.
+    // WebSocket transport is not used in the current production perimeter.
     if use_ws() {
-        return Ok(());
+        bail!("Handshake failed: WebSocket rendezvous transport is disabled by FuntiDesk policy");
     }
-    let rs_pk = get_rs_pk(key);
-    let Some(rs_pk) = rs_pk else {
-        bail!("Handshake failed: invalid public key from rendezvous server");
-    };
+    let rs_pk = get_rs_pk(config::FUNTIDESK_SERVER_PUBLIC_KEY)
+        .ok_or_else(|| anyhow!("Handshake failed: invalid built-in FuntiDesk server public key"))?;
     match timeout(READ_TIMEOUT, conn.next()).await? {
         Some(Ok(bytes)) => {
             if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
