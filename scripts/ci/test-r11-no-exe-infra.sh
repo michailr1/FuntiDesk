@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 COMMON="client/src/common.rs"
+WINDOWS="client/src/platform/windows.rs"
 
 python3 - "$COMMON" <<'PY'
 import sys
@@ -24,3 +25,12 @@ if "get_license_from_exe_name" in s[api_a:api_b]:
 
 print("R11_EXE_NAME_CONFIG_TEST_OK=true")
 PY
+
+if grep -Fq 'Config::set_option("custom-rendezvous-server".into(), lic.host)' "$WINDOWS"; then
+  echo "ERROR: Windows installer still persists exe-derived rendezvous" >&2
+  exit 1
+fi
+if grep -Fq '*config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();' "$WINDOWS"; then
+  echo "ERROR: Windows bootstrap still applies exe-derived rendezvous" >&2
+  exit 1
+fi
