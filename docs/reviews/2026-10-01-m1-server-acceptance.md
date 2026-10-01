@@ -7,7 +7,7 @@ Scope: live acceptance for R-01…R-04 on `desk.funti.cc` after PR #7 code/CI is
 - Preserve a working SSH session before firewall changes.
 - Record current deployed server public key before deployment.
 - Do not rotate `/opt/funtidesk/data/id_ed25519`.
-- Do not modify unrelated Docker/Caddy/Remnawave services.
+- Do not modify unrelated Docker/Caddy/Remnawave services or their existing firewall rules/listeners.
 - Repository on server must be clean; `deploy.sh` intentionally refuses dirty/untracked trees.
 - Use the exact reviewed PR #7 head unless a newer reviewed commit is explicitly recorded.
 
@@ -106,16 +106,25 @@ Before applying, record effective SSH port:
 sudo sshd -T | awk '$1=="port"{print $2}'
 ```
 
-Keep the existing SSH session open and run:
+First record existing firewall state and unrelated listeners:
+
+```bash
+sudo ufw status verbose
+sudo ss -lntup
+```
+
+If UFW is already active, keep the existing SSH session open and run:
 
 ```bash
 sudo bash /opt/funtidesk/repo/scripts/server/apply-firewall.sh
 sudo ufw status verbose
 ```
 
+If UFW is inactive, **do not enable it automatically on this shared host**. Inventory every required non-FuntiDesk service/rule first; use `FUNTIDESK_ENABLE_UFW=1` only after explicit owner approval of that inventory.
+
 Open a **new** SSH session before closing the old one.
 
-PASS: SSH still works on the real configured port and FuntiDesk ports remain reachable. Remember that Docker published ports traverse DNAT/FORWARD; UFW INPUT alone is not the acceptance control.
+PASS: SSH still works on the real configured port; FuntiDesk ports remain reachable; unrelated pre-existing web/TLS/VPN/control services remain unchanged. Docker published ports traverse DNAT/FORWARD, so UFW INPUT alone is not the acceptance control.
 
 ## 7. External port check
 
