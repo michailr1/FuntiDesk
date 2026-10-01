@@ -2120,12 +2120,9 @@ pub fn prepare_custom_client_update() -> ResultType<bool> {
 }
 
 pub fn get_license_from_exe_name() -> ResultType<CustomServer> {
-    let mut exe = std::env::current_exe()?.to_str().unwrap_or("").to_owned();
-    // if defined portable appname entry, replace original executable name with it.
-    if let Ok(portable_exe) = std::env::var(PORTABLE_APPNAME_RUNTIME_ENV_KEY) {
-        exe = portable_exe;
-    }
-    get_custom_server_from_string(&exe)
+    // FUNTIDESK R-11: executable-name infrastructure configuration is disabled
+    // in production. Keep the symbol temporarily for upstream merge compatibility.
+    bail!("FuntiDesk executable-name infrastructure configuration is disabled")
 }
 
 // We can't directly use `RegKey::set_value` to update the registry value, because it will fail with `ERROR_ACCESS_DENIED`
@@ -3822,15 +3819,13 @@ pub fn alloc_console() {
 }
 
 fn get_license() -> Option<CustomServer> {
+    // FUNTIDESK R-11: never derive infrastructure from the executable name.
+    // Legacy registry values are retained only for upstream compatibility and
+    // are not persisted/applied to production infrastructure paths.
     let mut lic: CustomServer = Default::default();
-    if let Ok(tmp) = get_license_from_exe_name() {
-        lic = tmp;
-    } else {
-        // for back compatibility from migrating from <= 1.2.1 to 1.2.2
-        lic.key = get_reg("Key");
-        lic.host = get_reg("Host");
-        lic.api = get_reg("Api");
-    }
+    lic.key = get_reg("Key");
+    lic.host = get_reg("Host");
+    lic.api = get_reg("Api");
     if lic.key.is_empty() || lic.host.is_empty() {
         return None;
     }
