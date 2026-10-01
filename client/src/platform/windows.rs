@@ -2035,87 +2035,15 @@ pub fn remove_custom_client_staging_dir(staging_dir: &Path) -> ResultType<bool> 
 //    (e.g., is a symlink or has invalid contents).
 // 3. Err if any unexpected error occurs during file operations.
 pub fn prepare_custom_client_update() -> ResultType<bool> {
-    let custom_client_staging_dir = get_custom_client_staging_dir();
-    let current_exe = std::env::current_exe()?;
-    let current_exe_dir = current_exe
-        .parent()
-        .ok_or(anyhow!("Cannot get parent directory of current exe"))?;
-
-    let staging_dir = custom_client_staging_dir.clone();
-    let clear_staging_on_exit = crate::SimpleCallOnReturn {
-        b: true,
-        f: Box::new(
-            move || match remove_custom_client_staging_dir(&staging_dir) {
-                Ok(existed) => {
-                    if existed {
-                        log::info!("Custom client staging directory removed successfully.");
-                    }
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to remove custom client staging directory {:?}: {}",
-                        staging_dir,
-                        e
-                    );
-                }
-            },
-        ),
-    };
-
-    if custom_client_staging_dir.exists() {
-        let custom_txt_path = custom_client_staging_dir.join("custom.txt");
-        if !custom_txt_path.exists() {
-            return Ok(true);
+    // FUNTIDESK R-13: upstream custom-client staging is disabled together with
+    // custom.txt trust. Do not copy or load staged policy/configuration files.
+    let staging_dir = get_custom_client_staging_dir();
+    if staging_dir.exists() {
+        let custom_txt = staging_dir.join("custom.txt");
+        if custom_txt.exists() {
+            allow_err!(std::fs::remove_file(&custom_txt));
         }
-
-        let metadata = std::fs::symlink_metadata(&custom_txt_path)?;
-        if metadata.is_symlink() {
-            log::error!(
-                "custom.txt is a symlink. Refusing to load custom client for security reasons."
-            );
-            drop(clear_staging_on_exit);
-            return Ok(false);
-        }
-        if metadata.is_file() {
-            // Copy custom.txt to current directory
-            let local_custom_file_path = current_exe_dir.join("custom.txt");
-            log::debug!(
-                "Copying staged custom file from {:?} to {:?}",
-                custom_txt_path,
-                local_custom_file_path
-            );
-
-            // No need to check symlink before copying.
-            // `load_custom_client()` will fail if the file is not valid.
-            fs::copy(&custom_txt_path, &local_custom_file_path)?;
-            log::info!("Staged custom client file copied to current directory.");
-
-            // Load custom client
-            let is_custom_file_exists =
-                local_custom_file_path.exists() && local_custom_file_path.is_file();
-            crate::load_custom_client();
-
-            // Remove the copied custom.txt file
-            allow_err!(fs::remove_file(&local_custom_file_path));
-
-            // Check if loaded successfully
-            if is_custom_file_exists && !crate::common::is_custom_client() {
-                // The custom.txt file existed, but its contents are invalid.
-                log::error!("Failed to load custom client from custom.txt.");
-                drop(clear_staging_on_exit);
-                // ERROR_INVALID_DATA
-                return Ok(false);
-            }
-        } else {
-            log::info!("No custom client files found in staging directory.");
-        }
-    } else {
-        log::info!(
-            "Custom client staging directory {:?} does not exist.",
-            custom_client_staging_dir
-        );
     }
-
     Ok(true)
 }
 
