@@ -16,6 +16,8 @@ forbidden=(
   'rs-ny.rustdesk.com'
   'OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw='
   '5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM='
+  'api.rustdesk.com'
+  'admin.rustdesk.com'
 )
 
 for file in "${runtime_files[@]}"; do
