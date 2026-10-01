@@ -113,6 +113,9 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 
 ## Acceptance
 
+Перед заполнением factual acceptance на production-хосте запустить `sudo bash scripts/server/acceptance-report.sh`. Скрипт read-only: он повторно вызывает `verify.sh`, сверяет `DEPLOYED_COMMIT` с текущим HEAD, фиксирует `PUBLIC_KEY` и image ID обоих сервисов. Внешнюю достижимость портов и наличие off-host backup проверять отдельно с другого хоста.
+
+
 M1 считается готовым, когда подтверждены:
 
 - `hbbs` и `hbbr` running;
