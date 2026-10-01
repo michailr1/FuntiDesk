@@ -8,6 +8,12 @@ grep -Fq 'pub const FUNTIDESK_SERVER_PUBLIC_KEY: &str = "2R3kWM1HR3BMoz3EB6KDmv5
 grep -Fq 'format!("{FUNTIDESK_RENDEZVOUS_SERVER}:{RENDEZVOUS_PORT}")' "$CFG"
 grep -Fq 'vec![FUNTIDESK_RENDEZVOUS_SERVER.to_owned()]' "$CFG"
 grep -Fq 'config::FUNTIDESK_SERVER_PUBLIC_KEY.to_owned()' "$COMMON"
+grep -Fq 'get_rs_pk(config::FUNTIDESK_SERVER_PUBLIC_KEY)' "$COMMON"
+grep -Fq 'get_rs_pk(config::FUNTIDESK_SERVER_PUBLIC_KEY)' client/src/client.rs
+if grep -Fq 'let trust_key = if key.is_empty()' client/src/client.rs; then
+  echo "ERROR: peer handshake still accepts caller-provided trust key override" >&2
+  exit 1
+fi
 grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/client.rs
 grep -Fq 'config::FUNTIDESK_RELAY_SERVER.to_owned()' client/src/rendezvous_mediator.rs
 if grep -Fq 'Config::get_option("relay-server")' client/src/rendezvous_mediator.rs; then
