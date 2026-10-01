@@ -73,6 +73,7 @@ Production-клиент не должен иметь скрытого fallback �
 | `enable-lan-discovery` | `N` | Нет, hard/overwrite policy | LAN discovery не входит в M2 security perimeter |
 | `allow-remote-config-modification` | `N` | Нет, hard/overwrite policy | Удалённая сторона не должна менять локальную security-конфигурацию |
 | insecure TLS fallback | `N` | Нет, hard/overwrite policy | TLS/transport error приводит к отказу |
+| WebSocket rendezvous/relay transport | `N` | Нет, hard/overwrite policy | Production M2 публикует только 21115–21117 и не использует 21118/21119 |
 | постоянный unattended password | Не задан на clean install | Да, только через явный будущий product flow владельца | Не включать скрытый постоянный доступ по умолчанию |
 | `approve-mode` | `password` | Да, если product policy позднее разрешит | Явная аутентификация до сессии |
 | `verification-method` | `use-temporary-password` | Да, если product policy позднее разрешит | Clean install использует временный пароль |
@@ -87,6 +88,6 @@ Production-клиент не должен иметь скрытого fallback �
 - **P7 / secure handshake:** `client/src/client.rs::secure_connection()` и `client/src/server.rs::create_tcp_connection()` отказывают при отсутствующем/невалидном signed peer key, несовпадении peer ID, пустом/невалидном `PublicKey`, пустом encryption material и попытке plaintext session.
 - **P8 / executable-name channel:** имя EXE не может изменить rendezvous, relay, API endpoint или server key.
 - **P9 / trust anchor:** `get_key()` всегда возвращает закреплённый FuntiDesk server public key; upstream `RS_PUB_KEY` не является fallback.
-- **P10 / exposure policy:** direct-server, LAN discovery, remote config modification и insecure TLS fallback заблокированы production policy; clean-install authentication defaults используют temporary password.
+- **P10 / exposure policy:** direct-server, LAN discovery, remote config modification, WebSocket transport и insecure TLS fallback заблокированы production policy; clean-install authentication defaults используют temporary password.
 
 Автоматические source-policy tests не заменяют E2E. Для R-10 обязательно остаются live/negative проверки с wrong key/fake rendezvous/invalid handshake. Для R-14 — packet/DNS capture чистой Windows VM по `docs/NETWORK_ALLOWLIST.md`.
