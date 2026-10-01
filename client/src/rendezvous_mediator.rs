@@ -405,15 +405,10 @@ impl RendezvousMediator {
                 });
             }
             Some(rendezvous_message::Union::ConfigureUpdate(cu)) => {
-                let v0 = Config::get_rendezvous_servers();
-                Config::set_option(
-                    "rendezvous-servers".to_owned(),
-                    cu.rendezvous_servers.join(","),
-                );
+                // FUNTIDESK R-12: server-provided rendezvous lists are not part
+                // of production configuration. Preserve serial only for protocol
+                // compatibility; endpoint selection stays build-time pinned.
                 Config::set_serial(cu.serial);
-                if v0 != Config::get_rendezvous_servers() {
-                    Self::restart();
-                }
             }
             _ => {}
         }
