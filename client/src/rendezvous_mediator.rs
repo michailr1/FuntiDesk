@@ -516,7 +516,7 @@ impl RendezvousMediator {
     async fn create_relay(
         &self,
         socket_addr: Vec<u8>,
-        relay_server: String,
+        _relay_server: String,
         uuid: String,
         server: ServerPtr,
         secure: bool,
@@ -524,6 +524,9 @@ impl RendezvousMediator {
         socket_addr_v6: bytes::Bytes,
         meta: ConnectionMeta,
     ) -> ResultType<()> {
+        // FUNTIDESK R-12: relay selection is immutable even if a rendezvous
+        // protocol message carries a different relay hostname.
+        let relay_server = config::FUNTIDESK_RELAY_SERVER.to_owned();
         let peer_addr = AddrMangle::decode(&socket_addr);
         log::info!(
             "create_relay requested from {:?}, relay_server: {}, uuid: {}, secure: {}",
