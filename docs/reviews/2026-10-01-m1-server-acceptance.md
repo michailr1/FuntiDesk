@@ -26,7 +26,13 @@ sudo ss -lntup
 sudo cat /opt/funtidesk/data/id_ed25519.pub
 ```
 
-Confirm that DNS/host identity is the intended current production machine, then copy the public key into the acceptance report. Never output the private key.
+Confirm that DNS/host identity is the intended current production machine. Copy the public key into the acceptance report and verify that it equals the production client pin:
+
+```text
+2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=
+```
+
+A mismatch is a hard STOP: do not rotate either side automatically. Never output the private key.
 
 ## 2. Encrypted backup
 
