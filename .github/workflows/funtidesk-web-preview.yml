@@ -1,0 +1,50 @@
+name: FuntiDesk Web Preview
+
+on:
+  push:
+    branches:
+      - michailr/funtidesk-web
+    paths:
+      - "web/**"
+      - ".github/workflows/funtidesk-web-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "funtidesk-web-preview"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare project-pages build
+        run: |
+          mkdir -p _site
+          cp -a web/. _site/
+          find _site -name '*.html' -type f -print0 | xargs -0 sed -i             -e 's|href="/|href="/FuntiDesk/|g'             -e 's|src="/|src="/FuntiDesk/|g'
+          touch _site/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
