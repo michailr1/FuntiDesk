@@ -1,6 +1,6 @@
 # Модель безопасности FuntiDesk
 
-Статус: baseline для M0
+Статус: baseline M0 + security perimeter M2 (в ручной acceptance до Family Release)
 
 ## Цель
 
