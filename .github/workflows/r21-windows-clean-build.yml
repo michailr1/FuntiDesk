@@ -33,11 +33,15 @@ jobs:
 
       - name: Bootstrap pinned toolchain
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/bootstrap.ps1
 
       - name: Build baseline from pinned dependencies
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
 
