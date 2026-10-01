@@ -41,6 +41,21 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
 
+      - name: Write runtime SHA256 manifest
+        shell: powershell
+        run: |
+          $release = Resolve-Path 'client/flutter/build/windows/x64/runner/Release'
+          $manifest = Join-Path $release 'SHA256SUMS.txt'
+          Get-ChildItem $release -File -Recurse |
+            Where-Object { $_.FullName -ne $manifest } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $relative = $_.FullName.Substring($release.Path.Length + 1).Replace('\','/')
+              "$hash  $relative"
+            } | Set-Content -Encoding ascii $manifest
+          Get-Content $manifest
+
       - name: Upload Windows runtime
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
