@@ -27,4 +27,14 @@ if bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null 2>&1; 
   exit 1
 fi
 
+# A literal used only by a terminal #[cfg(test)] module is allowed.
+cat > "$TMP/client/src/common.rs" <<'EOF'
+pub fn safe() {}
+#[cfg(test)]
+mod tests {
+    const REJECTED_FIXTURE: &str = "api.rustdesk.com";
+}
+EOF
+bash "$SCRIPT_DIR/guard-no-upstream-infra.sh" "$TMP/client" >/dev/null
+
 echo "UPSTREAM_INFRA_GUARD_SELFTEST_OK=true"
