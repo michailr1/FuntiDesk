@@ -117,8 +117,12 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["rs-ny.rustdesk.com"];
-pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+// FUNTIDESK: production infrastructure is build-time pinned and has no upstream fallback.
+pub const FUNTIDESK_RENDEZVOUS_SERVER: &str = "desk.funti.cc";
+pub const FUNTIDESK_RELAY_SERVER: &str = "desk.funti.cc";
+pub const FUNTIDESK_SERVER_PUBLIC_KEY: &str = "2R3kWM1HR3BMoz3EB6KDmv5SjOKrDEVdrZXRcFWaDg4=";
+pub const RENDEZVOUS_SERVERS: &[&str] = &[FUNTIDESK_RENDEZVOUS_SERVER];
+pub const RS_PUB_KEY: &str = FUNTIDESK_SERVER_PUBLIC_KEY;
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
@@ -911,53 +915,14 @@ impl Config {
     }
 
     pub fn get_rendezvous_server() -> String {
-        let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_option("custom-rendezvous-server");
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_rendezvous_servers()
-                .drain(..)
-                .next()
-                .unwrap_or_default();
-        }
-        if !rendezvous_server.contains(':') {
-            rendezvous_server = format!("{rendezvous_server}:{RENDEZVOUS_PORT}");
-        }
-        rendezvous_server
+        // FUNTIDESK: production endpoint is immutable at runtime.
+        format!("{FUNTIDESK_RENDEZVOUS_SERVER}:{RENDEZVOUS_PORT}")
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
-        let s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = Self::get_option("custom-rendezvous-server");
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let serial_obsolute = CONFIG2.read().unwrap().serial > SERIAL;
-        if serial_obsolute {
-            let ss: Vec<String> = Self::get_option("rendezvous-servers")
-                .split(',')
-                .filter(|x| x.contains('.'))
-                .map(|x| x.to_owned())
-                .collect();
-            if !ss.is_empty() {
-                return ss;
-            }
-        }
-        return RENDEZVOUS_SERVERS.iter().map(|x| x.to_string()).collect();
+        // FUNTIDESK: do not consult executable name, user options, stored config,
+        // or upstream defaults in production.
+        vec![FUNTIDESK_RENDEZVOUS_SERVER.to_owned()]
     }
 
     pub fn reset_online() {
@@ -3343,6 +3308,54 @@ mod tests {
         let _guard = CONFIG_STATE_TEST_LOCK.lock().unwrap();
         let _state_guard = ConfigStateTestGuard::new(config, hard_settings);
         test()
+    }
+
+    #[test]
+    fn test_funtidesk_rendezvous_pinning_ignores_mutable_sources() {
+        let _guard = CONFIG_STATE_TEST_LOCK.lock().unwrap();
+
+        struct Restore {
+            exe: String,
+            prod: String,
+            config2: Config2,
+        }
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                *EXE_RENDEZVOUS_SERVER.write().unwrap() = self.exe.clone();
+                *PROD_RENDEZVOUS_SERVER.write().unwrap() = self.prod.clone();
+                *CONFIG2.write().unwrap() = self.config2.clone();
+            }
+        }
+
+        let _restore = Restore {
+            exe: EXE_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            prod: PROD_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            config2: CONFIG2.read().unwrap().clone(),
+        };
+
+        *EXE_RENDEZVOUS_SERVER.write().unwrap() = "evil-exe.example:29999".to_owned();
+        *PROD_RENDEZVOUS_SERVER.write().unwrap() = "evil-prod.example:29998".to_owned();
+        {
+            let mut cfg = CONFIG2.write().unwrap();
+            cfg.rendezvous_server = "evil-stored.example:29997".to_owned();
+            cfg.options.insert(
+                "custom-rendezvous-server".to_owned(),
+                "evil-custom.example:29996".to_owned(),
+            );
+            cfg.options.insert(
+                "rendezvous-servers".to_owned(),
+                "evil-list.example".to_owned(),
+            );
+        }
+
+        assert_eq!(
+            Config::get_rendezvous_server(),
+            format!("{FUNTIDESK_RENDEZVOUS_SERVER}:{RENDEZVOUS_PORT}")
+        );
+        assert_eq!(
+            Config::get_rendezvous_servers(),
+            vec![FUNTIDESK_RENDEZVOUS_SERVER.to_owned()]
+        );
     }
 
     #[test]
