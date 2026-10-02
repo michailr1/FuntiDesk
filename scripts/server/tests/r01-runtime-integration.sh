@@ -9,7 +9,17 @@ mkdir -p "$FUNTIDESK_DATA_DIR"
 
 cleanup() {
   docker compose -f "$COMPOSE" down --remove-orphans >/dev/null 2>&1 || true
-  rm -rf "$TMP"
+
+  # FUNTIDESK: hbbs/hbbr run as root in the container and can leave root-owned
+  # files in the bind-mounted temporary directory. Cleanup must not turn a
+  # successful integration test into a false failure.
+  if ! rm -rf "$TMP" 2>/dev/null; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo rm -rf "$TMP" >/dev/null 2>&1 || true
+    else
+      echo "WARN: unable to remove root-owned integration-test temp directory: $TMP" >&2
+    fi
+  fi
 }
 trap cleanup EXIT
 
@@ -53,8 +63,6 @@ hbbr_cmd="$(docker inspect -f '{{json .Config.Cmd}}' funtidesk-hbbr)"
 expected_key="$(tr -d '\r\n' < "$FUNTIDESK_DATA_DIR/id_ed25519.pub")"
 [[ -n "$expected_key" ]] || { echo "ERROR: generated public key empty" >&2; exit 1; }
 
-# Both services mount the same persistent identity; when the upstream server logs
-# its key, require it to match that identity too.
 for c in funtidesk-hbbs funtidesk-hbbr; do
   logged_key="$(docker logs "$c" 2>&1 | sed -n 's/.*Key: \([^[:space:]]*\).*/\1/p' | tail -n1)"
   if [[ -n "$logged_key" && "$logged_key" != "$expected_key" ]]; then
