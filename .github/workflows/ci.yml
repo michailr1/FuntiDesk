@@ -1,0 +1,84 @@
+name: FuntiDesk CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server-and-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck age
+
+      - name: Shellcheck
+        run: |
+          find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck
+
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem scripts -Recurse -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              Write-Error "$($_.FullName): $($errors | ForEach-Object Message | Out-String)"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Server self-tests
+        run: |
+          for test_script in scripts/server/tests/*.sh; do
+            echo "==> $test_script"
+            bash "$test_script"
+          done
+
+      - name: Validate server compose
+        run: |
+          docker compose             --env-file infra/funtidesk-server/.env.example             -f infra/funtidesk-server/compose.yaml             config >/dev/null
+
+      - name: Runtime server key-auth integration
+        run: bash scripts/server/tests/r01-runtime-integration.sh
+
+
+      - name: Security guard self-test
+        run: bash scripts/ci/test-no-upstream-infra-guard.sh
+
+      - name: Enforce production infrastructure guard
+        if: ${{ hashFiles('client/.funtidesk-security-pinned') != '' }}
+        run: bash scripts/ci/guard-no-upstream-infra.sh client
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  hbb-common:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install current stable Rust for hbb_common tests
+        run: |
+          rustup toolchain install stable --profile minimal
+
+      - name: Test client hbb_common
+        run: |
+          cargo +stable test --manifest-path client/Cargo.toml -p hbb_common --lib --locked

@@ -26,6 +26,15 @@ if [[ ! -d "$REPO_DIR/.git" ]]; then
   exit 1
 fi
 
+# FUNTIDESK: production deployments must be reproducible from a committed tree.
+if [[ -n "$(git -C "$REPO_DIR" status --porcelain=v1 --untracked-files=all)" ]]; then
+  echo "ERROR: repository has uncommitted or untracked changes" >&2
+  exit 1
+fi
+
+DEPLOYED_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD)"
+echo "DEPLOYED_COMMIT=$DEPLOYED_COMMIT"
+
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 0640 "$COMPOSE_DIR/.env.example" "$ENV_FILE"
 fi
@@ -37,8 +46,41 @@ set +a
 
 : "${FUNTIDESK_FQDN:?FUNTIDESK_FQDN is required}"
 
+# FUNTIDESK: deployment owns file permissions; verify.sh must remain read-only.
+if [[ -f "$DATA_DIR/id_ed25519" ]]; then
+  chmod 600 "$DATA_DIR/id_ed25519"
+fi
+if [[ -f "$DATA_DIR/id_ed25519.pub" ]]; then
+  chmod 644 "$DATA_DIR/id_ed25519.pub"
+fi
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/dev/null
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d
+
+# FUNTIDESK R-01: on a clean data directory, hbbs owns creation of the
+# persistent server identity. Do not start hbbr until both key files exist,
+# otherwise two services could race while initializing shared state.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d hbbs
+
+for _ in $(seq 1 30); do
+  if [[ -s "$DATA_DIR/id_ed25519" && -s "$DATA_DIR/id_ed25519.pub" ]]; then
+    break
+  fi
+  sleep 1
+done
+[[ -s "$DATA_DIR/id_ed25519" && -s "$DATA_DIR/id_ed25519.pub" ]] || {
+  echo "ERROR: hbbs did not create persistent server identity within 30s" >&2
+  docker logs funtidesk-hbbs >&2 || true
+  exit 1
+}
+
+chmod 600 "$DATA_DIR/id_ed25519"
+chmod 644 "$DATA_DIR/id_ed25519.pub"
+bash "$REPO_DIR/scripts/server/validate-keypair.sh"   "$DATA_DIR/id_ed25519" "$DATA_DIR/id_ed25519.pub" >/dev/null
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d hbbr
 
 bash "$REPO_DIR/scripts/server/verify.sh"
+
+printf '%s\n' "$DEPLOYED_COMMIT" > "$ROOT_DIR/DEPLOYED_COMMIT"
+chmod 0644 "$ROOT_DIR/DEPLOYED_COMMIT"

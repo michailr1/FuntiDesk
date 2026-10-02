@@ -2,7 +2,8 @@ services:
   hbbs:
     image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
     container_name: funtidesk-hbbs
-    command: ["hbbs", "-r", "${FUNTIDESK_FQDN}:21117"]
+    # FUNTIDESK: require server-key verification explicitly; do not rely on upstream defaults.
+    command: ["hbbs", "-r", "${FUNTIDESK_FQDN}:21117", "-k", "_"]
     restart: unless-stopped
     ports:
       - "21115:21115/tcp"
@@ -16,8 +17,11 @@ services:
   hbbr:
     image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
     container_name: funtidesk-hbbr
-    command: ["hbbr"]
+    # FUNTIDESK: never expose a keyless public relay.
+    command: ["hbbr", "-k", "_"]
     restart: unless-stopped
+    depends_on:
+      - hbbs
     ports:
       - "21117:21117/tcp"
     volumes:

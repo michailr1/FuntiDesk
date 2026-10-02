@@ -1,6 +1,6 @@
 # FuntiDesk Server — M1 deployment
 
-Целевой хост M1: `desk.funti.cc` (`107.172.76.106`).
+Целевой production hostname M1: `desk.funti.cc`. IP-адрес намеренно не фиксируется в документации: перед live-deploy агент обязан проверить актуальный DNS и фактический хост, чтобы не работать со старым VPS после миграции.
 
 На этом этапе разворачиваются только OSS-компоненты `hbbs` и `hbbr`. Другие будущие сервисы на VM не проектируются.
 
@@ -13,6 +13,11 @@ Container image фиксируется по tag + amd64 digest:
 ```text
 ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
 ```
+
+Production M1 разворачивается из зафиксированного upstream container image `ghcr.io/rustdesk/rustdesk-server`; импортированное дерево `/server` сейчас **не участвует** в production server build. Оно хранится для аудита upstream, возможных security backport и будущего контролируемого собственного server build. Переход на собственный image выполняется только если потребуется серверная правка, которой нет в upstream release; тогда добавляются отдельный воспроизводимый CI build, image digest, rollback и повторная M1/M3 acceptance.
+
+Оба сервиса запускаются с явной проверкой ключа: `hbbs ... -k _` и `hbbr -k _`.
+Это не позволяет использовать `hbbr` как keyless public relay. `hbbr` зависит от `hbbs`, чтобы на чистом развёртывании persistent server identity была создана до старта relay. `verify.sh` сверяет ключ, объявленный обоими сервисами, с `id_ed25519.pub`.
 
 ## Порты
 
@@ -59,7 +64,7 @@ Deployment:
 sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 ```
 
-После запуска выполняется `verify.sh`, который проверяет containers, listeners, отсутствие WebSocket ports и наличие persistent server identity.
+После запуска выполняется `verify.sh`, который проверяет containers, listeners, отсутствие WebSocket ports, наличие persistent server identity и совпадение публичного ключа у `hbbs`/`hbbr`.
 
 ## Firewall / SSH
 
@@ -67,17 +72,22 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 
 1. сохранить работающий SSH-доступ;
 2. убедиться, что текущая SSH-сессия стабильна;
-3. выполнить `sudo bash scripts/server/apply-firewall.sh`;
+3. выполнить `sudo bash scripts/server/apply-firewall.sh`; скрипт определяет фактический SSH port через `sshd -T` либо требует явный `SSH_PORT` и отказывается продолжать, если порт определить нельзя;
 4. проверить, что новая SSH-сессия по-прежнему открывается;
-5. убедиться, что разрешены только SSH и минимальные FuntiDesk-порты;
-6. не открывать `80/443` без отдельной задачи;
-7. не открывать `21118/21119`.
+5. убедиться, что **для FuntiDesk** опубликованы только минимальные порты 21115–21117;
+6. сохранить существующие правила и listeners других сервисов этого хоста (например, web/TLS); FuntiDesk-скрипт не должен закрывать или переопределять их;
+7. не открывать для FuntiDesk `21118/21119`.
 
 Изменение SSH root/password policy выполняется только после подтверждения key-based доступа, чтобы исключить lockout.
 
+
+> **Docker/UFW:** опубликованные Docker-порты проходят через DNAT/FORWARD и не гарантированно ограничиваются правилами UFW INPUT. Поэтому UFW рассматривается как один из слоёв, а `verify.sh` отдельно сверяет фактически опубликованные контейнерами порты с разрешённым списком. Любой лишний published port является ошибкой приёмки.
+>
+> **Shared-host safety:** `apply-firewall.sh` добавляет только SSH/FuntiDesk allow rules и не меняет глобальные UFW default policies. Если UFW не активен, скрипт по умолчанию отказывается его включать, потому что на хосте могут работать другие сервисы. Включение неактивного UFW требует предварительной инвентаризации listeners/rules и явного `FUNTIDESK_ENABLE_UFW=1`.
+
 ## Backup
 
-`scripts/server/backup.sh` создаёт root-only archive persistent `data` и SHA-256.
+`scripts/server/backup.sh` создаёт зашифрованный `age`-артефакт persistent `data` и SHA-256 sidecar; plaintext archive не сохраняется как backup-артефакт.
 
 Минимум для M1:
 
@@ -86,11 +96,30 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 - скопировать backup **off-host** в разрешённое владельцем хранилище;
 - не удалять единственную копию server private key.
 
+## Фактическая приёмка M1
+
+Этот раздел заполняется только данными, снятыми с production-хоста после успешного deploy/verify; значения не должны подставляться из локальной конфигурации или предположений.
+
+- Дата приёмки: _pending live acceptance_
+- Развёрнутый commit: _pending; источник — `/opt/funtidesk/DEPLOYED_COMMIT`_
+- Image digest: `sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54`
+- `PUBLIC_KEY`: _pending live verification_
+- `verify.sh`: _pending live output_
+- `restore-check.sh`: _pending R-03 acceptance_
+- Off-host backup: _pending confirmation; location recorded without secrets_
+- External port check: _pending; record source host and result_
+
+`deploy.sh` refuses production deployment when the repository has staged, unstaged, or untracked changes. On success it prints the exact Git commit and records it in `/opt/funtidesk/DEPLOYED_COMMIT`.
+
 ## Acceptance
+
+Перед заполнением factual acceptance на production-хосте запустить `sudo bash scripts/server/acceptance-report.sh`. Скрипт read-only: он повторно вызывает `verify.sh`, сверяет `DEPLOYED_COMMIT` с текущим HEAD, фиксирует `PUBLIC_KEY` и image ID обоих сервисов. Внешнюю достижимость портов и наличие off-host backup проверять отдельно с другого хоста.
+
 
 M1 считается готовым, когда подтверждены:
 
 - `hbbs` и `hbbr` running;
+- оба сервиса используют одну persistent server identity и key verification;
 - listeners только на минимальных RustDesk ports;
 - public key получен и сохранён для последующего client binding;
 - server identity переживает container restart/recreate;
@@ -100,3 +129,24 @@ M1 считается готовым, когда подтверждены:
 - нет зависимости от публичных RustDesk rendezvous/relay.
 
 Client security binding выполняется позже в M2.
+
+
+### Encrypted server backup (R-03)
+
+Production backup is encrypted with `age` before it becomes a persistent/off-host artifact. The repository does not contain the owner's private age identity.
+
+Before running `backup.sh`, set `AGE_RECIPIENT` to the owner's age public recipient (for example `age1...`). The script creates only `*.tar.gz.age` plus its SHA-256 sidecar; the plaintext tar archive exists only as a temporary file and is deleted before success is reported.
+
+Restore verification requires the owner's private age identity via `AGE_IDENTITY_FILE`. It verifies the encrypted artifact SHA-256, decrypts into a temporary directory, validates server-key encoding and decoded sizes (64-byte private value, 32-byte public value), and requires the final 32 bytes of the private key to equal the public key. `EXPECTED_PUBLIC_KEY` can additionally pin the expected production server identity.
+
+Clean restore procedure:
+
+1. Install `age` on the clean VM/container.
+2. Copy the encrypted backup, its `.sha256` sidecar, and the owner's age identity using an approved secure channel.
+3. Run `AGE_IDENTITY_FILE=/secure/path/owner.agekey EXPECTED_PUBLIC_KEY='<recorded public server key>' scripts/server/restore-check.sh <archive.tar.gz.age>`.
+4. Only after `RESTORE_CHECK_OK=true`, decrypt the archive into a temporary location and restore `data/` under `/opt/funtidesk`.
+5. Ensure `id_ed25519` is mode `600`, then run the normal deploy/verify.
+6. Confirm both `hbbs` and `hbbr` report the recorded `PUBLIC_KEY`.
+7. Delete temporary plaintext material immediately.
+
+The repository self-test exercises `age` key generation, encrypted `backup.sh`, SHA-256 verification, `restore-check.sh` decryption, expected-public-key verification, tampering rejection, plaintext-artifact absence and mismatched server key-pair rejection. A real clean-environment restore with the **production** identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.

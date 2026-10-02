@@ -1,9 +1,21 @@
-param(
+﻿param(
     [string]$ToolsRoot = "$PSScriptRoot\..\..\.tools"
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# FUNTIDESK R-21: immutable custom Flutter engine artifact.
+$EngineAssetUrl = 'https://api.github.com/repos/rustdesk/engine/releases/assets/210168939'
+$EngineSha256 = 'ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e'
+
+function Get-GitHubAssetHeaders {
+    $headers = @{ Accept = 'application/octet-stream'; 'User-Agent' = 'FuntiDesk-build' }
+    if ($env:GITHUB_TOKEN) {
+        $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)"
+    }
+    return $headers
+}
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $ClientRoot = Join-Path $RepoRoot 'client'
@@ -24,14 +36,32 @@ try {
     if (-not (Test-Path "$FlutterBuild\bin\flutter.bat")) { throw 'Flutter 3.24.5 не найден. Сначала bootstrap.ps1' }
     if (-not (Test-Path "$VcpkgRoot\vcpkg.exe")) { throw 'vcpkg не найден. Сначала bootstrap.ps1' }
 
-    # Поднять MSVC environment без запуска Visual Studio IDE.
-    $vswhere = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) { throw 'vswhere не найден' }
-    $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if (-not $vsPath) { throw 'Visual C++ Build Tools workload не найден' }
-    $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
+    # FUNTIDESK R-21: activate an existing Visual Studio x64 environment.
+    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    $vswhere = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $vsDevCmd = $null
+    if (Test-Path $vswhere) {
+        $vsPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1)
+        if ($vsPath) {
+            $candidate = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
+            if (Test-Path $candidate) { $vsDevCmd = $candidate }
+        }
+    }
+    if (-not $vsDevCmd) {
+        $candidate = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter VsDevCmd.bat -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like '*\Common7\Tools\VsDevCmd.bat' } |
+            Select-Object -First 1
+        if ($candidate) { $vsDevCmd = $candidate.FullName }
+    }
+    if (-not $vsDevCmd) { throw 'Visual Studio VsDevCmd.bat not found' }
     cmd /s /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
-        if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "Env:$($matches[1])" -Value $matches[2] }
+        $parts = $_.Split('=', 2)
+        if ($parts.Count -eq 2) {
+            Set-Item -Path ('Env:' + $parts[0]) -Value $parts[1]
+        }
+    }
+    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+        throw 'MSVC cl.exe not available after VsDevCmd activation'
     }
 
     $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
@@ -81,20 +111,51 @@ try {
 
     $patch = Join-Path $ClientRoot '.github\patches\flutter_3.24.4_dropdown_menu_enableFilter.diff'
     Push-Location $FlutterBuild
-    git apply --check $patch 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        git apply $patch
-    } else {
-        git apply --reverse --check $patch 2>$null
-        if ($LASTEXITCODE -ne 0) { throw 'Flutter patch нельзя ни применить, ни определить как уже применённый' }
-        Write-Host 'Flutter patch уже применён'
+    try {
+        # PowerShell 5.1 may promote native stderr to NativeCommandError while
+        # $ErrorActionPreference='Stop'. For idempotency probes, a non-zero
+        # git exit code is expected and must be inspected via $LASTEXITCODE.
+        $previousErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            git apply --check $patch 2>$null
+            $patchApplicable = $LASTEXITCODE -eq 0
+
+            if (-not $patchApplicable) {
+                git apply --reverse --check $patch 2>$null
+                $patchAlreadyApplied = $LASTEXITCODE -eq 0
+            } else {
+                $patchAlreadyApplied = $false
+            }
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorAction
+        }
+
+        if ($patchApplicable) {
+            git apply $patch
+            if ($LASTEXITCODE -ne 0) { throw 'Flutter patch apply failed' }
+        }
+        elseif ($patchAlreadyApplied) {
+            Write-Host 'Flutter patch уже применён'
+        }
+        else {
+            throw 'Flutter patch нельзя ни применить, ни определить как уже применённый'
+        }
     }
-    Pop-Location
+    finally {
+        Pop-Location
+    }
 
     $engineZip = Join-Path $env:TEMP 'funtidesk-windows-x64-release.zip'
     $engineTmp = Join-Path $env:TEMP 'funtidesk-windows-x64-release'
+    Remove-Item $engineZip -Force -ErrorAction SilentlyContinue
     Remove-Item $engineTmp -Recurse -Force -ErrorAction SilentlyContinue
-    Invoke-WebRequest 'https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip' -OutFile $engineZip
+    Invoke-WebRequest -Uri $EngineAssetUrl -Headers (Get-GitHubAssetHeaders) -OutFile $engineZip
+    $engineHash = (Get-FileHash $engineZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($engineHash -ne $EngineSha256) {
+        throw "Custom Flutter engine SHA256 mismatch. expected=$EngineSha256 actual=$engineHash"
+    }
     Expand-Archive $engineZip -DestinationPath $engineTmp -Force
     $engineDest = Join-Path $FlutterBuild 'bin\cache\artifacts\engine\windows-x64-release'
     New-Item -ItemType Directory -Force -Path $engineDest | Out-Null

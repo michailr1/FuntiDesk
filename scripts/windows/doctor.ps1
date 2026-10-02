@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Test-Command($Name) {
     $cmd = Get-Command $Name -ErrorAction SilentlyContinue
