@@ -78,19 +78,22 @@ PASS: receiving side terminates the connection before `Connection::start`; no ap
 
 Start with a disposable clean FuntiDesk profile and record the effective values.
 
-Expected production policy:
+> **Update 2026-10-05 (owner rollback):** R-15 hard-локи exposure (direct-server, LAN discovery, remote config modification, insecure TLS fallback, WebSocket) удалены из production policy по решению владельца. A6 для новых head проверяет: (1) exposure-опции меняемы пользователем (не fixed в UI, значение сохраняется после перезапуска), (2) clean-install auth-дефолты сохранены (см. таблицу). Evidence A6 на старом head `acaa57bd6e1a5d7104c24c0cd3cc05e5ab256100` остаётся историческим доказательством поведения того SHA (там опции были залочены) и не переносится на новые head.
+
+Expected production policy (после rollback 2026-10-05):
 
 | Setting | Expected |
 |---|---|
-| direct server / direct-IP exposure | disabled/locked |
-| LAN discovery | disabled/locked |
-| remote config modification | disabled/locked |
+| direct server / direct-IP exposure | upstream default (выключен), меняемый пользователем; НЕ locked |
+| LAN discovery | upstream default (включён), меняемый пользователем; НЕ locked |
+| remote config modification | upstream default (выключен), меняемый пользователем; НЕ locked |
+| insecure TLS/API fallback | upstream default (выключен), меняемый пользователем; НЕ locked |
+| WebSocket transport | upstream default (выключен), меняемый пользователем; НЕ locked |
 | permanent unattended password | not enabled by default |
 | temporary password | enabled |
-| approval/verification mode | explicit documented safe value |
-| insecure TLS/API fallback | disabled |
+| approval/verification mode | explicit documented safe value (`password` / `use-temporary-password`) |
 
-PASS: defaults match policy without inheriting old RustDesk profile values.
+PASS: clean profile не наследует значения старого профиля; auth-дефолты соответствуют таблице; exposure-опции меняются и сохраняются пользовательской настройкой.
 
 ## A7 — R-14 runtime network allowlist
 

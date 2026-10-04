@@ -56,9 +56,11 @@ Write-Line "---- POLICY EXPECTATIONS ----"
 Write-Line "EXPECT_RENDEZVOUS=desk.funti.cc:21116"
 Write-Line "EXPECT_RELAY=desk.funti.cc:21117"
 Write-Line "EXPECT_NO_UPSTREAM_RUSTDESK_ENDPOINTS=true"
-Write-Line "EXPECT_DIRECT_SERVER_DISABLED=true"
-Write-Line "EXPECT_LAN_DISCOVERY_DISABLED=true"
-Write-Line "EXPECT_REMOTE_CONFIG_DISABLED=true"
+# R-15 rollback (owner decision 2026-10-05): exposure options are user-configurable
+# (upstream defaults), no longer hard-locked. Historical locked-expectation
+# markers applied only to heads before the rollback.
+Write-Line "EXPECT_EXPOSURE_OPTIONS_USER_CONFIGURABLE=true"
+Write-Line "EXPECT_CLEAN_INSTALL_TEMP_PASSWORD=true"
 Write-Line "EXPECT_CUSTOM_TXT_IGNORED=true"
 Write-Line "EXPECT_EXE_NAME_INFRA_OVERRIDE_IGNORED=true"
 

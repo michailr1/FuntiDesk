@@ -1966,28 +1966,12 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 }
 
 pub fn apply_funtidesk_security_policy() {
-    // FUNTIDESK R-15: immutable network-exposure policy.
-    {
-        let mut fixed = config::OVERWRITE_SETTINGS.write().unwrap();
-        fixed.insert(keys::OPTION_DIRECT_SERVER.to_owned(), "N".to_owned());
-        fixed.insert(keys::OPTION_ENABLE_LAN_DISCOVERY.to_owned(), "N".to_owned());
-        fixed.insert(
-            keys::OPTION_ALLOW_REMOTE_CONFIG_MODIFICATION.to_owned(),
-            "N".to_owned(),
-        );
-        fixed.insert(
-            keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK.to_owned(),
-            "N".to_owned(),
-        );
-        fixed.insert(
-            keys::OPTION_ALLOW_WEBSOCKET.to_owned(),
-            "N".to_owned(),
-        );
-    }
-
-    // FUNTIDESK R-15: safe clean-install defaults. These are defaults rather
-    // than hard locks so unattended access can be enabled later by an explicit
-    // product flow instead of silently inheriting upstream behavior.
+    // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
+    // network-exposure locks (direct-server, LAN discovery, remote config
+    // modification, insecure TLS fallback, WebSocket) were removed so these
+    // options keep their pre-R-15 upstream behavior: user-configurable, with
+    // no OVERWRITE_SETTINGS entries. Only the clean-install authentication
+    // defaults below remain.
     {
         let mut defaults = config::DEFAULT_SETTINGS.write().unwrap();
         defaults.insert(keys::OPTION_APPROVE_MODE.to_owned(), "password".to_owned());
