@@ -60,9 +60,9 @@ done
 grep -Fq '.join("FuntiDeskCustomClientStaging")' "$windows_runtime" || fail 'Windows custom-client staging namespace is not FuntiDesk'
 grep -Fq 'let caption = "FuntiDesk Output"' "$windows_runtime" || fail 'Windows runtime message caption is not FuntiDesk'
 
-grep -Fq 'WIN_TOPMOST_INJECTED_PROCESS_EXE: &\x27static str = "RuntimeBroker_funtidesk.exe"' "$privacy_runtime" || fail 'privacy-mode broker executable namespace is not FuntiDesk'
-grep -Fq 'PRIVACY_WINDOW_CLASS: &\x27static str = "FuntiDeskPrivacyWindowClass"' "$privacy_runtime" || fail 'privacy-mode window class is not FuntiDesk'
-grep -Fq 'PRIVACY_WINDOW_NAME: &\x27static str = "FuntiDeskPrivacyWindow"' "$privacy_runtime" || fail 'privacy-mode window name is not FuntiDesk'
+grep -Fq "WIN_TOPMOST_INJECTED_PROCESS_EXE: &'static str = \"RuntimeBroker_funtidesk.exe\"" "$privacy_runtime" || fail 'privacy-mode broker executable namespace is not FuntiDesk'
+grep -Fq "PRIVACY_WINDOW_CLASS: &'static str = \"FuntiDeskPrivacyWindowClass\"" "$privacy_runtime" || fail 'privacy-mode window class is not FuntiDesk'
+grep -Fq "PRIVACY_WINDOW_NAME: &'static str = \"FuntiDeskPrivacyWindow\"" "$privacy_runtime" || fail 'privacy-mode window name is not FuntiDesk'
 if grep -Eq 'RuntimeBroker_rustdesk\.exe|RustDeskPrivacyWindow(Class)?' "$privacy_runtime"; then
   fail 'legacy RustDesk privacy-mode runtime namespace remains'
 fi
