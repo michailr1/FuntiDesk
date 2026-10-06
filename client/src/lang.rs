@@ -16,8 +16,10 @@ mod es;
 mod et;
 mod eu;
 mod fa;
-mod gu;
+mod fi;
 mod fr;
+mod ge;
+mod gu;
 mod he;
 mod hi;
 mod hr;
@@ -29,6 +31,7 @@ mod ko;
 mod kz;
 mod lt;
 mod lv;
+mod ml;
 mod nb;
 mod nl;
 mod pl;
@@ -41,15 +44,12 @@ mod sl;
 mod sq;
 mod sr;
 mod sv;
+mod ta;
 mod th;
 mod tr;
 mod tw;
 mod uk;
 mod vi;
-mod ta;
-mod ge;
-mod fi;
-mod ml;
 
 pub const LANGS: &[(&str, &str)] = &[
     ("en", "English"),
@@ -222,30 +222,22 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         if let Some(value) = placeholder_value.as_ref() {
             s = s.replace("{}", &value);
         }
-        if !crate::is_rustdesk() {
-            if s.contains("RustDesk")
-                && !name.starts_with("upgrade_rustdesk_server_pro")
-                && name != "powered_by_me"
-            {
-                let app_name = crate::get_app_name();
-                if !app_name.contains("RustDesk") {
+        if s.contains("RustDesk")
+            && !name.starts_with("upgrade_rustdesk_server_pro")
+            && name != "powered_by_me"
+        {
+            let app_name = crate::get_app_name();
+            if !app_name.contains("RustDesk") {
+                s = s.replace("RustDesk", &app_name);
+            } else {
+                // https://github.com/rustdesk/rustdesk-server-pro/issues/845
+                // If app_name contains "RustDesk" (e.g., a legacy custom build), avoid replacing
+                // "RustDesk" inside the already-substituted app name and duplicating its suffix.
+                const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
+                if !s.contains(PLACEHOLDER) {
+                    s = s.replace(&app_name, PLACEHOLDER);
                     s = s.replace("RustDesk", &app_name);
-                } else {
-                    // https://github.com/rustdesk/rustdesk-server-pro/issues/845
-                    // If app_name contains "RustDesk" (e.g., "RustDesk-Admin"), we need to avoid
-                    // replacing "RustDesk" within the already-substituted app_name, which would
-                    // cause duplication like "RustDesk-Admin" -> "RustDesk-Admin-Admin".
-                    //
-                    // app_name only contains alphanumeric and hyphen.
-                    const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
-                    if !s.contains(PLACEHOLDER) {
-                        s = s.replace(&app_name, PLACEHOLDER);
-                        s = s.replace("RustDesk", &app_name);
-                        s = s.replace(PLACEHOLDER, &app_name);
-                    } else {
-                        // It's very unlikely to reach here.
-                        // Skip replacement to avoid incorrect result.
-                    }
+                    s = s.replace(PLACEHOLDER, &app_name);
                 }
             }
         }

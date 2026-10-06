@@ -501,7 +501,7 @@ impl ClipboardContext {
                 #[cfg(target_os = "macos")]
                 let is_kde_x11 = false;
                 let clear_holder_text = if is_kde_x11 {
-                    "RustDesk placeholder to clear the file clipboard"
+                    "FuntiDesk placeholder to clear the file clipboard"
                 } else {
                     ""
                 }
@@ -915,7 +915,10 @@ pub mod clipboard_listener {
         if let Some((shutdown, h)) = listener.handle.take() {
             log::warn!("Cleaning up stale clipboard listener handle");
             if let Err(e) = h.join() {
-                log::error!("Clipboard listener thread panicked during stale cleanup: {:?}", e);
+                log::error!(
+                    "Clipboard listener thread panicked during stale cleanup: {:?}",
+                    e
+                );
             }
             drop(shutdown);
         }
