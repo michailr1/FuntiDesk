@@ -31,6 +31,8 @@ if grep -Eq 'VALUE "(FileDescription|InternalName|OriginalFilename|ProductName)"
   fail 'RustDesk remains in user-visible Windows product metadata'
 fi
 
+# The GitHub expression is intentionally matched as literal workflow source text.
+# shellcheck disable=SC2016
 grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 artifact namespace is not FuntiDesk'
 
 # Intentional compatibility boundary:
