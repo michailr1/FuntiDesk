@@ -18,9 +18,17 @@ $ReleaseDir = Join-Path $ClientRoot 'flutter\build\windows\x64\runner\Release'
 $LogDir = Join-Path $RepoRoot 'build-logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $LogFile = Join-Path $LogDir ("windows-worker-{0}-{1}.log" -f $Mode.ToLowerInvariant(), (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$TrackedPubspecLock = Join-Path $ClientRoot 'flutter\pubspec.lock'
+$TrackedPubspecLockBackup = Join-Path $env:TEMP ("funtidesk-pubspec-lock-{0}.bak" -f ([guid]::NewGuid().ToString('N')))
 
 function Get-TrackedStatus {
     return @(git -C $RepoRoot status --short --untracked-files=no)
+}
+
+function Restore-TrackedPubspecLock {
+    if (Test-Path $TrackedPubspecLockBackup) {
+        Copy-Item $TrackedPubspecLockBackup $TrackedPubspecLock -Force
+    }
 }
 
 function Enable-VsEnvironment {
@@ -124,6 +132,9 @@ function Write-RuntimeManifest {
 $beforeStatus = @(Get-TrackedStatus)
 $head = (git -C $RepoRoot rev-parse HEAD).Trim()
 $branch = (git -C $RepoRoot rev-parse --abbrev-ref HEAD).Trim()
+if (Test-Path $TrackedPubspecLock) {
+    Copy-Item $TrackedPubspecLock $TrackedPubspecLockBackup -Force
+}
 
 Start-Transcript -Path $LogFile -Force
 try {
@@ -170,6 +181,7 @@ try {
     $manifest = Write-RuntimeManifest
     $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 
+    Restore-TrackedPubspecLock
     $afterStatus = @(Get-TrackedStatus)
     $statusChanged = @(Compare-Object -ReferenceObject $beforeStatus -DifferenceObject $afterStatus)
     if ($statusChanged.Count -gt 0) {
@@ -205,5 +217,7 @@ try {
     if ($snapshot) { Write-Host "SNAPSHOT=$snapshot" }
 }
 finally {
+    Restore-TrackedPubspecLock
+    Remove-Item $TrackedPubspecLockBackup -Force -ErrorAction SilentlyContinue
     Stop-Transcript | Out-Null
 }
