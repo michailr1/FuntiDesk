@@ -47,6 +47,14 @@ fi
 
 grep -Fq 'pub const FUNTIDESK_APP_NAME: &str = "FuntiDesk";' "$config" || fail 'FuntiDesk config namespace constant is missing'
 grep -Fq 'pub const LEGACY_APP_NAME: &str = "RustDesk";' "$config" || fail 'legacy RustDesk migration boundary is missing'
+grep -Fq 'create_new(true)' "$config" || fail 'legacy config migration can overwrite an existing FuntiDesk target'
+grep -Fq 'legacy config source is a reparse point' "$config" || fail 'Windows reparse-point rejection is missing from legacy migration'
+if grep -Fq 'fs::copy(' "$config"; then
+  fail 'direct fs::copy remains in config migration; use the hardened legacy copy helper'
+fi
+test "$(grep -Fc 'Config::copy_legacy_config_file' "$config")" -eq 4 || fail 'auxiliary migrations do not all use the hardened legacy copy helper'
+grep -Fq 'Self::copy_legacy_config_file' "$config" || fail 'primary config migration does not use the hardened legacy copy helper'
+
 grep -Fq 'std::wstring app_name = L"FuntiDesk";' "$runner" || fail 'Windows runner fallback app name is not FuntiDesk'
 grep -Fq 'const ISSUER: &str = "FuntiDesk";' "$auth_2fa" || fail '2FA issuer is not FuntiDesk'
 
@@ -80,6 +88,7 @@ grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 art
 # Intentional compatibility boundary:
 # - librustdesk.dll and rustdesk_* exported FFI symbols remain upstream-derived ABI names.
 # - legacy RustDesk profile identifiers remain only where required for one-time migration.
+# - passive legacy profile data migrates only through the hardened non-overwriting copy helper.
 # - legacy executable plugins are retained on disk but are not copied/executed automatically.
 # - upstream update-feed filenames (rustdesk-<version>.*) remain until FuntiDesk owns
 #   its update endpoint and artifact contract.
