@@ -57,7 +57,7 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   # Disable VC140_1
   target_compile_options(${TARGET} PRIVATE /d2FH4-)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
-  target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG")
+  target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()
 
 # Flutter library and tool build rules.
