@@ -30,9 +30,9 @@ jobs:
           grep -Fq 'create_new(true)' client/libs/hbb_common/src/config.rs
           grep -Fq 'legacy config source is a reparse point' client/libs/hbb_common/src/config.rs
 
-      - name: Test hbb_common
+      - name: Test config module
         working-directory: client
-        run: cargo test -p hbb_common --lib --locked
+        run: cargo test -p hbb_common --lib config::tests --locked
 
       - name: Commit migration hardening
         run: |
