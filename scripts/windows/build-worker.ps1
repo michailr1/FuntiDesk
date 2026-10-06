@@ -49,10 +49,11 @@ function Assert-WorkerPrerequisites {
     foreach ($path in @(
         (Join-Path $FlutterBridge 'bin\flutter.bat'),
         (Join-Path $FlutterBuild 'bin\flutter.bat'),
-        (Join-Path $VcpkgRoot 'vcpkg.exe')
+        (Join-Path $VcpkgRoot 'vcpkg.exe'),
+        (Join-Path $env:USERPROFILE '.cargo\bin\flutter_rust_bridge_codegen.exe')
     )) {
         if (-not (Test-Path $path)) {
-            throw "Pinned worker prerequisite missing: $path. Run scripts/windows/bootstrap.ps1 first."
+            throw "Pinned worker prerequisite missing: $path. Run scripts/windows/bootstrap.ps1/build-baseline.ps1 first."
         }
     }
 
@@ -62,15 +63,48 @@ function Assert-WorkerPrerequisites {
     }
 }
 
-function Test-BridgeRefreshRequired {
-    $rustInput = Join-Path $ClientRoot 'src\flutter_ffi.rs'
-    $dartOutput = Join-Path $ClientRoot 'flutter\lib\generated_bridge.dart'
-    $cOutput = Join-Path $ClientRoot 'flutter\macos\Runner\bridge_generated.h'
+function Update-FlutterBridge {
+    Write-Host '== Regenerate pinned Flutter/Rust bridge =='
+    $pubspec = Join-Path $ClientRoot 'flutter\pubspec.yaml'
+    $pubspecLock = Join-Path $ClientRoot 'flutter\pubspec.lock'
+    $pubspecBak = "$pubspec.funtidesk-worker.bak"
+    $lockBak = "$pubspecLock.funtidesk-worker.bak"
+    $codegen = Join-Path $env:USERPROFILE '.cargo\bin\flutter_rust_bridge_codegen.exe'
 
-    if (-not (Test-Path $dartOutput) -or -not (Test-Path $cOutput)) { return $true }
-    if ((Get-Item $rustInput).LastWriteTimeUtc -gt (Get-Item $dartOutput).LastWriteTimeUtc) { return $true }
-    if ((Get-Item $rustInput).LastWriteTimeUtc -gt (Get-Item $cOutput).LastWriteTimeUtc) { return $true }
-    return $false
+    Copy-Item $pubspec $pubspecBak -Force
+    if (Test-Path $pubspecLock) { Copy-Item $pubspecLock $lockBak -Force }
+    try {
+        (Get-Content $pubspec -Raw).Replace('extended_text: 14.0.0','extended_text: 13.0.0') | Set-Content $pubspec -NoNewline
+        $oldPath = $env:PATH
+        try {
+            $env:PATH = "$FlutterBridge\bin;$oldPath"
+            Push-Location (Join-Path $ClientRoot 'flutter')
+            try {
+                & "$FlutterBridge\bin\flutter.bat" pub get
+                if ($LASTEXITCODE -ne 0) { throw "flutter pub get for bridge failed with exit code $LASTEXITCODE" }
+            }
+            finally {
+                Pop-Location
+            }
+
+            Push-Location $ClientRoot
+            try {
+                & $codegen --rust-input .\src\flutter_ffi.rs --dart-output .\flutter\lib\generated_bridge.dart --c-output .\flutter\macos\Runner\bridge_generated.h
+                if ($LASTEXITCODE -ne 0) { throw "flutter_rust_bridge_codegen failed with exit code $LASTEXITCODE" }
+                Copy-Item .\flutter\macos\Runner\bridge_generated.h .\flutter\ios\Runner\bridge_generated.h -Force
+            }
+            finally {
+                Pop-Location
+            }
+        }
+        finally {
+            $env:PATH = $oldPath
+        }
+    }
+    finally {
+        Move-Item $pubspecBak $pubspec -Force
+        if (Test-Path $lockBak) { Move-Item $lockBak $pubspecLock -Force }
+    }
 }
 
 function Write-RuntimeManifest {
@@ -103,16 +137,14 @@ try {
         Write-Host '== Local clean worker build =='
         Remove-Item (Join-Path $ClientRoot 'flutter\build') -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item (Join-Path $ClientRoot 'target') -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $ClientRoot 'flutter\.dart_tool') -Recurse -Force -ErrorAction SilentlyContinue
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'build-baseline.ps1') -ToolsRoot $ToolsRoot
         if ($LASTEXITCODE -ne 0) { throw "build-baseline.ps1 failed with exit code $LASTEXITCODE" }
     }
     else {
         Write-Host '== Incremental worker build =='
         Assert-WorkerPrerequisites
-        if (Test-BridgeRefreshRequired) {
-            throw 'flutter_ffi bridge refresh is required. Run build-worker.ps1 -Mode Clean so the pinned bridge generation path is used.'
-        }
-
+        Update-FlutterBridge
         Enable-VsEnvironment
         $env:RUSTUP_TOOLCHAIN = '1.75.0-x86_64-pc-windows-msvc'
         $env:VCPKG_ROOT = $VcpkgRoot
