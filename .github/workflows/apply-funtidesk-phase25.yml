@@ -1,0 +1,51 @@
+name: Apply FuntiDesk Phase 2.5 runtime identities
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+    paths:
+      - ".github/workflows/apply-funtidesk-phase25.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+
+      - name: Apply deterministic patch
+        run: python3 scripts/ci/apply-funtidesk-phase25.py
+
+      - name: Format changed Rust files
+        run: rustfmt --edition 2021 client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+
+      - name: Validate hbb_common
+        working-directory: client
+        run: cargo check -p hbb_common --lib --locked
+
+      - name: Validate patch
+        run: |
+          git diff --check
+          git diff -- client/flutter/lib/models/relative_mouse_model.dart client/flutter/lib/utils/platform_channel.dart client/flutter/macos/Runner/MainFlutterWindow.swift client/flutter/lib/common.dart client/flutter/lib/desktop/widgets/tabbar_widget.dart client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/platform/windows.cc client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+
+      - name: Audit targeted runtime remnants
+        run: |
+          ! git grep -n 'org.rustdesk.rustdesk/host' -- client/flutter
+          ! git grep -n 'RuntimeBroker_rustdesk.exe\|RustDeskPrivacyWindowClass\|RustDeskPrivacyWindow' -- client/src/privacy_mode
+          ! git grep -n 'test_rustdesk.log' -- client/src/platform
+
+      - name: Commit phase 2.5 runtime identities
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/flutter/lib/models/relative_mouse_model.dart client/flutter/lib/utils/platform_channel.dart client/flutter/macos/Runner/MainFlutterWindow.swift client/flutter/lib/common.dart client/flutter/lib/desktop/widgets/tabbar_widget.dart client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/platform/windows.cc client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+          git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
+          git commit -m "identity: finish owned runtime namespaces"
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
