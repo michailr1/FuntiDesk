@@ -1,4 +1,4 @@
-name: Apply FuntiDesk Phase 2.5 runtime identities
+name: Apply FuntiDesk Phase 2.6 plugin namespace
 
 on:
   push:
@@ -21,10 +21,10 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic patch
-        run: python3 scripts/ci/apply-funtidesk-phase25.py
+        run: python3 scripts/ci/apply-funtidesk-phase26.py
 
-      - name: Format changed Rust files
-        run: rustfmt --edition 2021 client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+      - name: Format changed Rust file
+        run: rustfmt --edition 2021 client/src/plugin/mod.rs
 
       - name: Validate hbb_common
         working-directory: client
@@ -33,19 +33,19 @@ jobs:
       - name: Validate patch
         run: |
           git diff --check
-          git diff -- client/flutter/lib/models/relative_mouse_model.dart client/flutter/lib/utils/platform_channel.dart client/flutter/macos/Runner/MainFlutterWindow.swift client/flutter/lib/common.dart client/flutter/lib/desktop/widgets/tabbar_widget.dart client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/platform/windows.cc client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+          git diff -- client/src/plugin/mod.rs
 
-      - name: Audit targeted runtime remnants
+      - name: Audit plugin product namespace
         run: |
-          ! git grep -n 'org.rustdesk.rustdesk/host' -- client/flutter
-          ! git grep -n 'RuntimeBroker_rustdesk.exe\|RustDeskPrivacyWindowClass\|RustDeskPrivacyWindow' -- client/src/privacy_mode
-          ! git grep -n 'test_rustdesk.log' -- client/src/platform
+          grep -Fq 'get_plugins_dir_for("FuntiDesk")' client/src/plugin/mod.rs
+          grep -Fq 'get_plugins_dir_for("RustDesk")' client/src/plugin/mod.rs
+          grep -Fq 'Skipping symlink/reparse entry during legacy plugin migration' client/src/plugin/mod.rs
 
-      - name: Commit phase 2.5 runtime identities
+      - name: Commit phase 2.6 plugin namespace
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/flutter/lib/models/relative_mouse_model.dart client/flutter/lib/utils/platform_channel.dart client/flutter/macos/Runner/MainFlutterWindow.swift client/flutter/lib/common.dart client/flutter/lib/desktop/widgets/tabbar_widget.dart client/src/privacy_mode/win_topmost_window.rs client/src/platform/windows.rs client/src/platform/windows.cc client/src/plugin/callback_ext.rs client/src/plugin/manager.rs
+          git add client/src/plugin/mod.rs
           git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
-          git commit -m "identity: finish owned runtime namespaces"
+          git commit -m "identity: migrate plugin runtime namespace"
           git push origin HEAD:michailr/m2-funtidesk-identity-refactor
