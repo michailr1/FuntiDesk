@@ -57,7 +57,6 @@ jobs:
       - name: Runtime server key-auth integration
         run: bash scripts/server/tests/r01-runtime-integration.sh
 
-
       - name: Security guard self-test
         run: bash scripts/ci/test-no-upstream-infra-guard.sh
 
@@ -74,6 +73,9 @@ jobs:
               bash "$t"
             fi
           done
+
+      - name: Enforce FuntiDesk product identity
+        run: bash scripts/ci/test-funtidesk-product-identity.sh
 
       - name: Enforce production infrastructure guard
         if: ${{ hashFiles('client/.funtidesk-security-pinned') != '' }}
