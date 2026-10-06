@@ -2411,13 +2411,7 @@ pub struct LanPeers {
 impl LanPeers {
     pub fn load() -> LanPeers {
         let _lock = CONFIG.read().unwrap();
-        match confy::load_path(Config::file_("_lan_peers")) {
-            Ok(peers) => peers,
-            Err(err) => {
-                log::error!("Failed to load lan peers: {}", err);
-                Default::default()
-            }
-        }
+        Config::load_::<LanPeers>("_lan_peers")
     }
 
     pub fn store(peers: &[DiscoveryPeer]) {
@@ -2430,7 +2424,12 @@ impl LanPeers {
     }
 
     pub fn modify_time() -> crate::ResultType<u64> {
-        let p = Config::file_("_lan_peers");
+        let current = Config::file_("_lan_peers");
+        let p = if current.exists() {
+            current
+        } else {
+            Config::file_for_app(LEGACY_APP_NAME, "_lan_peers")
+        };
         Ok(fs::metadata(p)?
             .modified()?
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -2641,8 +2640,52 @@ pub struct Ab {
 
 impl Ab {
     fn path() -> PathBuf {
-        let filename = format!("{}_ab", APP_NAME.read().unwrap().clone());
-        Config::path(filename)
+        let app_name = APP_NAME.read().unwrap().clone();
+        Self::path_for_app(&app_name)
+    }
+
+    fn path_for_app(app_name: &str) -> PathBuf {
+        let filename = format!("{app_name}_ab");
+        Config::path_for_app(app_name, filename)
+    }
+
+    fn readable_path() -> PathBuf {
+        let path = Self::path();
+        if path.exists() {
+            return path;
+        }
+        let legacy = Self::path_for_app(LEGACY_APP_NAME);
+        if !fs::symlink_metadata(&legacy)
+            .map(|metadata| metadata.file_type().is_file())
+            .unwrap_or(false)
+        {
+            return path;
+        }
+        if let Some(parent) = path.parent() {
+            if let Err(err) = fs::create_dir_all(parent) {
+                log::warn!("Failed to create FuntiDesk address-book directory: {}", err);
+                return legacy;
+            }
+        }
+        match fs::copy(&legacy, &path) {
+            Ok(_) => {
+                log::info!(
+                    "Migrated legacy address book '{}' to '{}'",
+                    legacy.display(),
+                    path.display()
+                );
+                path
+            }
+            Err(err) => {
+                log::warn!(
+                    "Failed to migrate legacy address book '{}' to '{}': {}",
+                    legacy.display(),
+                    path.display(),
+                    err
+                );
+                legacy
+            }
+        }
     }
 
     pub fn store(json: String) {
@@ -2661,7 +2704,7 @@ impl Ab {
     }
 
     pub fn load() -> Ab {
-        if let Ok(mut file) = std::fs::File::open(Self::path()) {
+        if let Ok(mut file) = std::fs::File::open(Self::readable_path()) {
             let mut data = vec![];
             if file.read_to_end(&mut data).is_ok() {
                 if let Ok(data) = symmetric_crypt(&data, false) {
@@ -2771,8 +2814,52 @@ pub struct Group {
 
 impl Group {
     fn path() -> PathBuf {
-        let filename = format!("{}_group", APP_NAME.read().unwrap().clone());
-        Config::path(filename)
+        let app_name = APP_NAME.read().unwrap().clone();
+        Self::path_for_app(&app_name)
+    }
+
+    fn path_for_app(app_name: &str) -> PathBuf {
+        let filename = format!("{app_name}_group");
+        Config::path_for_app(app_name, filename)
+    }
+
+    fn readable_path() -> PathBuf {
+        let path = Self::path();
+        if path.exists() {
+            return path;
+        }
+        let legacy = Self::path_for_app(LEGACY_APP_NAME);
+        if !fs::symlink_metadata(&legacy)
+            .map(|metadata| metadata.file_type().is_file())
+            .unwrap_or(false)
+        {
+            return path;
+        }
+        if let Some(parent) = path.parent() {
+            if let Err(err) = fs::create_dir_all(parent) {
+                log::warn!("Failed to create FuntiDesk group directory: {}", err);
+                return legacy;
+            }
+        }
+        match fs::copy(&legacy, &path) {
+            Ok(_) => {
+                log::info!(
+                    "Migrated legacy group data '{}' to '{}'",
+                    legacy.display(),
+                    path.display()
+                );
+                path
+            }
+            Err(err) => {
+                log::warn!(
+                    "Failed to migrate legacy group data '{}' to '{}': {}",
+                    legacy.display(),
+                    path.display(),
+                    err
+                );
+                legacy
+            }
+        }
     }
 
     pub fn store(json: String) {
@@ -2790,7 +2877,7 @@ impl Group {
     }
 
     pub fn load() -> Self {
-        if let Ok(mut file) = std::fs::File::open(Self::path()) {
+        if let Ok(mut file) = std::fs::File::open(Self::readable_path()) {
             let mut data = vec![];
             if file.read_to_end(&mut data).is_ok() {
                 if let Ok(data) = symmetric_crypt(&data, false) {
@@ -3534,6 +3621,24 @@ mod tests {
         );
         assert_ne!(funtidesk_file, legacy_file);
         assert_eq!(PeerConfig::path("123456789"), funtidesk_file);
+    }
+
+    #[test]
+    fn test_auxiliary_data_paths_use_explicit_app_names() {
+        let funtidesk_ab = Ab::path_for_app(FUNTIDESK_APP_NAME);
+        let legacy_ab = Ab::path_for_app(LEGACY_APP_NAME);
+        let funtidesk_group = Group::path_for_app(FUNTIDESK_APP_NAME);
+        let legacy_group = Group::path_for_app(LEGACY_APP_NAME);
+        assert_eq!(
+            funtidesk_ab.file_name().and_then(|name| name.to_str()),
+            Some("FuntiDesk_ab")
+        );
+        assert_eq!(
+            funtidesk_group.file_name().and_then(|name| name.to_str()),
+            Some("FuntiDesk_group")
+        );
+        assert_ne!(funtidesk_ab, legacy_ab);
+        assert_ne!(funtidesk_group, legacy_group);
     }
 
     #[test]
