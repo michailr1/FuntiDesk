@@ -1,0 +1,40 @@
+name: Apply FuntiDesk Phase 2.6 strict plugin migration
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+    paths:
+      - ".github/workflows/apply-funtidesk-phase26-strict.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+
+      - name: Apply deterministic patch
+        run: python3 scripts/ci/apply-funtidesk-phase26-strict.py
+
+      - name: Validate formatting and diff
+        run: |
+          rustfmt --edition 2021 --check client/src/plugin/mod.rs
+          git diff --check
+          ! git grep -n 'using legacy directory for this run' -- client/src/plugin/mod.rs
+          grep -Fq 'continuing with FuntiDesk plugin namespace' client/src/plugin/mod.rs
+
+      - name: Commit strict plugin migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/src/plugin/mod.rs
+          git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
+          git commit -m "identity: keep plugin writes in FuntiDesk namespace"
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
