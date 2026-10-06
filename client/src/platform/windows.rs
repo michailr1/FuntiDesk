@@ -3666,8 +3666,8 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match files like rustdesk-*.msi or rustdesk-*.exe
-                if file_name.starts_with("rustdesk-")
+                // Match current FuntiDesk update files and legacy RustDesk update files.
+                if (file_name.starts_with("funtidesk-") || file_name.starts_with("rustdesk-"))
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
                 {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
@@ -4182,7 +4182,7 @@ pub fn send_raw_data_to_printer(printer_name: Option<String>, data: Vec<u8>) -> 
             data.len() as c_ulong,
         );
         if res != 0 {
-            bail!("Failed to send data to the printer, see logs in C:\\Windows\\temp\\test_rustdesk.log for more details.");
+            bail!("Failed to send data to the printer, see logs in C:\\Windows\\temp\\test_funtidesk.log for more details.");
         } else {
             log::info!("Successfully sent data to the printer");
         }
