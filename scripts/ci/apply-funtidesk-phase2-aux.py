@@ -1,249 +1,77 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / "client/libs/hbb_common/src/config.rs"
-COMMON = ROOT / "client/src/common.rs"
+LANG = ROOT / "client/src/lang.rs"
+AUTH_2FA = ROOT / "client/src/auth_2fa.rs"
+CLIPBOARD = ROOT / "client/src/clipboard.rs"
+PLATFORM = ROOT / "client/libs/hbb_common/src/platform/mod.rs"
+WIN_MAIN = ROOT / "client/flutter/windows/runner/main.cpp"
+WIN_WINDOW = ROOT / "client/flutter/windows/runner/flutter_window.cpp"
+DART_COMMON = ROOT / "client/flutter/lib/common.dart"
 
 
-def replace_once(text: str, old: str, new: str, label: str) -> str:
+def replace_once(path: Path, old: str, new: str, label: str) -> None:
+    text = path.read_text(encoding="utf-8")
     count = text.count(old)
     if count != 1:
         raise SystemExit(f"{label}: expected exactly one match, found {count}")
-    return text.replace(old, new, 1)
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def replace_first_of_two(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    if count != 2:
-        raise SystemExit(f"{label}: expected exactly two matches, found {count}")
-    return text.replace(old, new, 1)
-
-
-config = CONFIG.read_text(encoding="utf-8")
-
-config = replace_once(
-    config,
-    '''impl LanPeers {
-    pub fn load() -> LanPeers {
-        let _lock = CONFIG.read().unwrap();
-        match confy::load_path(Config::file_("_lan_peers")) {
-            Ok(peers) => peers,
-            Err(err) => {
-                log::error!("Failed to load lan peers: {}", err);
-                Default::default()
+old_branding = '''        if !crate::is_rustdesk() {
+            if s.contains("RustDesk")
+                && !name.starts_with("upgrade_rustdesk_server_pro")
+                && name != "powered_by_me"
+            {
+                let app_name = crate::get_app_name();
+                if !app_name.contains("RustDesk") {
+                    s = s.replace("RustDesk", &app_name);
+                } else {
+                    // https://github.com/rustdesk/rustdesk-server-pro/issues/845
+                    // If app_name contains "RustDesk" (e.g., "RustDesk-Admin"), we need to avoid
+                    // replacing "RustDesk" within the already-substituted app_name, which would
+                    // cause duplication like "RustDesk-Admin" -> "RustDesk-Admin-Admin".
+                    //
+                    // app_name only contains alphanumeric and hyphen.
+                    const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
+                    if !s.contains(PLACEHOLDER) {
+                        s = s.replace(&app_name, PLACEHOLDER);
+                        s = s.replace("RustDesk", &app_name);
+                        s = s.replace(PLACEHOLDER, &app_name);
+                    } else {
+                        // It's very unlikely to reach here.
+                        // Skip replacement to avoid incorrect result.
+                    }
+                }
             }
         }
-    }
-''',
-    '''impl LanPeers {
-    pub fn load() -> LanPeers {
-        let _lock = CONFIG.read().unwrap();
-        Config::load_::<LanPeers>("_lan_peers")
-    }
-''',
-    "LanPeers::load",
-)
-config = replace_once(
-    config,
-    '''    pub fn modify_time() -> crate::ResultType<u64> {
-        let p = Config::file_("_lan_peers");
-        Ok(fs::metadata(p)?
-''',
-    '''    pub fn modify_time() -> crate::ResultType<u64> {
-        let current = Config::file_("_lan_peers");
-        let p = if current.exists() {
-            current
-        } else {
-            Config::file_for_app(LEGACY_APP_NAME, "_lan_peers")
-        };
-        Ok(fs::metadata(p)?
-''',
-    "LanPeers::modify_time",
-)
-
-config = replace_once(
-    config,
-    '''impl Ab {
-    fn path() -> PathBuf {
-        let filename = format!("{}_ab", APP_NAME.read().unwrap().clone());
-        Config::path(filename)
-    }
-''',
-    '''impl Ab {
-    fn path() -> PathBuf {
-        let app_name = APP_NAME.read().unwrap().clone();
-        Self::path_for_app(&app_name)
-    }
-
-    fn path_for_app(app_name: &str) -> PathBuf {
-        let filename = format!("{app_name}_ab");
-        Config::path_for_app(app_name, filename)
-    }
-
-    fn readable_path() -> PathBuf {
-        let path = Self::path();
-        if path.exists() {
-            return path;
-        }
-        let legacy = Self::path_for_app(LEGACY_APP_NAME);
-        if !fs::symlink_metadata(&legacy)
-            .map(|metadata| metadata.file_type().is_file())
-            .unwrap_or(false)
-        {
-            return path;
-        }
-        if let Some(parent) = path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                log::warn!("Failed to create FuntiDesk address-book directory: {}", err);
-                return legacy;
-            }
-        }
-        match fs::copy(&legacy, &path) {
-            Ok(_) => {
-                log::info!(
-                    "Migrated legacy address book '{}' to '{}'",
-                    legacy.display(),
-                    path.display()
-                );
-                path
-            }
-            Err(err) => {
-                log::warn!(
-                    "Failed to migrate legacy address book '{}' to '{}': {}",
-                    legacy.display(),
-                    path.display(),
-                    err
-                );
-                legacy
-            }
-        }
-    }
-''',
-    "Ab paths",
-)
-open_old = '        if let Ok(mut file) = std::fs::File::open(Self::path()) {\n'
-open_new = '        if let Ok(mut file) = std::fs::File::open(Self::readable_path()) {\n'
-config = replace_first_of_two(config, open_old, open_new, "Ab::load path")
-
-config = replace_once(
-    config,
-    '''impl Group {
-    fn path() -> PathBuf {
-        let filename = format!("{}_group", APP_NAME.read().unwrap().clone());
-        Config::path(filename)
-    }
-''',
-    '''impl Group {
-    fn path() -> PathBuf {
-        let app_name = APP_NAME.read().unwrap().clone();
-        Self::path_for_app(&app_name)
-    }
-
-    fn path_for_app(app_name: &str) -> PathBuf {
-        let filename = format!("{app_name}_group");
-        Config::path_for_app(app_name, filename)
-    }
-
-    fn readable_path() -> PathBuf {
-        let path = Self::path();
-        if path.exists() {
-            return path;
-        }
-        let legacy = Self::path_for_app(LEGACY_APP_NAME);
-        if !fs::symlink_metadata(&legacy)
-            .map(|metadata| metadata.file_type().is_file())
-            .unwrap_or(false)
-        {
-            return path;
-        }
-        if let Some(parent) = path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                log::warn!("Failed to create FuntiDesk group directory: {}", err);
-                return legacy;
-            }
-        }
-        match fs::copy(&legacy, &path) {
-            Ok(_) => {
-                log::info!(
-                    "Migrated legacy group data '{}' to '{}'",
-                    legacy.display(),
-                    path.display()
-                );
-                path
-            }
-            Err(err) => {
-                log::warn!(
-                    "Failed to migrate legacy group data '{}' to '{}': {}",
-                    legacy.display(),
-                    path.display(),
-                    err
-                );
-                legacy
-            }
-        }
-    }
-''',
-    "Group paths",
-)
-config = replace_once(config, open_old, open_new, "Group::load path")
-
-peer_test = '''    fn test_peer_files_use_explicit_app_names() {
-        let funtidesk_file = PeerConfig::path_for_app(FUNTIDESK_APP_NAME, "123456789");
-        let legacy_file = PeerConfig::path_for_app(LEGACY_APP_NAME, "123456789");
-        assert_eq!(
-            funtidesk_file.file_name().and_then(|name| name.to_str()),
-            Some("123456789.toml")
-        );
-        assert_ne!(funtidesk_file, legacy_file);
-        assert_eq!(PeerConfig::path("123456789"), funtidesk_file);
-    }
 '''
-config = replace_once(
-    config,
-    peer_test,
-    peer_test
-    + '''
-    #[test]
-    fn test_auxiliary_data_paths_use_explicit_app_names() {
-        let funtidesk_ab = Ab::path_for_app(FUNTIDESK_APP_NAME);
-        let legacy_ab = Ab::path_for_app(LEGACY_APP_NAME);
-        let funtidesk_group = Group::path_for_app(FUNTIDESK_APP_NAME);
-        let legacy_group = Group::path_for_app(LEGACY_APP_NAME);
-        assert_eq!(
-            funtidesk_ab.file_name().and_then(|name| name.to_str()),
-            Some("FuntiDesk_ab")
-        );
-        assert_eq!(
-            funtidesk_group.file_name().and_then(|name| name.to_str()),
-            Some("FuntiDesk_group")
-        );
-        assert_ne!(funtidesk_ab, legacy_ab);
-        assert_ne!(funtidesk_group, legacy_group);
-    }
-''',
-    "auxiliary path tests",
-)
-CONFIG.write_text(config, encoding="utf-8")
+new_branding = '''        if s.contains("RustDesk")
+            && !name.starts_with("upgrade_rustdesk_server_pro")
+            && name != "powered_by_me"
+        {
+            let app_name = crate::get_app_name();
+            if !app_name.contains("RustDesk") {
+                s = s.replace("RustDesk", &app_name);
+            } else {
+                // https://github.com/rustdesk/rustdesk-server-pro/issues/845
+                // If app_name contains "RustDesk" (e.g., a legacy custom build), avoid replacing
+                // "RustDesk" inside the already-substituted app name and duplicating its suffix.
+                const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
+                if !s.contains(PLACEHOLDER) {
+                    s = s.replace(&app_name, PLACEHOLDER);
+                    s = s.replace("RustDesk", &app_name);
+                    s = s.replace(PLACEHOLDER, &app_name);
+                }
+            }
+        }
+'''
+replace_once(LANG, old_branding, new_branding, "runtime localization branding")
+replace_once(AUTH_2FA, 'const ISSUER: &str = "RustDesk";', 'const ISSUER: &str = "FuntiDesk";', "2FA issuer")
+replace_once(CLIPBOARD, '"RustDesk placeholder to clear the file clipboard"', '"FuntiDesk placeholder to clear the file clipboard"', "clipboard placeholder")
+replace_once(PLATFORM, '            "RustDesk",\n            &format!("Got signal {} and exit.{}", sig, info),', '            "FuntiDesk",\n            &format!("Got signal {} and exit.{}", sig, info),', "Linux crash dialog")
+replace_once(WIN_MAIN, 'std::wstring app_name = L"RustDesk";', 'std::wstring app_name = L"FuntiDesk";', "Windows runner fallback app name")
+replace_once(WIN_WINDOW, '"org.rustdesk.rustdesk/host"', '"org.funtidesk.funtidesk/host"', "Windows Flutter host channel")
+replace_once(DART_COMMON, 'MethodChannel("org.rustdesk.rustdesk/host")', 'MethodChannel("org.funtidesk.funtidesk/host")', "Dart Flutter host channel")
 
-common = COMMON.read_text(encoding="utf-8")
-common = replace_once(
-    common,
-    '        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT,\n',
-    '        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, FUNTIDESK_APP_NAME, READ_TIMEOUT,\n        RENDEZVOUS_PORT,\n',
-    "FUNTIDESK_APP_NAME import",
-)
-common = replace_once(
-    common,
-    '    hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")\n',
-    '    hbb_common::config::APP_NAME\n        .read()\n        .unwrap()\n        .eq(FUNTIDESK_APP_NAME)\n',
-    "is_rustdesk semantics",
-)
-common = replace_once(
-    common,
-    '    get_app_name() != "RustDesk"\n',
-    '    get_app_name() != FUNTIDESK_APP_NAME\n',
-    "is_custom_client semantics",
-)
-COMMON.write_text(common, encoding="utf-8")
-
-print("FUNTIDESK_PHASE2_AUX_PATCH_OK=true")
+print("FUNTIDESK_PHASE2_BRANDING_PATCH_OK=true")
