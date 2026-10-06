@@ -1,4 +1,4 @@
-name: Apply FuntiDesk Phase 2 identity patch
+name: Apply FuntiDesk Phase 2 auxiliary namespace patch
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
         run: python3 scripts/ci/apply-funtidesk-phase2.py
 
       - name: Format changed Rust files
-        run: rustfmt --edition 2021 client/libs/hbb_common/src/config.rs client/src/platform/windows.rs
+        run: rustfmt --edition 2021 client/libs/hbb_common/src/config.rs client/src/common.rs
 
       - name: Validate hbb_common
         working-directory: client
@@ -33,13 +33,17 @@ jobs:
       - name: Validate patch
         run: |
           git diff --check
-          git diff -- client/libs/hbb_common/src/config.rs client/src/platform/windows.rs
+          git diff -- client/libs/hbb_common/src/config.rs client/src/common.rs
 
-      - name: Commit phase 2 patch
+      - name: Audit remaining product identity strings
+        run: |
+          git grep -n -E 'RustDesk|rustdesk' -- client/src client/libs/hbb_common/src client/flutter/windows scripts/windows | head -n 400 || true
+
+      - name: Commit phase 2 auxiliary patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/libs/hbb_common/src/config.rs client/src/platform/windows.rs
+          git add client/libs/hbb_common/src/config.rs client/src/common.rs
           git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
-          git commit -m "identity: migrate peer and Windows runtime namespaces"
+          git commit -m "identity: migrate auxiliary data namespaces"
           git push origin HEAD:michailr/m2-funtidesk-identity-refactor
