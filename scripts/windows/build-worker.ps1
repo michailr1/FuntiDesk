@@ -121,7 +121,7 @@ function Write-RuntimeManifest {
     return $manifest
 }
 
-$beforeStatus = Get-TrackedStatus
+$beforeStatus = @(Get-TrackedStatus)
 $head = (git -C $RepoRoot rev-parse HEAD).Trim()
 $branch = (git -C $RepoRoot rev-parse --abbrev-ref HEAD).Trim()
 
@@ -170,9 +170,9 @@ try {
     $manifest = Write-RuntimeManifest
     $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 
-    $afterStatus = Get-TrackedStatus
-    $statusChanged = Compare-Object $beforeStatus $afterStatus
-    if ($statusChanged) {
+    $afterStatus = @(Get-TrackedStatus)
+    $statusChanged = @(Compare-Object -ReferenceObject $beforeStatus -DifferenceObject $afterStatus)
+    if ($statusChanged.Count -gt 0) {
         Write-Host 'Tracked source status changed during build:'
         $statusChanged | Format-Table | Out-String | Write-Host
         throw 'Build modified tracked source state'
