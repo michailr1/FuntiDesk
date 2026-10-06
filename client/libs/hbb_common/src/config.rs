@@ -50,6 +50,8 @@ pub const READ_TIMEOUT: u64 = 18_000;
 // https://www.onsip.com/voip-resources/voip-fundamentals/what-is-nat-keepalive
 pub const REG_INTERVAL: i64 = 15_000;
 pub const COMPRESS_LEVEL: i32 = 3;
+pub const FUNTIDESK_APP_NAME: &str = "FuntiDesk";
+pub const LEGACY_APP_NAME: &str = "RustDesk";
 const SERIAL: i32 = 3;
 
 #[cfg(target_os = "macos")]
@@ -69,7 +71,7 @@ lazy_static::lazy_static! {
     static ref ONLINE: Mutex<HashMap<String, i64>> = Default::default();
     pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());
     pub static ref EXE_RENDEZVOUS_SERVER: RwLock<String> = Default::default();
-    pub static ref APP_NAME: RwLock<String> = RwLock::new("RustDesk".to_owned());
+    pub static ref APP_NAME: RwLock<String> = RwLock::new(FUNTIDESK_APP_NAME.to_owned());
     static ref KEY_PAIR: Mutex<Option<KeyPair>> = Default::default();
     static ref USER_DEFAULT_CONFIG: RwLock<(UserDefaultConfig, Instant)> = RwLock::new((UserDefaultConfig::load(), Instant::now()));
     pub static ref NEW_STORED_PEER_CONFIG: Mutex<HashSet<String>> = Default::default();
@@ -599,7 +601,30 @@ impl Config {
         suffix: &str,
     ) -> T {
         let file = Self::file_(suffix);
-        let cfg = load_path(file);
+        let cfg = if file.exists() {
+            load_path(file)
+        } else {
+            let legacy_file = Self::file_for_app(LEGACY_APP_NAME, suffix);
+            if legacy_file.exists() {
+                let cfg = load_path(legacy_file.clone());
+                match Self::copy_legacy_config_file(&legacy_file, &file) {
+                    Ok(_) => log::info!(
+                        "Migrated legacy config '{}' to '{}'",
+                        legacy_file.display(),
+                        file.display()
+                    ),
+                    Err(err) => log::warn!(
+                        "Failed to migrate legacy config '{}' to '{}': {}",
+                        legacy_file.display(),
+                        file.display(),
+                        err
+                    ),
+                }
+                cfg
+            } else {
+                load_path(file)
+            }
+        };
         if suffix.is_empty() {
             log::trace!("{:?}", cfg);
         }
@@ -744,8 +769,21 @@ impl Config {
     }
 
     fn file_(suffix: &str) -> PathBuf {
-        let name = format!("{}{}", *APP_NAME.read().unwrap(), suffix);
-        Config::with_extension(Self::path(name))
+        let app_name = APP_NAME.read().unwrap().clone();
+        Self::file_for_app(&app_name, suffix)
+    }
+
+    fn file_for_app(app_name: &str, suffix: &str) -> PathBuf {
+        let name = format!("{app_name}{suffix}");
+        Config::with_extension(Self::path_for_app(app_name, name))
+    }
+
+    fn copy_legacy_config_file(legacy_file: &Path, file: &Path) -> std::io::Result<()> {
+        if let Some(parent) = file.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(legacy_file, file)?;
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -785,6 +823,11 @@ impl Config {
     }
 
     pub fn path<P: AsRef<Path>>(p: P) -> PathBuf {
+        let app_name = APP_NAME.read().unwrap().clone();
+        Self::path_for_app(&app_name, p)
+    }
+
+    fn path_for_app<P: AsRef<Path>>(app_name: &str, p: P) -> PathBuf {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let mut path: PathBuf = APP_DIR.read().unwrap().clone().into();
@@ -798,9 +841,7 @@ impl Config {
             #[cfg(target_os = "macos")]
             let org = ORG.read().unwrap().clone();
             // /var/root for root
-            if let Some(project) =
-                directories_next::ProjectDirs::from("", &org, &APP_NAME.read().unwrap())
-            {
+            if let Some(project) = directories_next::ProjectDirs::from("", &org, app_name) {
                 let mut path = patch(project.config_dir().to_path_buf());
                 path.push(p);
                 return path;
@@ -3366,6 +3407,23 @@ mod tests {
         let cfg: PeerConfig = Default::default();
         let res = toml::to_string_pretty(&cfg);
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_config_files_use_explicit_app_names() {
+        let funtidesk_file = Config::file_for_app(FUNTIDESK_APP_NAME, "2");
+        let legacy_file = Config::file_for_app(LEGACY_APP_NAME, "2");
+
+        assert_eq!(
+            funtidesk_file.file_name().and_then(|name| name.to_str()),
+            Some("FuntiDesk2.toml")
+        );
+        assert_eq!(
+            legacy_file.file_name().and_then(|name| name.to_str()),
+            Some("RustDesk2.toml")
+        );
+        assert_ne!(funtidesk_file, legacy_file);
+        assert_eq!(Config::file_("2"), funtidesk_file);
     }
 
     #[test]
