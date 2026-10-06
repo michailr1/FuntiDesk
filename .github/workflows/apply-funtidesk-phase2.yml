@@ -1,4 +1,4 @@
-name: Apply FuntiDesk Phase 2 auxiliary namespace patch
+name: Apply FuntiDesk Phase 2 product branding patch
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
         run: python3 scripts/ci/apply-funtidesk-phase2-aux.py
 
       - name: Format changed Rust files
-        run: rustfmt --edition 2021 client/libs/hbb_common/src/config.rs client/src/common.rs
+        run: rustfmt --edition 2021 client/src/lang.rs client/src/auth_2fa.rs client/src/clipboard.rs client/libs/hbb_common/src/platform/mod.rs
 
       - name: Validate hbb_common
         working-directory: client
@@ -33,17 +33,19 @@ jobs:
       - name: Validate patch
         run: |
           git diff --check
-          git diff -- client/libs/hbb_common/src/config.rs client/src/common.rs
+          git diff -- client/src/lang.rs client/src/auth_2fa.rs client/src/clipboard.rs client/libs/hbb_common/src/platform/mod.rs client/flutter/windows/runner/main.cpp client/flutter/windows/runner/flutter_window.cpp client/flutter/lib/common.dart
 
       - name: Audit remaining product identity strings
         run: |
-          git grep -n -E 'RustDesk|rustdesk' -- client/src client/libs/hbb_common/src client/flutter/windows scripts/windows | head -n 400 || true
+          git grep -n -E 'RustDesk|rustdesk' -- client/src client/libs/hbb_common/src client/flutter/windows client/flutter/lib scripts/windows ':(exclude)client/src/lang/**' \
+            | grep -vE 'https?://|github.com/rustdesk|rustdesk-org' \
+            | head -n 300 || true
 
-      - name: Commit phase 2 auxiliary patch
+      - name: Commit phase 2 product branding patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add client/libs/hbb_common/src/config.rs client/src/common.rs
+          git add client/src/lang.rs client/src/auth_2fa.rs client/src/clipboard.rs client/libs/hbb_common/src/platform/mod.rs client/flutter/windows/runner/main.cpp client/flutter/windows/runner/flutter_window.cpp client/flutter/lib/common.dart
           git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
-          git commit -m "identity: migrate auxiliary data namespaces"
+          git commit -m "identity: remove remaining product-facing RustDesk branding"
           git push origin HEAD:michailr/m2-funtidesk-identity-refactor
