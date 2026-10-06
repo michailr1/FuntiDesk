@@ -6,6 +6,7 @@ on:
     branches:
       - michailr/r-01-relay-key-auth
       - michailr/m2-security-review-fixes
+      - michailr/m2-funtidesk-identity-refactor
     paths:
       - ".github/workflows/r21-windows-clean-build.yml"
       - "scripts/windows/**"
