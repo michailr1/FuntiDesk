@@ -36,7 +36,7 @@ const MSG_TO_UI_TYPE_PLUGIN_MANAGER: &str = "plugin_manager";
 pub const EVENT_ON_CONN_CLIENT: &str = "on_conn_client";
 pub const EVENT_ON_CONN_SERVER: &str = "on_conn_server";
 pub const EVENT_ON_CONN_CLOSE_CLIENT: &str = "on_conn_close_client";
-pub const EVENT_ON_CONN_CLOSE_SERVER: &str = "on_conn_server";
+pub const EVENT_ON_CONN_CLOSE_SERVER: &str = "on_conn_close_server";
 
 static PLUGIN_SOURCE_LOCAL_DIR: &str = "plugins";
 
