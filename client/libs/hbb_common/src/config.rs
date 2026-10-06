@@ -1756,7 +1756,7 @@ impl PeerConfig {
                     );
                     legacy_path
                 } else {
-                    match fs::copy(&legacy_path, &path) {
+                    match Config::copy_legacy_config_file(&legacy_path, &path) {
                         Ok(_) => {
                             log::info!(
                                 "Migrated legacy peer config '{}' to '{}'",
@@ -1895,7 +1895,7 @@ impl PeerConfig {
                 );
                 return;
             }
-            match fs::copy(&source, &target) {
+            match Config::copy_legacy_config_file(&source, &target) {
                 Ok(_) => log::info!(
                     "Migrated legacy peer config '{}' to '{}'",
                     source.display(),
@@ -2695,7 +2695,7 @@ impl Ab {
                 return legacy;
             }
         }
-        match fs::copy(&legacy, &path) {
+        match Config::copy_legacy_config_file(&legacy, &path) {
             Ok(_) => {
                 log::info!(
                     "Migrated legacy address book '{}' to '{}'",
@@ -2869,7 +2869,7 @@ impl Group {
                 return legacy;
             }
         }
-        match fs::copy(&legacy, &path) {
+        match Config::copy_legacy_config_file(&legacy, &path) {
             Ok(_) => {
                 log::info!(
                     "Migrated legacy group data '{}' to '{}'",
