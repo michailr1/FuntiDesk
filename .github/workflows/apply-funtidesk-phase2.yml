@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic patch
-        run: python3 scripts/ci/apply-funtidesk-phase2.py
+        run: python3 scripts/ci/apply-funtidesk-phase2-aux.py
 
       - name: Format changed Rust files
         run: rustfmt --edition 2021 client/libs/hbb_common/src/config.rs client/src/common.rs
