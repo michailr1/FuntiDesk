@@ -15,12 +15,14 @@ relative_mouse='client/flutter/lib/models/relative_mouse_model.dart'
 config='client/libs/hbb_common/src/config.rs'
 auth_2fa='client/src/auth_2fa.rs'
 windows_runtime='client/src/platform/windows.rs'
+privacy_runtime='client/src/privacy_mode/win_topmost_window.rs'
 plugins='client/src/plugin/mod.rs'
 r21='.github/workflows/r21-windows-clean-build.yml'
 
 for required_file in \
   "$cmake" "$rc" "$runner" "$windows_channel" "$dart_channel" \
-  "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" "$plugins" "$r21"; do
+  "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" \
+  "$privacy_runtime" "$plugins" "$r21"; do
   [[ -f "$required_file" ]] || fail "required product identity file is missing: $required_file"
 done
 
@@ -58,9 +60,17 @@ done
 grep -Fq '.join("FuntiDeskCustomClientStaging")' "$windows_runtime" || fail 'Windows custom-client staging namespace is not FuntiDesk'
 grep -Fq 'let caption = "FuntiDesk Output"' "$windows_runtime" || fail 'Windows runtime message caption is not FuntiDesk'
 
+grep -Fq 'WIN_TOPMOST_INJECTED_PROCESS_EXE: &\x27static str = "RuntimeBroker_funtidesk.exe"' "$privacy_runtime" || fail 'privacy-mode broker executable namespace is not FuntiDesk'
+grep -Fq 'PRIVACY_WINDOW_CLASS: &\x27static str = "FuntiDeskPrivacyWindowClass"' "$privacy_runtime" || fail 'privacy-mode window class is not FuntiDesk'
+grep -Fq 'PRIVACY_WINDOW_NAME: &\x27static str = "FuntiDeskPrivacyWindow"' "$privacy_runtime" || fail 'privacy-mode window name is not FuntiDesk'
+if grep -Eq 'RuntimeBroker_rustdesk\.exe|RustDeskPrivacyWindow(Class)?' "$privacy_runtime"; then
+  fail 'legacy RustDesk privacy-mode runtime namespace remains'
+fi
+
 grep -Fq 'get_plugins_dir_for("FuntiDesk")' "$plugins" || fail 'plugin runtime namespace is not FuntiDesk'
-if grep -Fq 'copy_plugin_tree_missing' "$plugins"; then
-  fail 'legacy executable plugins must not be auto-migrated into FuntiDesk'
+grep -Fq 'Existing legacy plugins remain untouched' "$plugins" || fail 'plugin legacy isolation contract is missing'
+if grep -Eq 'copy_plugin_tree_missing|return Ok\(legacy\)|using legacy directory for this run' "$plugins"; then
+  fail 'legacy executable plugins must not be copied or used as FuntiDesk runtime state'
 fi
 
 # The GitHub expression is intentionally matched as literal workflow source text.
