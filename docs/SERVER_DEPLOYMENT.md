@@ -1,6 +1,6 @@
 # FuntiDesk Server — M1 deployment
 
-Целевой хост M1: `desk.funti.cc` (`107.172.76.106`).
+Целевой production hostname M1: `desk.funti.cc`. IP-адрес намеренно не фиксируется в документации: перед live-deploy агент обязан проверить актуальный DNS и фактический хост, чтобы не работать со старым VPS после миграции.
 
 На этом этапе разворачиваются только OSS-компоненты `hbbs` и `hbbr`. Другие будущие сервисы на VM не проектируются.
 
@@ -74,14 +74,16 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 2. убедиться, что текущая SSH-сессия стабильна;
 3. выполнить `sudo bash scripts/server/apply-firewall.sh`; скрипт определяет фактический SSH port через `sshd -T` либо требует явный `SSH_PORT` и отказывается продолжать, если порт определить нельзя;
 4. проверить, что новая SSH-сессия по-прежнему открывается;
-5. убедиться, что разрешены только SSH и минимальные FuntiDesk-порты;
-6. не открывать `80/443` без отдельной задачи;
-7. не открывать `21118/21119`.
+5. убедиться, что **для FuntiDesk** опубликованы только минимальные порты 21115–21117;
+6. сохранить существующие правила и listeners других сервисов этого хоста (например, web/TLS); FuntiDesk-скрипт не должен закрывать или переопределять их;
+7. не открывать для FuntiDesk `21118/21119`.
 
 Изменение SSH root/password policy выполняется только после подтверждения key-based доступа, чтобы исключить lockout.
 
 
 > **Docker/UFW:** опубликованные Docker-порты проходят через DNAT/FORWARD и не гарантированно ограничиваются правилами UFW INPUT. Поэтому UFW рассматривается как один из слоёв, а `verify.sh` отдельно сверяет фактически опубликованные контейнерами порты с разрешённым списком. Любой лишний published port является ошибкой приёмки.
+>
+> **Shared-host safety:** `apply-firewall.sh` добавляет только SSH/FuntiDesk allow rules и не меняет глобальные UFW default policies. Если UFW не активен, скрипт по умолчанию отказывается его включать, потому что на хосте могут работать другие сервисы. Включение неактивного UFW требует предварительной инвентаризации listeners/rules и явного `FUNTIDESK_ENABLE_UFW=1`.
 
 ## Backup
 
@@ -110,6 +112,9 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 `deploy.sh` refuses production deployment when the repository has staged, unstaged, or untracked changes. On success it prints the exact Git commit and records it in `/opt/funtidesk/DEPLOYED_COMMIT`.
 
 ## Acceptance
+
+Перед заполнением factual acceptance на production-хосте запустить `sudo bash scripts/server/acceptance-report.sh`. Скрипт read-only: он повторно вызывает `verify.sh`, сверяет `DEPLOYED_COMMIT` с текущим HEAD, фиксирует `PUBLIC_KEY` и image ID обоих сервисов. Внешнюю достижимость портов и наличие off-host backup проверять отдельно с другого хоста.
+
 
 M1 считается готовым, когда подтверждены:
 
@@ -144,4 +149,4 @@ Clean restore procedure:
 6. Confirm both `hbbs` and `hbbr` report the recorded `PUBLIC_KEY`.
 7. Delete temporary plaintext material immediately.
 
-The repository self-test covers key-pair validation, checksum success, checksum tampering rejection, and mismatched key-pair rejection. End-to-end `age` encryption/decryption is verified during the live clean-restore acceptance. A real clean-environment restore with the production identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.
+The repository self-test exercises `age` key generation, encrypted `backup.sh`, SHA-256 verification, `restore-check.sh` decryption, expected-public-key verification, tampering rejection, plaintext-artifact absence and mismatched server key-pair rejection. A real clean-environment restore with the **production** identity remains a live acceptance item and must be recorded in the factual M1 acceptance section.

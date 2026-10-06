@@ -28,14 +28,35 @@ jobs:
         run: |
           find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck
 
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem scripts -Recurse -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              Write-Error "$($_.FullName): $($errors | ForEach-Object Message | Out-String)"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
       - name: Server self-tests
         run: |
-          bash scripts/server/tests/r03-backup-selftest.sh
-          bash scripts/server/tests/r04-scripts-selftest.sh
+          for test_script in scripts/server/tests/*.sh; do
+            echo "==> $test_script"
+            bash "$test_script"
+          done
 
       - name: Validate server compose
         run: |
           docker compose             --env-file infra/funtidesk-server/.env.example             -f infra/funtidesk-server/compose.yaml             config >/dev/null
+
+      - name: Runtime server key-auth integration
+        run: bash scripts/server/tests/r01-runtime-integration.sh
+
 
       - name: Security guard self-test
         run: bash scripts/ci/test-no-upstream-infra-guard.sh

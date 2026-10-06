@@ -56,7 +56,29 @@ fi
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/dev/null
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d
+
+# FUNTIDESK R-01: on a clean data directory, hbbs owns creation of the
+# persistent server identity. Do not start hbbr until both key files exist,
+# otherwise two services could race while initializing shared state.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d hbbs
+
+for _ in $(seq 1 30); do
+  if [[ -s "$DATA_DIR/id_ed25519" && -s "$DATA_DIR/id_ed25519.pub" ]]; then
+    break
+  fi
+  sleep 1
+done
+[[ -s "$DATA_DIR/id_ed25519" && -s "$DATA_DIR/id_ed25519.pub" ]] || {
+  echo "ERROR: hbbs did not create persistent server identity within 30s" >&2
+  docker logs funtidesk-hbbs >&2 || true
+  exit 1
+}
+
+chmod 600 "$DATA_DIR/id_ed25519"
+chmod 644 "$DATA_DIR/id_ed25519.pub"
+bash "$REPO_DIR/scripts/server/validate-keypair.sh"   "$DATA_DIR/id_ed25519" "$DATA_DIR/id_ed25519.pub" >/dev/null
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" up -d hbbr
 
 bash "$REPO_DIR/scripts/server/verify.sh"
 
