@@ -15,11 +15,12 @@ relative_mouse='client/flutter/lib/models/relative_mouse_model.dart'
 config='client/libs/hbb_common/src/config.rs'
 auth_2fa='client/src/auth_2fa.rs'
 windows_runtime='client/src/platform/windows.rs'
+plugins='client/src/plugin/mod.rs'
 r21='.github/workflows/r21-windows-clean-build.yml'
 
 for required_file in \
   "$cmake" "$rc" "$runner" "$windows_channel" "$dart_channel" \
-  "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" "$r21"; do
+  "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" "$plugins" "$r21"; do
   [[ -f "$required_file" ]] || fail "required product identity file is missing: $required_file"
 done
 
@@ -57,6 +58,11 @@ done
 grep -Fq '.join("FuntiDeskCustomClientStaging")' "$windows_runtime" || fail 'Windows custom-client staging namespace is not FuntiDesk'
 grep -Fq 'let caption = "FuntiDesk Output"' "$windows_runtime" || fail 'Windows runtime message caption is not FuntiDesk'
 
+grep -Fq 'get_plugins_dir_for("FuntiDesk")' "$plugins" || fail 'plugin runtime namespace is not FuntiDesk'
+if grep -Fq 'copy_plugin_tree_missing' "$plugins"; then
+  fail 'legacy executable plugins must not be auto-migrated into FuntiDesk'
+fi
+
 # The GitHub expression is intentionally matched as literal workflow source text.
 # shellcheck disable=SC2016
 grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 artifact namespace is not FuntiDesk'
@@ -64,6 +70,7 @@ grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 art
 # Intentional compatibility boundary:
 # - librustdesk.dll and rustdesk_* exported FFI symbols remain upstream-derived ABI names.
 # - legacy RustDesk profile identifiers remain only where required for one-time migration.
+# - legacy executable plugins are retained on disk but are not copied/executed automatically.
 # - upstream update-feed filenames (rustdesk-<version>.*) remain until FuntiDesk owns
 #   its update endpoint and artifact contract.
 # - Cargo package/crate names, rustdesk-org dependencies, upstream links and legal
