@@ -28,7 +28,8 @@ jobs:
           rustfmt --edition 2021 client/libs/hbb_common/src/config.rs
           git diff --check
           ! grep -Fq 'fs::copy(' client/libs/hbb_common/src/config.rs
-          test "$(grep -Fc 'Config::copy_legacy_config_file' client/libs/hbb_common/src/config.rs)" -ge 5
+          test "$(grep -Fc 'Config::copy_legacy_config_file' client/libs/hbb_common/src/config.rs)" -eq 4
+          grep -Fq 'Self::copy_legacy_config_file' client/libs/hbb_common/src/config.rs
 
       - name: Test config module
         working-directory: client
