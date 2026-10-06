@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/r21-windows-clean-build.yml"
       - "scripts/windows/**"
+      - "scripts/ci/test-funtidesk-product-identity.sh"
       - "client/**"
       - "docs/WINDOWS_BASELINE_BUILD.md"
 
@@ -28,6 +29,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Guard FuntiDesk product identity
+        shell: bash
+        run: bash scripts/ci/test-funtidesk-product-identity.sh
 
       - name: Prepare pinned Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
