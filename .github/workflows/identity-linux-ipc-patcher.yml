@@ -1,0 +1,104 @@
+name: identity-linux-ipc-patcher
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+
+      - name: Patch Linux and IPC runtime identity
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_exact(path, old, new, expected):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count not in (0, expected):
+                  raise SystemExit(f'{path}: expected 0 or {expected} occurrences of {old!r}, got {count}')
+              if count == expected:
+                  p.write_text(text.replace(old, new))
+
+          cmake = 'client/flutter/linux/CMakeLists.txt'
+          replace_exact(cmake, 'set(BINARY_NAME "rustdesk")', 'set(BINARY_NAME "funtidesk")', 1)
+          replace_exact(cmake, 'set(APPLICATION_ID "com.carriez.flutter_hbb")', 'set(APPLICATION_ID "cc.funti.funtidesk")', 1)
+          replace_exact(cmake, 'message(STATUS "rustdesk lib build type: ${RUSTDESK_LIB_BUILD_TYPE}")',
+                        'message(STATUS "FuntiDesk core lib build type: ${RUSTDESK_LIB_BUILD_TYPE}")', 1)
+
+          linux = 'client/flutter/linux/my_application.cc'
+          replace_exact(linux, 'org.rustdesk.rustdesk/side_buttons', 'cc.funti.funtidesk/side_buttons', 1)
+          replace_exact(linux, 'org.rustdesk.rustdesk/host', 'org.funtidesk.funtidesk/host', 1)
+          replace_exact(linux, '// try setting icon for rustdesk, which uses the system cache',
+                        '// Try the FuntiDesk icon from the system icon cache.', 1)
+          replace_exact(linux, 'gtk_icon_theme_load_icon(theme, "rustdesk", icons[i], GTK_ICON_LOOKUP_NO_SVG, NULL)',
+                        'gtk_icon_theme_load_icon(theme, "funtidesk", icons[i], GTK_ICON_LOOKUP_NO_SVG, NULL)', 1)
+
+          # Dart side-button channel must move with the Linux embedder endpoint.
+          dart_root = Path('client/flutter/lib')
+          old = 'org.rustdesk.rustdesk/side_buttons'
+          matches = []
+          for p in dart_root.rglob('*.dart'):
+              text = p.read_text()
+              if old in text:
+                  matches.append((p, text.count(old)))
+          total = sum(c for _, c in matches)
+          if total not in (0, 1):
+              raise SystemExit(f'expected 0 or 1 Dart side_buttons channel occurrence, got {matches}')
+          for p, _ in matches:
+              p.write_text(p.read_text().replace(old, 'cc.funti.funtidesk/side_buttons'))
+
+          dbus = 'client/src/server/dbus.rs'
+          replace_exact(dbus, 'const DBUS_NAME: &str = "org.rustdesk.rustdesk";',
+                        'const DBUS_NAME: &str = "cc.funti.funtidesk";', 1)
+          replace_exact(dbus, '--dest=org.rustdesk.rustdesk /dbus org.rustdesk.rustdesk.NewConnection',
+                        '--dest=cc.funti.funtidesk /dbus cc.funti.funtidesk.NewConnection', 1)
+
+          term = 'client/src/server/terminal_service.rs'
+          replace_exact(term, 'r"\\\\.\\pipe\\rustdesk_term_in_{}"', 'r"\\\\.\\pipe\\funtidesk_term_in_{}"', 1)
+          replace_exact(term, 'r"\\\\.\\pipe\\rustdesk_term_out_{}"', 'r"\\\\.\\pipe\\funtidesk_term_out_{}"', 1)
+
+          mac = 'client/src/platform/macos.rs'
+          replace_exact(mac, 'format!(".rustdeskupdate-{}", euid)', 'format!(".funtideskupdate-{}", euid)', 1)
+
+          floating = 'client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/FloatingWindowService.kt'
+          replace_exact(floating, 'idShowRustDesk', 'idShowFuntiDesk', 3)
+          replace_exact(floating, 'translate("Show RustDesk")', 'translate("Show FuntiDesk")', 1)
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -Fq 'set(BINARY_NAME "funtidesk")' client/flutter/linux/CMakeLists.txt
+          grep -Fq 'set(APPLICATION_ID "cc.funti.funtidesk")' client/flutter/linux/CMakeLists.txt
+          grep -Fq '"org.funtidesk.funtidesk/host"' client/flutter/linux/my_application.cc
+          grep -Fq '"cc.funti.funtidesk/side_buttons"' client/flutter/linux/my_application.cc
+          grep -Fq 'const DBUS_NAME: &str = "cc.funti.funtidesk";' client/src/server/dbus.rs
+          grep -Fq 'funtidesk_term_in_' client/src/server/terminal_service.rs
+          grep -Fq '.funtideskupdate-' client/src/platform/macos.rs
+          ! grep -RInE 'org\.rustdesk\.rustdesk/(host|side_buttons)|const DBUS_NAME: &str = "org\.rustdesk\.rustdesk"|rustdesk_term_(in|out)_' client/flutter/linux client/flutter/lib client/src/server/dbus.rs client/src/server/terminal_service.rs
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo 'No patch required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add client/flutter/linux client/flutter/lib client/src/server/dbus.rs client/src/server/terminal_service.rs client/src/platform/macos.rs client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/FloatingWindowService.kt
+          git commit -m 'identity: move Linux and IPC runtime namespace to FuntiDesk'
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
