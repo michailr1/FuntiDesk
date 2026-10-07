@@ -81,62 +81,90 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
     setState(() => _bannerHidden = true);
   }
 
+  // Height of the banner and notices above the cards, measured after layout:
+  // the cards take the rest of the window, but never less than they need.
+  final _topKey = GlobalKey();
+  double _topHeight = 0;
+
+  void _measureTop() {
+    final box = _topKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    if ((box.size.height - _topHeight).abs() > 0.5) {
+      setState(() => _topHeight = box.size.height);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!_bannerHidden) ...[
-          _Banner(onClose: _hideBanner),
-          const SizedBox(height: 16),
-        ],
-        widget.notices,
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.showThisComputer) ...[
-                const SizedBox(width: 372, child: _ThisComputerCard()),
-                const SizedBox(width: 20),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: const [
-                    _ConnectCard(),
-                    SizedBox(height: 16),
-                    Expanded(child: _MyDevicesCard()),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureTop());
     return Container(
       color: t.bg,
       child: Column(
         children: [
           Expanded(
             child: LayoutBuilder(builder: (context, c) {
-              // Below this size the cards would be squeezed: scroll instead.
-              const minW = 860.0, minH = 640.0;
-              final w = c.maxWidth < minW ? minW : c.maxWidth;
-              final h = c.maxHeight < minH ? minH : c.maxHeight;
-              Widget body = SizedBox(
-                width: w,
-                height: h,
+              const padding = EdgeInsets.fromLTRB(28, 20, 28, 20);
+              // Narrower than this the connect field becomes unusable.
+              const minWidth = 720.0;
+              // "This computer" shows ID, password and permanent access.
+              const minCardsHeight = 470.0;
+              final width = c.maxWidth < minWidth ? minWidth : c.maxWidth;
+              final inner = width - padding.horizontal;
+              final leftWidth = (inner * 0.42).clamp(320.0, 372.0);
+              final freeHeight = c.maxHeight - padding.vertical - _topHeight;
+              final cardsHeight =
+                  freeHeight < minCardsHeight ? minCardsHeight : freeHeight;
+              Widget body = SingleChildScrollView(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 20, 28, 20),
-                  child: content,
+                  padding: padding,
+                  child: SizedBox(
+                    width: inner,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Column(
+                          key: _topKey,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (!_bannerHidden) ...[
+                              _Banner(onClose: _hideBanner),
+                              const SizedBox(height: 16),
+                            ],
+                            widget.notices,
+                          ],
+                        ),
+                        SizedBox(
+                          height: cardsHeight,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (widget.showThisComputer) ...[
+                                SizedBox(
+                                    width: leftWidth,
+                                    child: const _ThisComputerCard()),
+                                const SizedBox(width: 20),
+                              ],
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _ConnectCard(),
+                                    SizedBox(height: 16),
+                                    Expanded(child: _MyDevicesCard()),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               );
-              if (h > c.maxHeight) {
-                body = SingleChildScrollView(child: body);
-              }
-              if (w > c.maxWidth) {
+              if (width > c.maxWidth) {
                 body = SingleChildScrollView(
                     scrollDirection: Axis.horizontal, child: body);
               }
