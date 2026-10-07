@@ -1,0 +1,30 @@
+name: R21 dependency hash probe
+
+on:
+  push:
+    branches:
+      - michailr/r-01-relay-key-auth
+
+permissions:
+  contents: read
+
+jobs:
+  hash-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify pinned external Windows dependencies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          auth=(-H "Authorization: Bearer $GH_TOKEN")
+          curl -fL --retry 3             https://api.github.com/repos/rustdesk/engine/releases/assets/210168939             -H 'Accept: application/octet-stream' "${auth[@]}"             -o windows-x64-release.zip
+          curl -fL --retry 3             https://api.github.com/repos/llvm/llvm-project/releases/assets/87177143             -H 'Accept: application/octet-stream' "${auth[@]}"             -o LLVM-15.0.6-win64.exe
+
+          echo 'ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e  windows-x64-release.zip' | sha256sum -c -
+          echo '22e2f2c38be4c44db7a1e9da5e67de2a453c5b4be9cf91e139592a63877ac0a2  LLVM-15.0.6-win64.exe' | sha256sum -c -
+
+          test "$(git ls-remote https://github.com/flutter/flutter.git refs/tags/3.22.3 | awk '{print $1}')" = 'b0850beeb25f6d5b10426284f506557f66181b36'
+          test "$(git ls-remote https://github.com/flutter/flutter.git refs/tags/3.24.5 | awk '{print $1}')" = 'dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668'
+
+          echo 'R21_DEPENDENCY_PINS_OK=true'

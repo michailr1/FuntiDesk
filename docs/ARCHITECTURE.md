@@ -1,6 +1,6 @@
 # Архитектура FuntiDesk
 
-Статус: черновик M0.
+Статус: принятый baseline M0; уточняется по мере M1/M2.
 
 ## Область проекта
 
@@ -66,10 +66,12 @@ Android и iOS планируются после Windows MVP и E2E-приёмк
 
 Дополнительная E2E-проверка включает разные NAT, перезапуск/reconnect, Windows login/UAC, буфер обмена и передачу файлов.
 
-## Открытые решения M0
+## Открытые решения после M0
 
-- структура импорта исходного кода в репозиторий;
-- финальная политика обновлений и merge из upstream;
-- окончательные branding assets;
-- hostname(s) и разделение окружений;
-- release signing и update trust chain.
+Структура импорта закрыта ADR-001, политика upstream merge зафиксирована в `docs/UPSTREAM.md`, production hostname M1 — `desk.funti.cc`.
+
+Открыты только решения следующих этапов:
+
+- окончательные branding assets и единая UI design system;
+- release signing и update trust chain;
+- необходимость отдельного staging-окружения перед Family Release.
