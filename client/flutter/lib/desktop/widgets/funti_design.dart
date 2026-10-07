@@ -424,5 +424,95 @@ class FuntiTransportChip extends StatelessWidget {
   }
 }
 
+/// Transport preference the user picks before connecting.
+enum FuntiTransportPreference {
+  /// Try direct/P2P first, fall back to relay when needed (engine default).
+  auto,
+
+  /// Force the existing relay path (forceRelay, no P2P punch attempt).
+  relay,
+}
+
+/// Segmented "Auto | Relay" transport selector shown next to the Remote ID.
+///
+/// Semantics (honest, no simulated modes):
+/// - Auto: the engine tries a direct P2P connection first and falls back to
+///   the relay automatically when P2P is not possible. Mapped to the
+///   existing `connect(forceRelay: false)` path — no new protocol options.
+/// - Relay: forces the relay path for this connection via the existing
+///   `connect(forceRelay: true)` argument, which flows through
+///   connectMainDesktop -> multi-window session args -> Rust
+///   session_add(force_relay). Per-connection only; it does not touch the
+///   persisted per-peer "force-always-relay" option.
+/// - P2P-only: NOT offered. The core has no "forbid relay fallback" switch
+///   (client.rs always falls back to request_relay when direct fails), so a
+///   hard P2P-only mode would be fake. Auto already tries P2P first.
+class FuntiTransportSelector extends StatelessWidget {
+  const FuntiTransportSelector({
+    Key? key,
+    required this.preference,
+    required this.onChanged,
+  }) : super(key: key);
+
+  final FuntiTransportPreference preference;
+  final ValueChanged<FuntiTransportPreference> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: translate('transport_selector_tip'),
+      child: Container(
+        padding: const EdgeInsets.all(3.0),
+        decoration: BoxDecoration(
+          color: FuntiColors.card,
+          borderRadius: BorderRadius.circular(FuntiRadius.button),
+          border: Border.all(color: FuntiColors.cardStroke),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _segment(
+              active: preference == FuntiTransportPreference.auto,
+              label: translate('Auto'),
+              onTap: () => onChanged(FuntiTransportPreference.auto),
+            ),
+            _segment(
+              active: preference == FuntiTransportPreference.relay,
+              label: translate('Relay'),
+              onTap: () => onChanged(FuntiTransportPreference.relay),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _segment({
+    required bool active,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(FuntiRadius.button - 1),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          color: active ? FuntiColors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(FuntiRadius.button - 1),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: active ? Colors.white : FuntiColors.textMedium,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // Keep a reference to the app type constant so the shell stays a single source.
 const funtiAppTypeMain = kAppTypeMain;

@@ -220,6 +220,10 @@ class _ConnectionPageState extends State<ConnectionPage>
 
   final _menuOpen = false.obs;
 
+  /// Pre-connect transport preference (Auto tries P2P then relay fallback;
+  /// Relay forces the existing relay path via connect(forceRelay: true)).
+  FuntiTransportPreference _transportPreference = FuntiTransportPreference.auto;
+
   @override
   void initState() {
     super.initState();
@@ -497,7 +501,8 @@ class _ConnectionPageState extends State<ConnectionPage>
     connect(context, id,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
-        isTerminal: isTerminal);
+        isTerminal: isTerminal,
+        forceRelay: _transportPreference == FuntiTransportPreference.relay);
   }
 
   /// UI for the remote ID TextField.
@@ -666,7 +671,12 @@ class _ConnectionPageState extends State<ConnectionPage>
           ),
           Padding(
             padding: const EdgeInsets.only(top: 18.0),
-            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            child: Row(children: [
+              FuntiTransportSelector(
+                preference: _transportPreference,
+                onChanged: (v) => setState(() => _transportPreference = v),
+              ),
+              const Spacer(),
               FuntiConnectButton(
                 onPressed: () {
                   onConnect();
