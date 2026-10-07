@@ -109,17 +109,21 @@ class _FuntiNavRailState extends State<FuntiNavRail> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 76.0,
+      width: 212.0,
       color: FuntiColors.rail,
       child: Column(
         children: [
           // Brand block.
           Padding(
-            padding: const EdgeInsets.only(top: 18.0, bottom: 14.0),
+            padding: const EdgeInsets.fromLTRB(18.0, 22.0, 16.0, 28.0),
             child: _buildBrand(),
           ),
-          ..._items.entries.map((entry) => _buildTile(entry.key, entry.value)),
+          ..._items.entries
+              .where((entry) => entry.key != _NavItem.settings)
+              .map((entry) => _buildTile(entry.key, entry.value)),
           const Spacer(),
+          _buildTile(_NavItem.settings, _items[_NavItem.settings]!),
+          const SizedBox(height: 14.0),
         ],
       ),
     );
@@ -128,28 +132,41 @@ class _FuntiNavRailState extends State<FuntiNavRail> {
   Widget _buildBrand() {
     return Tooltip(
       message: 'FuntiDesk',
-      child: Container(
-        width: 40.0,
-        height: 40.0,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10.0),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [FuntiColors.accent, Color(0xFF2563EB)],
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            'F',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              height: 1.0,
+      child: Row(
+        children: [
+          Container(
+            width: 40.0,
+            height: 40.0,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10.0),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [FuntiColors.accent, Color(0xFF2563EB)],
+              ),
+            ),
+            child: const Center(
+              child: Text(
+                'F',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                ),
+              ),
             ),
           ),
-        ),
+          const SizedBox(width: 12.0),
+          const Text(
+            'FuntiDesk',
+            style: TextStyle(
+              color: FuntiColors.textHigh,
+              fontSize: 17.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -159,10 +176,15 @@ class _FuntiNavRailState extends State<FuntiNavRail> {
     final enabled = item == _NavItem.connection || item == _NavItem.settings;
     final selected = item == _selected && enabled;
     final label = translate(labelKey);
+    final itemColor = selected
+        ? FuntiColors.accent
+        : enabled
+            ? FuntiColors.textMedium
+            : FuntiColors.textLow;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3.0, horizontal: 10.0),
+      padding: const EdgeInsets.symmetric(vertical: 3.0, horizontal: 12.0),
       child: Opacity(
-        opacity: enabled ? 1.0 : 0.35,
+        opacity: enabled ? 1.0 : 0.65,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -177,26 +199,26 @@ class _FuntiNavRailState extends State<FuntiNavRail> {
             },
             child: Container(
               decoration: BoxDecoration(
-                color: selected ? FuntiColors.cardHover : Colors.transparent,
+                color: selected
+                    ? FuntiColors.accent.withOpacity(0.18)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(FuntiRadius.button),
+                border: selected
+                    ? Border.all(color: FuntiColors.accent.withOpacity(0.35))
+                    : null,
               ),
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 13.0, vertical: 11.0),
+              child: Row(
                 children: [
-                  Icon(
-                    icon,
-                    size: 22,
-                    color:
-                        selected ? FuntiColors.accent : FuntiColors.textMedium,
-                  ),
-                  const SizedBox(height: 3),
+                  Icon(icon, size: 20, color: itemColor),
+                  const SizedBox(width: 13.0),
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11,
-                      color:
-                          selected ? FuntiColors.textHigh : FuntiColors.textLow,
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? FuntiColors.textHigh : itemColor,
                     ),
                   ),
                 ],
