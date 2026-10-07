@@ -36,7 +36,7 @@ jobs:
           repl('client/src/server/connection.rs', 'RustDesk://FsJob//Printer/{}', 'FuntiDesk://FsJob//Printer/{}')
           repl('client/src/ui_session_interface.rs', 'rustdesk_printer_{id}', 'funtidesk_printer_{id}')
           repl('client/src/ui_session_interface.rs', ' rustdesk --port-forward remote-id listen-port remote-host remote-port', ' funtidesk --port-forward remote-id listen-port remote-host remote-port')
-          repl('client/src/rendezvous_mediator.rs', 'rustdesk --deploy --token <api_token>', 'funtidesk --deploy --token <api_token>', 4)
+          repl('client/src/rendezvous_mediator.rs', 'rustdesk --deploy --token <api_token>', 'funtidesk --deploy --token <api_token>', 3)
           repl('client/src/platform/delegate.rs', 'Invoking the main rustdesk process', 'Invoking the main FuntiDesk process')
           repl('client/src/platform/windows.rs', 'failed to find rustdesk main window process', 'failed to find FuntiDesk main window process')
 
