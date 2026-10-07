@@ -96,7 +96,9 @@ android {
     }
 
     defaultConfig {
-        applicationId "cc.funti.funtidesk"
+        // Keep the legacy runtime application id until Android data/update migration is designed.
+        // Product-facing labels and URI scheme are branded separately as FuntiDesk.
+        applicationId "com.carriez.flutter_hbb"
         minSdkVersion 22
         targetSdkVersion 33
         versionCode flutterVersionCode.toInteger()
