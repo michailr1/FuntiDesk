@@ -32,7 +32,6 @@ jobs:
               if count == expected:
                   p.write_text(text.replace(old, new))
 
-          # Android direct runtime/user-visible strings.
           main = 'client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt'
           replace_exact(main, 'const val DEFAULT_NOTIFY_TITLE = "RustDesk"', 'const val DEFAULT_NOTIFY_TITLE = "FuntiDesk"', 1)
           replace_exact(main, '"rustdesk:wakelock"', '"funtidesk:wakelock"', 1)
@@ -41,7 +40,6 @@ jobs:
           replace_exact(main, 'val channelName = "RustDesk Service"', 'val channelName = "FuntiDesk Service"', 1)
           replace_exact(main, 'description = "RustDesk Service Channel"', 'description = "FuntiDesk Service Channel"', 1)
 
-          # macOS Xcode runtime product identity.
           replace_exact('client/flutter/macos/Runner.xcodeproj/project.pbxproj',
                         'PRODUCT_BUNDLE_IDENTIFIER = com.carriez.rustdesk;',
                         'PRODUCT_BUNDLE_IDENTIFIER = cc.funti.funtidesk;', 3)
@@ -55,8 +53,6 @@ jobs:
                         'let mount_point = "/Volumes/RustDeskUpdate";',
                         'let mount_point = "/Volumes/FuntiDeskUpdate";', 1)
 
-          # macOS privileged launchd/runtime identity. Config ORG migration is separate;
-          # config filenames already use the FuntiDesk APP_NAME namespace.
           agent = 'client/src/platform/privileges_scripts/agent.plist'
           replace_exact(agent, 'com.carriez.RustDesk_server', 'cc.funti.funtidesk.server', 1)
           replace_exact(agent, 'com.carriez.rustdesk', 'cc.funti.funtidesk', 1)
@@ -81,9 +77,9 @@ jobs:
           replace_exact(install, '/Library/LaunchAgents/com.carriez.RustDesk_server.plist',
                         '/Library/LaunchAgents/cc.funti.funtidesk.server.plist', 2)
           replace_exact(install, '/Library/Preferences/com.carriez.RustDesk/RustDesk.toml',
-                        '/Library/Preferences/com.carriez.FuntiDesk/FuntiDesk.toml', 2)
+                        '/Library/Preferences/com.carriez.FuntiDesk/FuntiDesk.toml', 1)
           replace_exact(install, '/Library/Preferences/com.carriez.RustDesk/RustDesk2.toml',
-                        '/Library/Preferences/com.carriez.FuntiDesk/FuntiDesk2.toml', 2)
+                        '/Library/Preferences/com.carriez.FuntiDesk/FuntiDesk2.toml', 1)
           replace_exact(install, 'RustDesk wants to install daemon and agent',
                         'FuntiDesk wants to install daemon and agent', 1)
 
@@ -103,7 +99,6 @@ jobs:
                         '/Library/LaunchAgents/cc.funti.funtidesk.server.plist', 1)
           replace_exact(uninstall, 'RustDesk wants to unload daemon', 'FuntiDesk wants to unload daemon', 1)
 
-          # Direct visible/runtime labels outside platform packaging.
           for wb in ['client/src/whiteboard/macos.rs', 'client/src/whiteboard/windows.rs', 'client/src/whiteboard/linux.rs']:
               replace_exact(wb, '"RustDesk whiteboard"', '"FuntiDesk whiteboard"', 1)
           replace_exact('client/src/server/uinput.rs', '"RustDesk UInput Keyboard"', '"FuntiDesk UInput Keyboard"', 1)
