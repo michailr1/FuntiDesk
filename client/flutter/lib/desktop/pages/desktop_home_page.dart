@@ -12,6 +12,8 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/pages/funti_home_view.dart';
+import 'package:flutter_hbb/common/funti_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
@@ -56,10 +58,32 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   final GlobalKey _childKey = GlobalKey();
 
+  // FUNTIDESK: created once, so its FutureBuilder does not restart (and show
+  // a spinner) on every rebuild of the home page.
+  late final Widget _presetPasswordWarning = buildPresetPasswordWarning();
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
+    // FUNTIDESK: own main window layout. The incoming-only build keeps the
+    // upstream compact pane.
+    if (!isIncomingOnly) {
+      final isOutgoingOnly = bind.isOutgoingOnly();
+      return _buildBlock(
+        child: FuntiHomeView(
+          showThisComputer: !isOutgoingOnly,
+          notices: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!isOutgoingOnly) _presetPasswordWarning,
+              Obx(() => buildHelpCards(stateGlobal.updateUrl.value)),
+              buildPluginEntry(),
+            ],
+          ),
+        ),
+      );
+    }
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -599,6 +623,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
     }
 
+    // FUNTIDESK: notice drawn with theme tokens in the main window layout.
+    if (!bind.isIncomingOnly()) {
+      return _buildFuntiNotice(context, title, content, btnText, onPressed,
+          help: help,
+          link: link,
+          onClose: closeButton == true ? closeCard : null);
+    }
+
     return Stack(
       children: [
         Container(
@@ -691,6 +723,76 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             ),
           ),
       ],
+    );
+  }
+
+  // FUNTIDESK: service, UAC and permission notices of the main window.
+  Widget _buildFuntiNotice(BuildContext context, String title, String content,
+      String btnText, GestureTapCallback onPressed,
+      {String? help, String? link, VoidCallback? onClose}) {
+    final t = FuntiTokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.accent.withOpacity(0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: t.accent, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title.isNotEmpty)
+                  Text(translate(title),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: t.text)),
+                if (content.isNotEmpty)
+                  Text(translate(content),
+                      style:
+                          TextStyle(fontSize: 13, height: 1.45, color: t.text)),
+                if (help != null && link != null)
+                  InkWell(
+                    onTap: () async => await launchUrl(Uri.parse(link)),
+                    child: Text(translate(help),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: t.link,
+                            decoration: TextDecoration.underline)),
+                  ),
+              ],
+            ),
+          ),
+          if (btnText.isNotEmpty) ...[
+            const SizedBox(width: 16),
+            ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: t.accent,
+                foregroundColor: t.onAccent,
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(translate(btnText)),
+            ),
+          ],
+          if (onClose != null)
+            IconButton(
+              onPressed: onClose,
+              splashRadius: 18,
+              icon: Icon(Icons.close, size: 18, color: t.muted),
+            ),
+        ],
+      ),
     );
   }
 

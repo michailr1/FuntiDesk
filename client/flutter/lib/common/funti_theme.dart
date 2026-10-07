@@ -46,6 +46,7 @@ class FuntiPalette {
   static const Color lightOk = Color(0xFF6BA33A);
   static const Color lightOff = Color(0xFFABA397);
   static const Color lightStar = Color(0xFFB07A12);
+  static const Color lightRaised = Color(0xFFFFFFFF);
 
   // Dark theme.
   static const Color darkBg = Color(0xFF14130F);
@@ -68,6 +69,7 @@ class FuntiPalette {
   static const Color darkOk = Color(0xFF86C24F);
   static const Color darkOff = Color(0xFF6A6358);
   static const Color darkStar = Color(0xFFE8B455);
+  static const Color darkRaised = Color(0xFF38332C);
 }
 
 /// Semantic colour tokens for FuntiDesk-owned screens.
@@ -93,6 +95,7 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
     required this.ok,
     required this.off,
     required this.star,
+    required this.raised,
   });
 
   /// Window background behind cards.
@@ -152,6 +155,9 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
   /// Favourite star.
   final Color star;
 
+  /// Selected segment of a segmented control drawn on [surface2].
+  final Color raised;
+
   static const light = FuntiTokens(
     bg: FuntiPalette.lightBg,
     chrome: FuntiPalette.lightChrome,
@@ -172,6 +178,7 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
     ok: FuntiPalette.lightOk,
     off: FuntiPalette.lightOff,
     star: FuntiPalette.lightStar,
+    raised: FuntiPalette.lightRaised,
   );
 
   static const dark = FuntiTokens(
@@ -194,6 +201,7 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
     ok: FuntiPalette.darkOk,
     off: FuntiPalette.darkOff,
     star: FuntiPalette.darkStar,
+    raised: FuntiPalette.darkRaised,
   );
 
   /// Tokens of the current theme. Falls back to [light] if a ThemeData was
@@ -222,6 +230,7 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
     Color? ok,
     Color? off,
     Color? star,
+    Color? raised,
   }) {
     return FuntiTokens(
       bg: bg ?? this.bg,
@@ -243,6 +252,7 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
       ok: ok ?? this.ok,
       off: off ?? this.off,
       star: star ?? this.star,
+      raised: raised ?? this.raised,
     );
   }
 
@@ -272,6 +282,54 @@ class FuntiTokens extends ThemeExtension<FuntiTokens> {
       ok: l(ok, other.ok),
       off: l(off, other.off),
       star: l(star, other.star),
+      raised: l(raised, other.raised),
     );
   }
+}
+
+/// Colours of the home-screen illustration that change with the theme.
+/// Fixed colours of the illustration (Funtik's fur, the monitor, the plant)
+/// stay inside the scene itself: they describe the drawing, not the theme.
+@immutable
+class FuntiSceneColors {
+  const FuntiSceneColors({
+    required this.home,
+    required this.desk,
+    required this.deskFront,
+    required this.hoodie,
+    required this.hood,
+    required this.skin,
+    required this.hair,
+  });
+
+  final Color home;
+  final Color desk;
+  final Color deskFront;
+  final Color hoodie;
+  final Color hood;
+  final Color skin;
+  final Color hair;
+
+  static const light = FuntiSceneColors(
+    home: Color(0xFFF1E8DD),
+    desk: Color(0xFFD9C1A3),
+    deskFront: Color(0xFFCBAE8C),
+    hoodie: Color(0xFF1E6FEF),
+    hood: Color(0xFF1557C9),
+    skin: Color(0xFFF2C9A9),
+    hair: Color(0xFF3A2F2B),
+  );
+
+  static const dark = FuntiSceneColors(
+    home: Color(0xFF242019),
+    desk: Color(0xFF4A3D30),
+    deskFront: Color(0xFF3A3027),
+    hoodie: Color(0xFF2A73F0),
+    hood: Color(0xFF1B5BD0),
+    skin: Color(0xFFE8BC9A),
+    hair: Color(0xFF2A221F),
+  );
+
+  static FuntiSceneColors of(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
