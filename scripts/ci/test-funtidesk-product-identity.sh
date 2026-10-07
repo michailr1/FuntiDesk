@@ -17,12 +17,20 @@ auth_2fa='client/src/auth_2fa.rs'
 windows_runtime='client/src/platform/windows.rs'
 privacy_runtime='client/src/privacy_mode/win_topmost_window.rs'
 plugins='client/src/plugin/mod.rs'
+android_gradle='client/flutter/android/app/build.gradle'
+android_manifest='client/flutter/android/app/src/main/AndroidManifest.xml'
+android_boot='client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/BootReceiver.kt'
+ios_info='client/flutter/ios/Runner/Info.plist'
+ios_project='client/flutter/ios/Runner.xcodeproj/project.pbxproj'
+mac_info='client/flutter/macos/Runner/Configs/AppInfo.xcconfig'
+mac_project='client/flutter/macos/Runner.xcodeproj/project.pbxproj'
 r21='.github/workflows/r21-windows-clean-build.yml'
 
 for required_file in \
   "$cmake" "$rc" "$runner" "$windows_channel" "$dart_channel" \
   "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" \
-  "$privacy_runtime" "$plugins" "$r21"; do
+  "$privacy_runtime" "$plugins" "$android_gradle" "$android_manifest" \
+  "$android_boot" "$ios_info" "$ios_project" "$mac_info" "$mac_project" "$r21"; do
   [[ -f "$required_file" ]] || fail "required product identity file is missing: $required_file"
 done
 
@@ -81,12 +89,45 @@ if grep -Eq 'copy_plugin_tree_missing|return Ok\(legacy\)|using legacy directory
   fail 'legacy executable plugins must not be copied or used as FuntiDesk runtime state'
 fi
 
+# Android product/runtime identity. Kotlin package names remain an intentional
+# upstream implementation namespace; the externally visible applicationId does not.
+grep -Fq 'applicationId "cc.funti.funtidesk"' "$android_gradle" || fail 'Android applicationId is not FuntiDesk'
+grep -Fq 'android:label="FuntiDesk"' "$android_manifest" || fail 'Android app label is not FuntiDesk'
+grep -Fq 'android:label="FuntiDesk Input"' "$android_manifest" || fail 'Android accessibility-service label is not FuntiDesk'
+grep -Fq 'android:scheme="funtidesk"' "$android_manifest" || fail 'Android URI scheme is not FuntiDesk'
+grep -Fq 'android:name="cc.funti.funtidesk.DEBUG_BOOT_COMPLETED"' "$android_manifest" || fail 'Android debug boot action is not FuntiDesk'
+grep -Fq 'const val DEBUG_BOOT_COMPLETED = "cc.funti.funtidesk.DEBUG_BOOT_COMPLETED"' "$android_boot" || fail 'Android boot receiver action is not FuntiDesk'
+grep -Fq '"FuntiDesk is open"' "$android_boot" || fail 'Android boot toast is not FuntiDesk'
+if grep -Eq 'android:(label|scheme)="[^"]*[Rr]ust[Dd]esk|"RustDesk is Open"|com\.carriez\.flutter_hbb\.DEBUG_BOOT_COMPLETED' "$android_manifest" "$android_boot"; then
+  fail 'legacy RustDesk Android product/runtime identity remains'
+fi
+
+# Apple product/runtime identity. librustdesk static/dynamic libraries remain
+# intentional upstream ABI names and are not covered by these checks.
+grep -Fq '<string>FuntiDesk</string>' "$ios_info" || fail 'iOS display/bundle name is not FuntiDesk'
+grep -Fq '<string>funtidesk</string>' "$ios_info" || fail 'iOS URI scheme is not FuntiDesk'
+grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = cc.funti.funtidesk;' "$ios_project" || fail 'iOS bundle identifier is not FuntiDesk'
+if grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = com.carriez.flutterHbb;' "$ios_project"; then
+  fail 'legacy iOS bundle identifier remains'
+fi
+
+grep -Fq 'PRODUCT_NAME = FuntiDesk' "$mac_info" || fail 'macOS product name is not FuntiDesk'
+grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = cc.funti.funtidesk' "$mac_info" || fail 'macOS bundle identifier is not FuntiDesk'
+grep -Fq 'Copyright © 2026 FuntiDesk contributors.' "$mac_info" || fail 'macOS visible copyright is not FuntiDesk-owned'
+grep -Fq 'FuntiDesk.app' "$mac_project" || fail 'macOS app product is not FuntiDesk.app'
+if grep -Fq 'RustDesk.app' "$mac_project" || grep -Fq 'com.carriez.flutterHbb' "$mac_info"; then
+  fail 'legacy macOS product identity remains'
+fi
+
 # The GitHub expression is intentionally matched as literal workflow source text.
 # shellcheck disable=SC2016
 grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 artifact namespace is not FuntiDesk'
 
 # Intentional compatibility boundary:
-# - librustdesk.dll and rustdesk_* exported FFI symbols remain upstream-derived ABI names.
+# - librustdesk.dll / liblibrustdesk.* and rustdesk_* exported FFI symbols remain
+#   upstream-derived ABI names.
+# - Android Kotlin package names may remain com.carriez.flutter_hbb as an internal
+#   implementation namespace; the external applicationId is cc.funti.funtidesk.
 # - legacy RustDesk profile identifiers remain only where required for one-time migration.
 # - passive legacy profile data migrates only through the hardened non-overwriting copy helper.
 # - legacy executable plugins are retained on disk but are not copied/executed automatically.
