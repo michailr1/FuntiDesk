@@ -1,9 +1,6 @@
-name: identity residual audit
+name: identity residual audit (manual)
 
 on:
-  push:
-    branches:
-      - michailr/m2-funtidesk-identity-refactor
   workflow_dispatch:
 
 permissions:
