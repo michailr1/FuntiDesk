@@ -1,0 +1,85 @@
+name: UI Windows artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/rustdesk-fork-planning-324gyk
+    paths:
+      - ".github/workflows/ui-windows-artifact.yml"
+      - "scripts/windows/**"
+      - "scripts/ci/test-funtidesk-product-identity.sh"
+      - "client/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Guard FuntiDesk product identity
+        shell: bash
+        run: bash scripts/ci/test-funtidesk-product-identity.sh
+
+      - name: Prepare pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: 1.75.0
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - name: Bootstrap pinned toolchain
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/bootstrap.ps1
+
+      - name: Build Windows runtime
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
+
+      - name: Write SHA256 manifest
+        shell: powershell
+        run: |
+          $release = Resolve-Path 'client/flutter/build/windows/x64/runner/Release'
+          $manifest = Join-Path $release 'SHA256SUMS.txt'
+          Get-ChildItem $release -File -Recurse |
+            Where-Object { $_.FullName -ne $manifest } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $relative = $_.FullName.Substring($release.Path.Length + 1).Replace('\\','/')
+              "$hash  $relative"
+            } | Set-Content -Encoding ascii $manifest
+          Get-Content $manifest
+
+      - name: Upload Windows runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-ui-windows-x64-${{ github.sha }}
+          path: client/flutter/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-ui-build-logs-${{ github.sha }}
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 30
