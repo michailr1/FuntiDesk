@@ -1,0 +1,76 @@
+name: identity-guard-linux-patcher
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+      - name: Extend permanent identity guard
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('scripts/ci/test-funtidesk-product-identity.sh')
+          s = p.read_text()
+
+          old = "mac_project='client/flutter/macos/Runner.xcodeproj/project.pbxproj'\nr21='.github/workflows/r21-windows-clean-build.yml'"
+          new = "mac_project='client/flutter/macos/Runner.xcodeproj/project.pbxproj'\nlinux_cmake='client/flutter/linux/CMakeLists.txt'\nlinux_app='client/flutter/linux/my_application.cc'\nlinux_dbus='client/src/server/dbus.rs'\nterminal_runtime='client/src/server/terminal_service.rs'\nandroid_floating='client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/FloatingWindowService.kt'\nmac_runtime='client/src/platform/macos.rs'\nr21='.github/workflows/r21-windows-clean-build.yml'"
+          if s.count(old) not in (0, 1):
+              raise SystemExit('unexpected variable anchor count')
+          s = s.replace(old, new)
+
+          old = '  "$android_boot" "$ios_info" "$ios_project" "$mac_info" "$mac_project" "$r21"; do'
+          new = '  "$android_boot" "$ios_info" "$ios_project" "$mac_info" "$mac_project" \\\n  "$linux_cmake" "$linux_app" "$linux_dbus" "$terminal_runtime" "$android_floating" \\\n  "$mac_runtime" "$r21"; do'
+          if s.count(old) not in (0, 1):
+              raise SystemExit('unexpected required-files anchor count')
+          s = s.replace(old, new)
+
+          anchor = "# The GitHub expression is intentionally matched as literal workflow source text.\n"
+          block = r'''# Linux product/runtime identity. librustdesk.so and rustdesk_core_main remain
+# intentional upstream ABI names; the executable, application ID and IPC namespace do not.
+grep -Fq 'set(BINARY_NAME "funtidesk")' "$linux_cmake" || fail 'Linux product executable is not funtidesk'
+grep -Fq 'set(APPLICATION_ID "cc.funti.funtidesk")' "$linux_cmake" || fail 'Linux application ID is not FuntiDesk'
+grep -Fq '"org.funtidesk.funtidesk/host"' "$linux_app" || fail 'Linux host method channel is not FuntiDesk'
+grep -Fq '"cc.funti.funtidesk/side_buttons"' "$linux_app" || fail 'Linux side-button channel is not FuntiDesk'
+grep -Fq 'gtk_icon_theme_load_icon(theme, "funtidesk"' "$linux_app" || fail 'Linux icon namespace is not FuntiDesk'
+grep -Fq 'const DBUS_NAME: &str = "cc.funti.funtidesk";' "$linux_dbus" || fail 'Linux D-Bus name is not FuntiDesk'
+grep -Fq 'funtidesk_term_in_' "$terminal_runtime" || fail 'terminal input pipe namespace is not FuntiDesk'
+grep -Fq 'funtidesk_term_out_' "$terminal_runtime" || fail 'terminal output pipe namespace is not FuntiDesk'
+grep -Fq '.funtideskupdate-' "$mac_runtime" || fail 'macOS update temp namespace is not FuntiDesk'
+grep -Fq 'idShowFuntiDesk' "$android_floating" || fail 'Android floating-menu action is not FuntiDesk'
+grep -Fq 'translate("Show FuntiDesk")' "$android_floating" || fail 'Android floating-menu label is not FuntiDesk'
+if grep -RInE 'set\(BINARY_NAME "rustdesk"\)|set\(APPLICATION_ID "com\.carriez\.flutter_hbb"\)|org\.rustdesk\.rustdesk/(host|side_buttons)|const DBUS_NAME: &str = "org\.rustdesk\.rustdesk"|rustdesk_term_(in|out)_' "$linux_cmake" "$linux_app" client/flutter/lib "$linux_dbus" "$terminal_runtime" >/dev/null; then
+  fail 'legacy RustDesk Linux/IPC runtime identity remains'
+fi
+
+'''
+          if block.strip() not in s:
+              if s.count(anchor) != 1:
+                  raise SystemExit('unexpected guard insertion anchor count')
+              s = s.replace(anchor, block + anchor)
+
+          p.write_text(s)
+      - name: Validate guard
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci/test-funtidesk-product-identity.sh
+          bash scripts/ci/test-funtidesk-product-identity.sh
+      - name: Commit guard
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/ci/test-funtidesk-product-identity.sh
+          git commit -m 'ci: guard Linux and IPC FuntiDesk identity'
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
