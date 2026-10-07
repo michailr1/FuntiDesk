@@ -142,11 +142,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "rustdesk");
+    gtk_header_bar_set_title(header_bar, "FuntiDesk");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "rustdesk");
+    gtk_window_set_title(window, "FuntiDesk");
   }
 
   // auto bdw = bitsdojo_window_from(window); // <--- add this line
@@ -228,7 +228,7 @@ static void my_application_dispose(GObject* object) {
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
   G_APPLICATION_CLASS(klass)->local_command_line = my_application_local_command_line;
-  G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
+  G_OBJECT_CLASS(my_application_parent_class)->dispose = my_application_dispose;
 }
 
 static void my_application_init(MyApplication* self) {}
