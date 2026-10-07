@@ -97,9 +97,10 @@ if grep -Eq 'copy_plugin_tree_missing|return Ok\(legacy\)|using legacy directory
   fail 'legacy executable plugins must not be copied or used as FuntiDesk runtime state'
 fi
 
-# Android product/runtime identity. Kotlin package names remain an intentional
-# upstream implementation namespace; the externally visible applicationId does not.
-grep -Fq 'applicationId "cc.funti.funtidesk"' "$android_gradle" || fail 'Android applicationId is not FuntiDesk'
+# Android product/runtime identity. Keep the legacy applicationId until a
+# dedicated Android data/update migration is designed and accepted. Product-facing
+# labels, actions and URI scheme must still be FuntiDesk.
+grep -Fq 'applicationId "com.carriez.flutter_hbb"' "$android_gradle" || fail 'Android compatibility applicationId changed unexpectedly'
 grep -Fq 'android:label="FuntiDesk"' "$android_manifest" || fail 'Android app label is not FuntiDesk'
 grep -Fq 'android:label="FuntiDesk Input"' "$android_manifest" || fail 'Android accessibility-service label is not FuntiDesk'
 grep -Fq 'android:scheme="funtidesk"' "$android_manifest" || fail 'Android URI scheme is not FuntiDesk'
@@ -151,8 +152,8 @@ grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 art
 # Intentional compatibility boundary:
 # - librustdesk.dll / liblibrustdesk.* and rustdesk_* exported FFI symbols remain
 #   upstream-derived ABI names.
-# - Android Kotlin package names may remain com.carriez.flutter_hbb as an internal
-#   implementation namespace; the external applicationId is cc.funti.funtidesk.
+# - Android Kotlin package names and external applicationId currently remain
+#   com.carriez.flutter_hbb until a dedicated data/update migration is designed.
 # - legacy RustDesk profile identifiers remain only where required for one-time migration.
 # - passive legacy profile data migrates only through the hardened non-overwriting copy helper.
 # - legacy executable plugins are retained on disk but are not copied/executed automatically.
