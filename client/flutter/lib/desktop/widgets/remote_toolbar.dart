@@ -25,6 +25,7 @@ import '../../models/platform_model.dart';
 import '../../common/shared_state.dart';
 import './popup_menu.dart';
 import './kb_layout_type_chooser.dart';
+import './funti_design.dart';
 import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/common/widgets/custom_scale_base.dart';
 
@@ -806,6 +807,12 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       BuildContext context, _ToolbarEdge edge, bool isHorizontal) {
     final List<Widget> toolbarItems = [];
     toolbarItems.add(_PinMenu(state: widget.state));
+    // FuntiDesk: transport indicator (P2P / Relay) in the session toolbar.
+    // Pure presentation of the existing ConnectionTypeState runtime data.
+    toolbarItems.add(Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: Center(child: FuntiTransportChip(peerId: widget.id)),
+    ));
     toolbarItems.add(Obx(() {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
