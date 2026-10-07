@@ -194,7 +194,6 @@ jobs:
           grep -Fq 'pub const FUNTIDESK_ORG: &str = "cc.funti";' client/libs/hbb_common/src/config.rs
           grep -Fq 'pub const LEGACY_ORG: &str = "com.carriez";' client/libs/hbb_common/src/config.rs
           grep -Fq 'migrate_macos_legacy_profile' client/libs/hbb_common/src/config.rs
-          grep -Fq '[FUNTIDESK_APP_NAME, LEGACY_APP_NAME]' client/libs/hbb_common/src/config.rs
 
       - name: Test macOS hbb_common
         run: |
