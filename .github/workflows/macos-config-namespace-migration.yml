@@ -1,0 +1,215 @@
+name: macOS config namespace migration
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+
+      - name: Patch macOS config namespace
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('client/libs/hbb_common/src/config.rs')
+          s = p.read_text()
+
+          def repl(old, new, expected=1):
+              global s
+              n = s.count(old)
+              if n not in (0, expected):
+                  raise SystemExit(f'expected 0 or {expected} occurrences, got {n}: {old[:120]!r}')
+              if n:
+                  s = s.replace(old, new)
+
+          repl('''#[cfg(target_os = "macos")]
+          lazy_static::lazy_static! {
+              pub static ref ORG: RwLock<String> = RwLock::new("com.carriez".to_owned());
+          }
+          ''', '''#[cfg(target_os = "macos")]
+          pub const FUNTIDESK_ORG: &str = "cc.funti";
+          #[cfg(target_os = "macos")]
+          pub const LEGACY_ORG: &str = "com.carriez";
+
+          #[cfg(target_os = "macos")]
+          lazy_static::lazy_static! {
+              pub static ref ORG: RwLock<String> = RwLock::new(FUNTIDESK_ORG.to_owned());
+          }
+          ''')
+
+          old = '''    fn path_for_app<P: AsRef<Path>>(app_name: &str, p: P) -> PathBuf {
+              #[cfg(any(target_os = "android", target_os = "ios"))]
+              {
+                  let mut path: PathBuf = APP_DIR.read().unwrap().clone().into();
+                  path.push(p);
+                  return path;
+              }
+              #[cfg(not(any(target_os = "android", target_os = "ios")))]
+              {
+                  #[cfg(not(target_os = "macos"))]
+                  let org = "".to_owned();
+                  #[cfg(target_os = "macos")]
+                  let org = ORG.read().unwrap().clone();
+                  // /var/root for root
+                  if let Some(project) = directories_next::ProjectDirs::from("", &org, app_name) {
+                      let mut path = patch(project.config_dir().to_path_buf());
+                      path.push(p);
+                      return path;
+                  }
+                  "".into()
+              }
+          }
+          '''
+          new = '''    fn path_for_app<P: AsRef<Path>>(app_name: &str, p: P) -> PathBuf {
+              #[cfg(any(target_os = "android", target_os = "ios"))]
+              {
+                  let mut path: PathBuf = APP_DIR.read().unwrap().clone().into();
+                  path.push(p);
+                  return path;
+              }
+              #[cfg(target_os = "macos")]
+              {
+                  if app_name == FUNTIDESK_APP_NAME {
+                      Self::migrate_macos_legacy_profile();
+                  }
+                  let org = ORG.read().unwrap().clone();
+                  return Self::path_for_macos_identity(&org, app_name, p);
+              }
+              #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "macos")))]
+              {
+                  if let Some(project) = directories_next::ProjectDirs::from("", "", app_name) {
+                      let mut path = patch(project.config_dir().to_path_buf());
+                      path.push(p);
+                      return path;
+                  }
+                  "".into()
+              }
+          }
+
+          #[cfg(target_os = "macos")]
+          fn path_for_macos_identity<P: AsRef<Path>>(org: &str, app_name: &str, p: P) -> PathBuf {
+              if let Some(project) = directories_next::ProjectDirs::from("", org, app_name) {
+                  let mut path = patch(project.config_dir().to_path_buf());
+                  path.push(p);
+                  return path;
+              }
+              "".into()
+          }
+
+          #[cfg(target_os = "macos")]
+          fn migrate_macos_legacy_profile() {
+              let target_root = Self::path_for_macos_identity(FUNTIDESK_ORG, FUNTIDESK_APP_NAME, "");
+              if target_root.as_os_str().is_empty() {
+                  return;
+              }
+
+              for source_app in [FUNTIDESK_APP_NAME, LEGACY_APP_NAME] {
+                  let source_root = Self::path_for_macos_identity(LEGACY_ORG, source_app, "");
+                  if source_root.as_os_str().is_empty() || source_root == target_root {
+                      continue;
+                  }
+
+                  if let Ok(entries) = fs::read_dir(&source_root) {
+                      for entry in entries.flatten() {
+                          let Ok(file_type) = entry.file_type() else { continue; };
+                          if !file_type.is_file() {
+                              continue;
+                          }
+                          let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue; };
+                          if !name.starts_with(source_app) {
+                              continue;
+                          }
+                          let target_name = format!("{}{}", FUNTIDESK_APP_NAME, &name[source_app.len()..]);
+                          let target = target_root.join(target_name);
+                          if target.exists() {
+                              continue;
+                          }
+                          if let Err(err) = Self::copy_legacy_config_file(&entry.path(), &target) {
+                              if err.kind() != std::io::ErrorKind::AlreadyExists {
+                                  log::warn!("Failed to migrate macOS legacy profile file '{}': {}", entry.path().display(), err);
+                              }
+                          }
+                      }
+                  }
+
+                  let source_peers = source_root.join(PEERS);
+                  let target_peers = target_root.join(PEERS);
+                  let Ok(entries) = fs::read_dir(&source_peers) else { continue; };
+                  for entry in entries.flatten() {
+                      let Ok(file_type) = entry.file_type() else { continue; };
+                      if !file_type.is_file() || entry.path().extension().and_then(|x| x.to_str()) != Some("toml") {
+                          continue;
+                      }
+                      let target = target_peers.join(entry.file_name());
+                      if target.exists() {
+                          continue;
+                      }
+                      if let Err(err) = Self::copy_legacy_config_file(&entry.path(), &target) {
+                          if err.kind() != std::io::ErrorKind::AlreadyExists {
+                              log::warn!("Failed to migrate macOS legacy peer '{}': {}", entry.path().display(), err);
+                          }
+                      }
+                  }
+              }
+          }
+          '''
+          repl(old, new)
+
+          marker = '''    #[test]
+              fn test_funtidesk_rendezvous_pinning_ignores_mutable_sources() {
+          '''
+          test = '''    #[cfg(target_os = "macos")]
+              #[test]
+              fn test_macos_funtidesk_vendor_namespace_is_distinct_from_legacy() {
+                  let current = Config::path_for_macos_identity(FUNTIDESK_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
+                  let intermediate = Config::path_for_macos_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
+                  let original = Config::path_for_macos_identity(LEGACY_ORG, LEGACY_APP_NAME, "RustDesk.toml");
+                  assert_ne!(current, intermediate);
+                  assert_ne!(current, original);
+                  assert!(current.to_string_lossy().contains("FuntiDesk"));
+              }
+
+          ''' + marker
+          repl(marker, test)
+
+          p.write_text(s)
+
+      - name: Format and validate patch
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path client/Cargo.toml -- client/libs/hbb_common/src/config.rs
+          git diff --check
+          grep -Fq 'pub const FUNTIDESK_ORG: &str = "cc.funti";' client/libs/hbb_common/src/config.rs
+          grep -Fq 'pub const LEGACY_ORG: &str = "com.carriez";' client/libs/hbb_common/src/config.rs
+          grep -Fq 'migrate_macos_legacy_profile' client/libs/hbb_common/src/config.rs
+          grep -Fq '[FUNTIDESK_APP_NAME, LEGACY_APP_NAME]' client/libs/hbb_common/src/config.rs
+
+      - name: Test macOS hbb_common
+        run: |
+          rustup toolchain install stable --profile minimal
+          cargo +stable check --manifest-path client/Cargo.toml -p hbb_common --lib --locked
+          cargo +stable test --manifest-path client/Cargo.toml -p hbb_common --lib --locked test_macos_funtidesk_vendor_namespace_is_distinct_from_legacy -- --exact
+
+      - name: Commit migration
+        run: |
+          if git diff --quiet; then
+            echo 'No migration patch required'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add client/libs/hbb_common/src/config.rs
+          git commit -m 'identity: migrate macOS config namespace to cc.funti'
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
