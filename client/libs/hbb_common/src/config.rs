@@ -55,8 +55,13 @@ pub const LEGACY_APP_NAME: &str = "RustDesk";
 const SERIAL: i32 = 3;
 
 #[cfg(target_os = "macos")]
+pub const FUNTIDESK_ORG: &str = "cc.funti";
+#[cfg(target_os = "macos")]
+pub const LEGACY_ORG: &str = "com.carriez";
+
+#[cfg(target_os = "macos")]
 lazy_static::lazy_static! {
-    pub static ref ORG: RwLock<String> = RwLock::new("com.carriez".to_owned());
+    pub static ref ORG: RwLock<String> = RwLock::new(FUNTIDESK_ORG.to_owned());
 }
 
 type Size = (i32, i32, i32, i32);
@@ -3562,6 +3567,26 @@ mod tests {
         let _guard = CONFIG_STATE_TEST_LOCK.lock().unwrap();
         let _state_guard = ConfigStateTestGuard::new(config, hard_settings);
         test()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_funtidesk_vendor_namespace_is_distinct_from_legacy() {
+        let path_for_identity = |org: &str, app_name: &str, file: &str| {
+            directories_next::ProjectDirs::from("", org, app_name)
+                .map(|project| {
+                    let mut path = patch(project.config_dir().to_path_buf());
+                    path.push(file);
+                    path
+                })
+                .unwrap_or_default()
+        };
+        let current = path_for_identity(FUNTIDESK_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
+        let intermediate = path_for_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
+        let original = path_for_identity(LEGACY_ORG, LEGACY_APP_NAME, "RustDesk.toml");
+        assert_ne!(current, intermediate);
+        assert_ne!(current, original);
+        assert!(current.to_string_lossy().contains("FuntiDesk"));
     }
 
     #[test]
