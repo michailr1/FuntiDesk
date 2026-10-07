@@ -43,7 +43,7 @@ class MainFlutterWindow: NSWindow {
         self.contentViewController = flutterViewController
         self.setFrame(windowFrame, display: true)
         // register self method handler
-        let registrar = flutterViewController.registrar(forPlugin: "RustDeskPlugin")
+        let registrar = flutterViewController.registrar(forPlugin: "FuntiDeskPlugin")
         setMethodHandler(registrar: registrar)
 
         RegisterGeneratedPlugins(registry: flutterViewController)
@@ -52,7 +52,7 @@ class MainFlutterWindow: NSWindow {
             // Register the plugin which you want access from other isolate.
             // DesktopLifecyclePlugin.register(with: controller.registrar(forPlugin: "DesktopLifecyclePlugin"))
             // Note: copy below from above RegisterGeneratedPlugins
-            self.setMethodHandler(registrar: controller.registrar(forPlugin: "RustDeskPlugin"))
+            self.setMethodHandler(registrar: controller.registrar(forPlugin: "FuntiDeskPlugin"))
             DesktopDropPlugin.register(with: controller.registrar(forPlugin: "DesktopDropPlugin"))
             DeviceInfoPlusMacosPlugin.register(with: controller.registrar(forPlugin: "DeviceInfoPlusMacosPlugin"))
             FlutterCustomCursorPlugin.register(with: controller.registrar(forPlugin: "FlutterCustomCursorPlugin"))
