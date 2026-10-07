@@ -20,17 +20,25 @@ plugins='client/src/plugin/mod.rs'
 android_gradle='client/flutter/android/app/build.gradle'
 android_manifest='client/flutter/android/app/src/main/AndroidManifest.xml'
 android_boot='client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/BootReceiver.kt'
+android_floating='client/flutter/android/app/src/main/kotlin/com/carriez/flutter_hbb/FloatingWindowService.kt'
 ios_info='client/flutter/ios/Runner/Info.plist'
 ios_project='client/flutter/ios/Runner.xcodeproj/project.pbxproj'
 mac_info='client/flutter/macos/Runner/Configs/AppInfo.xcconfig'
 mac_project='client/flutter/macos/Runner.xcodeproj/project.pbxproj'
+mac_runtime='client/src/platform/macos.rs'
+linux_cmake='client/flutter/linux/CMakeLists.txt'
+linux_app='client/flutter/linux/my_application.cc'
+linux_dbus='client/src/server/dbus.rs'
+terminal_runtime='client/src/server/terminal_service.rs'
 r21='.github/workflows/r21-windows-clean-build.yml'
 
 for required_file in \
   "$cmake" "$rc" "$runner" "$windows_channel" "$dart_channel" \
   "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" \
   "$privacy_runtime" "$plugins" "$android_gradle" "$android_manifest" \
-  "$android_boot" "$ios_info" "$ios_project" "$mac_info" "$mac_project" "$r21"; do
+  "$android_boot" "$android_floating" "$ios_info" "$ios_project" \
+  "$mac_info" "$mac_project" "$mac_runtime" "$linux_cmake" "$linux_app" \
+  "$linux_dbus" "$terminal_runtime" "$r21"; do
   [[ -f "$required_file" ]] || fail "required product identity file is missing: $required_file"
 done
 
@@ -98,7 +106,9 @@ grep -Fq 'android:scheme="funtidesk"' "$android_manifest" || fail 'Android URI s
 grep -Fq 'android:name="cc.funti.funtidesk.DEBUG_BOOT_COMPLETED"' "$android_manifest" || fail 'Android debug boot action is not FuntiDesk'
 grep -Fq 'const val DEBUG_BOOT_COMPLETED = "cc.funti.funtidesk.DEBUG_BOOT_COMPLETED"' "$android_boot" || fail 'Android boot receiver action is not FuntiDesk'
 grep -Fq '"FuntiDesk is open"' "$android_boot" || fail 'Android boot toast is not FuntiDesk'
-if grep -Eq 'android:(label|scheme)="[^"]*[Rr]ust[Dd]esk|"RustDesk is Open"|com\.carriez\.flutter_hbb\.DEBUG_BOOT_COMPLETED' "$android_manifest" "$android_boot"; then
+grep -Fq 'idShowFuntiDesk' "$android_floating" || fail 'Android floating-menu action is not FuntiDesk'
+grep -Fq 'translate("Show FuntiDesk")' "$android_floating" || fail 'Android floating-menu label is not FuntiDesk'
+if grep -Eq 'android:(label|scheme)="[^"]*[Rr]ust[Dd]esk|"RustDesk is Open"|com\.carriez\.flutter_hbb\.DEBUG_BOOT_COMPLETED|idShowRustDesk|Show RustDesk' "$android_manifest" "$android_boot" "$android_floating"; then
   fail 'legacy RustDesk Android product/runtime identity remains'
 fi
 
@@ -115,8 +125,23 @@ grep -Fq 'PRODUCT_NAME = FuntiDesk' "$mac_info" || fail 'macOS product name is n
 grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER = cc.funti.funtidesk' "$mac_info" || fail 'macOS bundle identifier is not FuntiDesk'
 grep -Fq 'Copyright © 2026 FuntiDesk contributors.' "$mac_info" || fail 'macOS visible copyright is not FuntiDesk-owned'
 grep -Fq 'FuntiDesk.app' "$mac_project" || fail 'macOS app product is not FuntiDesk.app'
-if grep -Fq 'RustDesk.app' "$mac_project" || grep -Fq 'com.carriez.flutterHbb' "$mac_info"; then
-  fail 'legacy macOS product identity remains'
+grep -Fq '.funtideskupdate-' "$mac_runtime" || fail 'macOS update temp namespace is not FuntiDesk'
+if grep -Fq 'RustDesk.app' "$mac_project" || grep -Fq 'com.carriez.flutterHbb' "$mac_info" || grep -Fq '.rustdeskupdate-' "$mac_runtime"; then
+  fail 'legacy macOS product/runtime identity remains'
+fi
+
+# Linux product/runtime identity. librustdesk.so and rustdesk_core_main remain
+# intentional upstream ABI names; executable, application ID and IPC names do not.
+grep -Fq 'set(BINARY_NAME "funtidesk")' "$linux_cmake" || fail 'Linux product executable is not funtidesk'
+grep -Fq 'set(APPLICATION_ID "cc.funti.funtidesk")' "$linux_cmake" || fail 'Linux application ID is not FuntiDesk'
+grep -Fq '"org.funtidesk.funtidesk/host"' "$linux_app" || fail 'Linux host method channel is not FuntiDesk'
+grep -Fq '"cc.funti.funtidesk/side_buttons"' "$linux_app" || fail 'Linux side-button channel is not FuntiDesk'
+grep -Fq 'gtk_icon_theme_load_icon(theme, "funtidesk"' "$linux_app" || fail 'Linux icon namespace is not FuntiDesk'
+grep -Fq 'const DBUS_NAME: &str = "cc.funti.funtidesk";' "$linux_dbus" || fail 'Linux D-Bus name is not FuntiDesk'
+grep -Fq 'funtidesk_term_in_' "$terminal_runtime" || fail 'terminal input pipe namespace is not FuntiDesk'
+grep -Fq 'funtidesk_term_out_' "$terminal_runtime" || fail 'terminal output pipe namespace is not FuntiDesk'
+if grep -RInE 'set\(BINARY_NAME "rustdesk"\)|set\(APPLICATION_ID "com\.carriez\.flutter_hbb"\)|org\.rustdesk\.rustdesk/(host|side_buttons)|const DBUS_NAME: &str = "org\.rustdesk\.rustdesk"|rustdesk_term_(in|out)_' "$linux_cmake" "$linux_app" client/flutter/lib "$linux_dbus" "$terminal_runtime" >/dev/null; then
+  fail 'legacy RustDesk Linux/IPC runtime identity remains'
 fi
 
 # The GitHub expression is intentionally matched as literal workflow source text.
