@@ -867,20 +867,156 @@ impl Config {
             path.push(p);
             return path;
         }
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        #[cfg(target_os = "macos")]
         {
-            #[cfg(not(target_os = "macos"))]
-            let org = "".to_owned();
-            #[cfg(target_os = "macos")]
-            let org = ORG.read().unwrap().clone();
-            // /var/root for root
-            if let Some(project) = directories_next::ProjectDirs::from("", &org, app_name) {
+            if app_name == FUNTIDESK_APP_NAME {
+                Self::migrate_macos_legacy_profile();
+            }
+            let org = if app_name == LEGACY_APP_NAME {
+                LEGACY_ORG.to_owned()
+            } else {
+                ORG.read().unwrap().clone()
+            };
+            return Self::path_for_macos_identity(&org, app_name, p);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "macos")))]
+        {
+            if let Some(project) = directories_next::ProjectDirs::from("", "", app_name) {
                 let mut path = patch(project.config_dir().to_path_buf());
                 path.push(p);
                 return path;
             }
             "".into()
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn path_for_macos_identity<P: AsRef<Path>>(org: &str, app_name: &str, p: P) -> PathBuf {
+        if let Some(project) = directories_next::ProjectDirs::from("", org, app_name) {
+            let mut path = patch(project.config_dir().to_path_buf());
+            path.push(p);
+            return path;
+        }
+        "".into()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn is_real_directory(path: &Path) -> bool {
+        fs::symlink_metadata(path)
+            .map(|metadata| metadata.file_type().is_dir() && !metadata.file_type().is_symlink())
+            .unwrap_or(false)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn migrate_macos_profile_from_roots(target_root: &Path, sources: &[(PathBuf, &str)]) {
+        if target_root.exists() && !Self::is_real_directory(target_root) {
+            log::warn!(
+                "Refusing macOS legacy profile migration into non-directory target '{}'",
+                target_root.display()
+            );
+            return;
+        }
+
+        for (source_root, source_app) in sources {
+            if source_root == target_root || !Self::is_real_directory(source_root) {
+                continue;
+            }
+
+            if let Ok(entries) = fs::read_dir(source_root) {
+                for entry in entries.flatten() {
+                    let Ok(file_type) = entry.file_type() else {
+                        continue;
+                    };
+                    if !file_type.is_file() {
+                        continue;
+                    }
+                    let source_path = entry.path();
+                    if source_path.extension().and_then(|x| x.to_str()) != Some("toml") {
+                        continue;
+                    }
+                    let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                        continue;
+                    };
+                    if !name.starts_with(source_app) {
+                        continue;
+                    }
+                    let target_name =
+                        format!("{}{}", FUNTIDESK_APP_NAME, &name[source_app.len()..]);
+                    let target = target_root.join(target_name);
+                    if target.exists() {
+                        continue;
+                    }
+                    if let Err(err) = Self::copy_legacy_config_file(&source_path, &target) {
+                        if err.kind() != std::io::ErrorKind::AlreadyExists {
+                            log::warn!(
+                                "Failed to migrate macOS legacy profile file '{}': {}",
+                                source_path.display(),
+                                err
+                            );
+                        }
+                    }
+                }
+            }
+
+            let source_peers = source_root.join(PEERS);
+            if !Self::is_real_directory(&source_peers) {
+                continue;
+            }
+            let target_peers = target_root.join(PEERS);
+            if target_peers.exists() && !Self::is_real_directory(&target_peers) {
+                log::warn!(
+                    "Refusing macOS legacy peer migration into non-directory target '{}'",
+                    target_peers.display()
+                );
+                continue;
+            }
+            let Ok(entries) = fs::read_dir(&source_peers) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                let source_path = entry.path();
+                if !file_type.is_file()
+                    || source_path.extension().and_then(|x| x.to_str()) != Some("toml")
+                {
+                    continue;
+                }
+                let target = target_peers.join(entry.file_name());
+                if target.exists() {
+                    continue;
+                }
+                if let Err(err) = Self::copy_legacy_config_file(&source_path, &target) {
+                    if err.kind() != std::io::ErrorKind::AlreadyExists {
+                        log::warn!(
+                            "Failed to migrate macOS legacy peer '{}': {}",
+                            source_path.display(),
+                            err
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn migrate_macos_legacy_profile() {
+        let target_root = Self::path_for_macos_identity(FUNTIDESK_ORG, FUNTIDESK_APP_NAME, "");
+        if target_root.as_os_str().is_empty() {
+            return;
+        }
+        let sources = [
+            (
+                Self::path_for_macos_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, ""),
+                FUNTIDESK_APP_NAME,
+            ),
+            (
+                Self::path_for_macos_identity(LEGACY_ORG, LEGACY_APP_NAME, ""),
+                LEGACY_APP_NAME,
+            ),
+        ];
+        Self::migrate_macos_profile_from_roots(&target_root, &sources);
     }
 
     /// Get the log directory path.
@@ -3587,6 +3723,59 @@ mod tests {
         assert_ne!(current, intermediate);
         assert_ne!(current, original);
         assert!(current.to_string_lossy().contains("FuntiDesk"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_profile_migration_is_copy_only_and_preserves_priority() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "funtidesk-macos-migration-{}-{nonce}",
+            std::process::id()
+        ));
+        let target = root.join("target");
+        let intermediate = root.join("intermediate");
+        let original = root.join("original");
+        fs::create_dir_all(intermediate.join(PEERS)).unwrap();
+        fs::create_dir_all(original.join(PEERS)).unwrap();
+
+        fs::write(intermediate.join("FuntiDesk.toml"), b"intermediate").unwrap();
+        fs::write(original.join("RustDesk.toml"), b"original").unwrap();
+        fs::write(original.join("RustDesk_custom.txt"), b"must-not-migrate").unwrap();
+        fs::write(intermediate.join(PEERS).join("peer.toml"), b"first-peer").unwrap();
+        fs::write(original.join(PEERS).join("peer.toml"), b"second-peer").unwrap();
+
+        let sources = [
+            (intermediate.clone(), FUNTIDESK_APP_NAME),
+            (original.clone(), LEGACY_APP_NAME),
+        ];
+        Config::migrate_macos_profile_from_roots(&target, &sources);
+
+        assert_eq!(
+            fs::read(target.join("FuntiDesk.toml")).unwrap(),
+            b"intermediate"
+        );
+        assert_eq!(
+            fs::read(target.join(PEERS).join("peer.toml")).unwrap(),
+            b"first-peer"
+        );
+        assert!(!target.join("FuntiDesk_custom.txt").exists());
+        assert!(intermediate.join("FuntiDesk.toml").exists());
+        assert!(original.join("RustDesk.toml").exists());
+
+        fs::write(target.join("FuntiDesk.toml"), b"keep-existing").unwrap();
+        Config::migrate_macos_profile_from_roots(&target, &sources);
+        assert_eq!(
+            fs::read(target.join("FuntiDesk.toml")).unwrap(),
+            b"keep-existing"
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
