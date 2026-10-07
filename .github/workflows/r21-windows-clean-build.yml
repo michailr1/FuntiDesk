@@ -5,9 +5,11 @@ on:
   push:
     branches:
       - michailr/r-01-relay-key-auth
+      - michailr/m2-security-review-fixes
     paths:
       - ".github/workflows/r21-windows-clean-build.yml"
       - "scripts/windows/**"
+      - "client/**"
       - "docs/WINDOWS_BASELINE_BUILD.md"
 
 concurrency:
@@ -46,6 +48,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
+
+      - name: Write runtime SHA256 manifest
+        shell: powershell
+        run: |
+          $release = Resolve-Path 'client/flutter/build/windows/x64/runner/Release'
+          $manifest = Join-Path $release 'SHA256SUMS.txt'
+          Get-ChildItem $release -File -Recurse |
+            Where-Object { $_.FullName -ne $manifest } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $relative = $_.FullName.Substring($release.Path.Length + 1).Replace('\','/')
+              "$hash  $relative"
+            } | Set-Content -Encoding ascii $manifest
+          Get-Content $manifest
+
+      - name: Upload Windows runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-windows-x64-${{ github.sha }}
+          path: client/flutter/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload build logs
         if: always()

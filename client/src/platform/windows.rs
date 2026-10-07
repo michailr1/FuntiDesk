@@ -1670,12 +1670,8 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     );
     let src_exe = std::env::current_exe()?.to_str().unwrap_or("").to_string();
 
-    // potential bug here: if run_cmd cancelled, but config file is changed.
-    if let Some(lic) = get_license() {
-        Config::set_option("key".into(), lic.key);
-        Config::set_option("custom-rendezvous-server".into(), lic.host);
-        Config::set_option("api-server".into(), lic.api);
-    }
+    // FUNTIDESK R-11: never persist infrastructure parameters derived from
+    // executable names or legacy installer licensing metadata.
 
     let tray_shortcuts = if config::is_outgoing_only() {
         "".to_owned()
@@ -2039,97 +2035,22 @@ pub fn remove_custom_client_staging_dir(staging_dir: &Path) -> ResultType<bool> 
 //    (e.g., is a symlink or has invalid contents).
 // 3. Err if any unexpected error occurs during file operations.
 pub fn prepare_custom_client_update() -> ResultType<bool> {
-    let custom_client_staging_dir = get_custom_client_staging_dir();
-    let current_exe = std::env::current_exe()?;
-    let current_exe_dir = current_exe
-        .parent()
-        .ok_or(anyhow!("Cannot get parent directory of current exe"))?;
-
-    let staging_dir = custom_client_staging_dir.clone();
-    let clear_staging_on_exit = crate::SimpleCallOnReturn {
-        b: true,
-        f: Box::new(
-            move || match remove_custom_client_staging_dir(&staging_dir) {
-                Ok(existed) => {
-                    if existed {
-                        log::info!("Custom client staging directory removed successfully.");
-                    }
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to remove custom client staging directory {:?}: {}",
-                        staging_dir,
-                        e
-                    );
-                }
-            },
-        ),
-    };
-
-    if custom_client_staging_dir.exists() {
-        let custom_txt_path = custom_client_staging_dir.join("custom.txt");
-        if !custom_txt_path.exists() {
-            return Ok(true);
+    // FUNTIDESK R-13: upstream custom-client staging is disabled together with
+    // custom.txt trust. Do not copy or load staged policy/configuration files.
+    let staging_dir = get_custom_client_staging_dir();
+    if staging_dir.exists() {
+        let custom_txt = staging_dir.join("custom.txt");
+        if custom_txt.exists() {
+            allow_err!(std::fs::remove_file(&custom_txt));
         }
-
-        let metadata = std::fs::symlink_metadata(&custom_txt_path)?;
-        if metadata.is_symlink() {
-            log::error!(
-                "custom.txt is a symlink. Refusing to load custom client for security reasons."
-            );
-            drop(clear_staging_on_exit);
-            return Ok(false);
-        }
-        if metadata.is_file() {
-            // Copy custom.txt to current directory
-            let local_custom_file_path = current_exe_dir.join("custom.txt");
-            log::debug!(
-                "Copying staged custom file from {:?} to {:?}",
-                custom_txt_path,
-                local_custom_file_path
-            );
-
-            // No need to check symlink before copying.
-            // `load_custom_client()` will fail if the file is not valid.
-            fs::copy(&custom_txt_path, &local_custom_file_path)?;
-            log::info!("Staged custom client file copied to current directory.");
-
-            // Load custom client
-            let is_custom_file_exists =
-                local_custom_file_path.exists() && local_custom_file_path.is_file();
-            crate::load_custom_client();
-
-            // Remove the copied custom.txt file
-            allow_err!(fs::remove_file(&local_custom_file_path));
-
-            // Check if loaded successfully
-            if is_custom_file_exists && !crate::common::is_custom_client() {
-                // The custom.txt file existed, but its contents are invalid.
-                log::error!("Failed to load custom client from custom.txt.");
-                drop(clear_staging_on_exit);
-                // ERROR_INVALID_DATA
-                return Ok(false);
-            }
-        } else {
-            log::info!("No custom client files found in staging directory.");
-        }
-    } else {
-        log::info!(
-            "Custom client staging directory {:?} does not exist.",
-            custom_client_staging_dir
-        );
     }
-
     Ok(true)
 }
 
 pub fn get_license_from_exe_name() -> ResultType<CustomServer> {
-    let mut exe = std::env::current_exe()?.to_str().unwrap_or("").to_owned();
-    // if defined portable appname entry, replace original executable name with it.
-    if let Ok(portable_exe) = std::env::var(PORTABLE_APPNAME_RUNTIME_ENV_KEY) {
-        exe = portable_exe;
-    }
-    get_custom_server_from_string(&exe)
+    // FUNTIDESK R-11: executable-name infrastructure configuration is disabled
+    // in production. Keep the symbol temporarily for upstream merge compatibility.
+    bail!("FuntiDesk executable-name infrastructure configuration is disabled")
 }
 
 // We can't directly use `RegKey::set_value` to update the registry value, because it will fail with `ERROR_ACCESS_DENIED`
@@ -2161,9 +2082,8 @@ pub fn is_win_10_or_greater() -> bool {
 }
 
 pub fn bootstrap() -> bool {
-    if let Ok(lic) = get_license_from_exe_name() {
-        *config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();
-    }
+    // FUNTIDESK R-11: executable names cannot select production infrastructure.
+    // EXE_RENDEZVOUS_SERVER intentionally remains unused.
 
     #[cfg(debug_assertions)]
     {
@@ -3827,15 +3747,13 @@ pub fn alloc_console() {
 }
 
 fn get_license() -> Option<CustomServer> {
+    // FUNTIDESK R-11: never derive infrastructure from the executable name.
+    // Legacy registry values are retained only for upstream compatibility and
+    // are not persisted/applied to production infrastructure paths.
     let mut lic: CustomServer = Default::default();
-    if let Ok(tmp) = get_license_from_exe_name() {
-        lic = tmp;
-    } else {
-        // for back compatibility from migrating from <= 1.2.1 to 1.2.2
-        lic.key = get_reg("Key");
-        lic.host = get_reg("Host");
-        lic.api = get_reg("Api");
-    }
+    lic.key = get_reg("Key");
+    lic.host = get_reg("Host");
+    lic.api = get_reg("Api");
     if lic.key.is_empty() || lic.host.is_empty() {
         return None;
     }

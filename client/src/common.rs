@@ -659,10 +659,8 @@ async fn test_nat_type_() -> ResultType<bool> {
                     port2 = tnr.port;
                 }
                 if let Some(cu) = tnr.cu.as_ref() {
-                    Config::set_option(
-                        "rendezvous-servers".to_owned(),
-                        cu.rendezvous_servers.join(","),
-                    );
+                    // FUNTIDESK R-12: never persist rendezvous endpoints supplied
+                    // by protocol responses. Production endpoint is build-time pinned.
                     Config::set_serial(cu.serial);
                 }
             }
@@ -939,63 +937,13 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
-    if is_custom_client() {
-        return;
-    }
-    let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
-    if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
-        std::thread::spawn(move || allow_err!(do_check_software_update()));
-    }
+    // FUNTIDESK R-14: upstream background update checks are disabled.
 }
 
-// No need to check `danger_accept_invalid_cert` for now.
-// Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    let (request, url) =
-        hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
-    let proxy_conf = Config::get_socks();
-    let tls_url = get_url_for_tls(&url, &proxy_conf);
-    let tls_type = get_cached_tls_type(tls_url);
-    let is_tls_not_cached = tls_type.is_none();
-    let tls_type = tls_type.unwrap_or(TlsType::Rustls);
-    let client = create_http_client_async(tls_type, false);
-    let latest_release_response = match client.post(&url).json(&request).send().await {
-        Ok(resp) => {
-            upsert_tls_cache(tls_url, tls_type, false);
-            resp
-        }
-        Err(err) => {
-            if is_tls_not_cached && err.is_request() {
-                let tls_type = TlsType::NativeTls;
-                let client = create_http_client_async(tls_type, false);
-                let resp = client.post(&url).json(&request).send().await?;
-                upsert_tls_cache(tls_url, tls_type, false);
-                resp
-            } else {
-                return Err(err.into());
-            }
-        }
-    };
-    let bytes = latest_release_response.bytes().await?;
-    let resp: hbb_common::VersionCheckResponse = serde_json::from_slice(&bytes)?;
-    let response_url = resp.url;
-    let latest_release_version = response_url.rsplit('/').next().unwrap_or_default();
-
-    if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
-        #[cfg(feature = "flutter")]
-        {
-            let mut m = HashMap::new();
-            m.insert("name", "check_software_update_finish");
-            m.insert("url", &response_url);
-            if let Ok(data) = serde_json::to_string(&m) {
-                let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
-            }
-        }
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
-    } else {
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
-    }
+    // FUNTIDESK R-14: update transport will be reintroduced only through the
+    // owned release channel planned for R-30.
     Ok(())
 }
 
@@ -1027,60 +975,17 @@ pub fn is_setup(name: &str) -> bool {
     name.to_lowercase().ends_with("install.exe")
 }
 
-pub fn get_custom_rendezvous_server(custom: String) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.host.is_empty() {
-            return lic.host.clone();
-        }
-    }
-    if !custom.is_empty() {
-        return custom;
-    }
-    if !config::PROD_RENDEZVOUS_SERVER.read().unwrap().is_empty() {
-        return config::PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-    }
-    "".to_owned()
+pub fn get_custom_rendezvous_server(_custom: String) -> String {
+    // FUNTIDESK: production infrastructure is not configurable by executable
+    // filename, user input, or mutable runtime state.
+    config::FUNTIDESK_RENDEZVOUS_SERVER.to_owned()
 }
 
 #[inline]
-pub fn get_api_server(api: String, custom: String) -> String {
-    if Config::no_register_device() {
-        return "".to_owned();
-    }
-    let mut res = get_api_server_(api, custom);
-    if res.ends_with('/') {
-        res.pop();
-    }
-    if res.starts_with("https")
-        && res.ends_with(":21114")
-        && get_builtin_option(keys::OPTION_ALLOW_HTTPS_21114) != "Y"
-    {
-        return res.replace(":21114", "");
-    }
-    res
-}
-
-fn get_api_server_(api: String, custom: String) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.api.is_empty() {
-            return lic.api.clone();
-        }
-    }
-    if !api.is_empty() {
-        return api.to_owned();
-    }
-    let s0 = get_custom_rendezvous_server(custom);
-    if !s0.is_empty() {
-        let s = crate::increase_port(&s0, -2);
-        if s == s0 {
-            return format!("http://{}:{}", s, config::RENDEZVOUS_PORT - 2);
-        } else {
-            return format!("http://{}", s);
-        }
-    }
-    "https://admin.rustdesk.com".to_owned()
+pub fn get_api_server(_api: String, _custom: String) -> String {
+    // FUNTIDESK R-14: no account/API service is part of the current production
+    // perimeter. Returning empty prevents background calls to upstream admin/API.
+    String::new()
 }
 
 #[inline]
@@ -1801,26 +1706,9 @@ pub fn decode64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, base64::DecodeError
     base64::decode(input)
 }
 
-pub async fn get_key(sync: bool) -> String {
-    #[cfg(windows)]
-    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
-        if !lic.key.is_empty() {
-            return lic.key;
-        }
-    }
-    #[cfg(target_os = "ios")]
-    let mut key = Config::get_option("key");
-    #[cfg(not(target_os = "ios"))]
-    let mut key = if sync {
-        Config::get_option("key")
-    } else {
-        let mut options = crate::ipc::get_options_async().await;
-        options.remove("key").unwrap_or_default()
-    };
-    if key.is_empty() {
-        key = config::RS_PUB_KEY.to_owned();
-    }
-    key
+pub async fn get_key(_sync: bool) -> String {
+    // FUNTIDESK: the production trust anchor is immutable at runtime.
+    config::FUNTIDESK_SERVER_PUBLIC_KEY.to_owned()
 }
 
 pub fn pk_to_fingerprint(pk: Vec<u8>) -> String {
@@ -1935,18 +1823,15 @@ pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
     false
 }
 
-async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<()> {
-    // Skip additional encryption when using WebSocket connections (wss://)
-    // as WebSocket Secure (wss://) already provides transport layer encryption.
-    // This doesn't affect the end-to-end encryption between clients,
-    // it only avoids redundant encryption between client and server.
+async fn secure_tcp_impl(conn: &mut Stream, _key: &str, log_on_success: bool) -> ResultType<()> {
+    // FUNTIDESK R-12: rendezvous authentication always uses the build-time
+    // trust anchor. Caller-provided/runtime keys cannot override it.
+    // WebSocket transport is not used in the current production perimeter.
     if use_ws() {
-        return Ok(());
+        bail!("Handshake failed: WebSocket rendezvous transport is disabled by FuntiDesk policy");
     }
-    let rs_pk = get_rs_pk(key);
-    let Some(rs_pk) = rs_pk else {
-        bail!("Handshake failed: invalid public key from rendezvous server");
-    };
+    let rs_pk = get_rs_pk(config::FUNTIDESK_SERVER_PUBLIC_KEY)
+        .ok_or_else(|| anyhow!("Handshake failed: invalid built-in FuntiDesk server public key"))?;
     match timeout(READ_TIMEOUT, conn.next()).await? {
         Some(Ok(bytes)) => {
             if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
@@ -2080,84 +1965,41 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
-pub fn load_custom_client() {
-    #[cfg(debug_assertions)]
-    if let Ok(data) = std::fs::read_to_string("./custom.txt") {
-        read_custom_client(data.trim());
-        return;
-    }
-    let Some(path) = std::env::current_exe().map_or(None, |x| x.parent().map(|x| x.to_path_buf()))
-    else {
-        return;
-    };
-    #[cfg(target_os = "macos")]
-    let path = path.join("../Resources");
-    let path = path.join("custom.txt");
-    if path.is_file() {
-        let Ok(data) = std::fs::read_to_string(&path) else {
-            log::error!("Failed to read custom client config");
-            return;
-        };
-        read_custom_client(&data.trim());
+pub fn apply_funtidesk_security_policy() {
+    // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
+    // network-exposure locks (direct-server, LAN discovery, remote config
+    // modification, insecure TLS fallback, WebSocket) were removed so these
+    // options keep their pre-R-15 upstream behavior: user-configurable, with
+    // no OVERWRITE_SETTINGS entries. Only the clean-install authentication
+    // defaults below remain.
+    {
+        let mut defaults = config::DEFAULT_SETTINGS.write().unwrap();
+        defaults.insert(keys::OPTION_APPROVE_MODE.to_owned(), "password".to_owned());
+        defaults.insert(
+            keys::OPTION_VERIFICATION_METHOD.to_owned(),
+            "use-temporary-password".to_owned(),
+        );
+        defaults.insert(
+            keys::OPTION_TEMPORARY_PASSWORD_LENGTH.to_owned(),
+            "8".to_owned(),
+        );
+        defaults.insert(
+            keys::OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD.to_owned(),
+            "N".to_owned(),
+        );
     }
 }
 
-fn read_custom_client_advanced_settings(
-    settings: serde_json::Value,
-    map_display_settings: &HashMap<String, &&str>,
-    map_local_settings: &HashMap<String, &&str>,
-    map_settings: &HashMap<String, &&str>,
-    map_buildin_settings: &HashMap<String, &&str>,
-    is_override: bool,
-) {
-    let mut display_settings = if is_override {
-        config::OVERWRITE_DISPLAY_SETTINGS.write().unwrap()
-    } else {
-        config::DEFAULT_DISPLAY_SETTINGS.write().unwrap()
-    };
-    let mut local_settings = if is_override {
-        config::OVERWRITE_LOCAL_SETTINGS.write().unwrap()
-    } else {
-        config::DEFAULT_LOCAL_SETTINGS.write().unwrap()
-    };
-    let mut server_settings = if is_override {
-        config::OVERWRITE_SETTINGS.write().unwrap()
-    } else {
-        config::DEFAULT_SETTINGS.write().unwrap()
-    };
-    let mut buildin_settings = config::BUILTIN_SETTINGS.write().unwrap();
+pub fn load_custom_client() {
+    apply_funtidesk_security_policy();
+    // FUNTIDESK: ADR-002 disables the upstream custom-client trust channel.
+    // Production behavior must not depend on custom.txt or an upstream signing key.
+    log::debug!("FuntiDesk custom-client configuration is disabled");
+}
 
-    if let Some(settings) = settings.as_object() {
-        for (k, v) in settings {
-            let Some(v) = v.as_str() else {
-                continue;
-            };
-            if let Some(k2) = map_display_settings.get(k) {
-                display_settings.insert(k2.to_string(), v.to_owned());
-            } else if let Some(k2) = map_local_settings.get(k) {
-                local_settings.insert(k2.to_string(), v.to_owned());
-            } else if let Some(k2) = map_settings.get(k) {
-                server_settings.insert(k2.to_string(), v.to_owned());
-            } else if let Some(k2) = map_buildin_settings.get(k) {
-                buildin_settings.insert(k2.to_string(), v.to_owned());
-            } else {
-                let k2 = k.replace("_", "-");
-                let k = k2.replace("-", "_");
-                // display
-                display_settings.insert(k.clone(), v.to_owned());
-                display_settings.insert(k2.clone(), v.to_owned());
-                // local
-                local_settings.insert(k.clone(), v.to_owned());
-                local_settings.insert(k2.clone(), v.to_owned());
-                // server
-                server_settings.insert(k.clone(), v.to_owned());
-                server_settings.insert(k2.clone(), v.to_owned());
-                // buildin
-                buildin_settings.insert(k.clone(), v.to_owned());
-                buildin_settings.insert(k2.clone(), v.to_owned());
-            }
-        }
-    }
+pub fn read_custom_client(_config: &str) {
+    // FUNTIDESK: intentionally no-op. Keep the public function temporarily to
+    // minimize upstream merge churn while eliminating its trust effect.
 }
 
 #[inline]
@@ -2176,79 +2018,6 @@ pub fn get_dst_align_rgba() -> usize {
 #[cfg(not(target_os = "macos"))]
 pub fn get_dst_align_rgba() -> usize {
     1
-}
-
-pub fn read_custom_client(config: &str) {
-    let Ok(data) = decode64(config) else {
-        log::error!("Failed to decode custom client config");
-        return;
-    };
-    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
-    let Some(pk) = get_rs_pk(KEY) else {
-        log::error!("Failed to parse public key of custom client");
-        return;
-    };
-    let Ok(data) = sign::verify(&data, &pk) else {
-        log::error!("Failed to dec custom client config");
-        return;
-    };
-    let Ok(mut data) =
-        serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&data)
-    else {
-        log::error!("Failed to parse custom client config");
-        return;
-    };
-
-    if let Some(app_name) = data.remove("app-name") {
-        if let Some(app_name) = app_name.as_str() {
-            *config::APP_NAME.write().unwrap() = app_name.to_owned();
-        }
-    }
-
-    let mut map_display_settings = HashMap::new();
-    for s in keys::KEYS_DISPLAY_SETTINGS {
-        map_display_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut map_local_settings = HashMap::new();
-    for s in keys::KEYS_LOCAL_SETTINGS {
-        map_local_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut map_settings = HashMap::new();
-    for s in keys::KEYS_SETTINGS {
-        map_settings.insert(s.replace("_", "-"), s);
-    }
-    let mut buildin_settings = HashMap::new();
-    for s in keys::KEYS_BUILDIN_SETTINGS {
-        buildin_settings.insert(s.replace("_", "-"), s);
-    }
-    if let Some(default_settings) = data.remove("default-settings") {
-        read_custom_client_advanced_settings(
-            default_settings,
-            &map_display_settings,
-            &map_local_settings,
-            &map_settings,
-            &buildin_settings,
-            false,
-        );
-    }
-    if let Some(overwrite_settings) = data.remove("override-settings") {
-        read_custom_client_advanced_settings(
-            overwrite_settings,
-            &map_display_settings,
-            &map_local_settings,
-            &map_settings,
-            &buildin_settings,
-            true,
-        );
-    }
-    for (k, v) in data {
-        if let Some(v) = v.as_str() {
-            config::HARD_SETTINGS
-                .write()
-                .unwrap()
-                .insert(k, v.to_owned());
-        };
-    }
 }
 
 #[inline]

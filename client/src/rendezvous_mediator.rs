@@ -405,15 +405,10 @@ impl RendezvousMediator {
                 });
             }
             Some(rendezvous_message::Union::ConfigureUpdate(cu)) => {
-                let v0 = Config::get_rendezvous_servers();
-                Config::set_option(
-                    "rendezvous-servers".to_owned(),
-                    cu.rendezvous_servers.join(","),
-                );
+                // FUNTIDESK R-12: server-provided rendezvous lists are not part
+                // of production configuration. Preserve serial only for protocol
+                // compatibility; endpoint selection stays build-time pinned.
                 Config::set_serial(cu.serial);
-                if v0 != Config::get_rendezvous_servers() {
-                    Self::restart();
-                }
             }
             _ => {}
         }
@@ -521,7 +516,7 @@ impl RendezvousMediator {
     async fn create_relay(
         &self,
         socket_addr: Vec<u8>,
-        relay_server: String,
+        _relay_server: String,
         uuid: String,
         server: ServerPtr,
         secure: bool,
@@ -529,6 +524,9 @@ impl RendezvousMediator {
         socket_addr_v6: bytes::Bytes,
         meta: ConnectionMeta,
     ) -> ResultType<()> {
+        // FUNTIDESK R-12: relay selection is immutable even if a rendezvous
+        // protocol message carries a different relay hostname.
+        let relay_server = config::FUNTIDESK_RELAY_SERVER.to_owned();
         let peer_addr = AddrMangle::decode(&socket_addr);
         log::info!(
             "create_relay requested from {:?}, relay_server: {}, uuid: {}, secure: {}",
@@ -822,15 +820,11 @@ impl RendezvousMediator {
         Ok(())
     }
 
-    fn get_relay_server(&self, provided_by_rendezvous_server: String) -> String {
-        let mut relay_server = Config::get_option("relay-server");
-        if relay_server.is_empty() {
-            relay_server = provided_by_rendezvous_server;
-        }
-        if relay_server.is_empty() {
-            relay_server = crate::increase_port(&self.host, 1);
-        }
-        relay_server
+    fn get_relay_server(&self, _provided_by_rendezvous_server: String) -> String {
+        // FUNTIDESK R-12: relay routing is part of the immutable production
+        // infrastructure. Ignore mutable config and any relay host supplied by
+        // rendezvous messages to prevent runtime redirection.
+        config::FUNTIDESK_RELAY_SERVER.to_owned()
     }
 }
 

@@ -140,6 +140,10 @@ upstream-remote'ы настраиваются по `docs/UPSTREAM.md`.
 | P4 | `client/src/common.rs` | update-check и web-console URL | отсутствие скрытых обращений вовне |
 | P5 | `client/src/lang/*.rs`, `res/`, `flutter/` | пользовательский текст, иконки, имя приложения | продуктовая идентичность |
 | P6 | `client/Cargo.toml`, `client/src/ui/` | удаление Sciter UI | сокращение поверхности сопровождения |
+| P7 | `client/src/client.rs`, `client/src/server.rs` | обязательный encrypted/authenticated peer handshake | fail closed вместо plaintext fallback |
+| P8 | `client/src/common.rs` | убрать executable-name infrastructure channel | переименование EXE не меняет trust/infrastructure |
+| P9 | `client/src/common.rs::get_key`, client `hbb_common` | только FuntiDesk trust anchor | нет upstream key fallback |
+| P10 | `client/src/common.rs` policy init | lock опасных network-exposure options + safe auth defaults | безопасный clean install |
 
 P1–P4 относятся к security-периметру: без них требование fail closed
 из `docs/ARCHITECTURE.md` не выполняется, поэтому раздача сборок до них невозможна.
