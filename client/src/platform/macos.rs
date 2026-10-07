@@ -45,7 +45,7 @@ static mut LATEST_SEED: i32 = 0;
 #[inline]
 fn get_update_temp_dir() -> PathBuf {
     let euid = unsafe { hbb_common::libc::geteuid() };
-    Path::new("/tmp").join(format!(".rustdeskupdate-{}", euid))
+    Path::new("/tmp").join(format!(".funtideskupdate-{}", euid))
 }
 
 #[inline]
