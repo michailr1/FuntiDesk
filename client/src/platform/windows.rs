@@ -3918,7 +3918,7 @@ pub fn try_kill_rustdesk_main_window_process() -> ResultType<()> {
         log::info!("kill process success: {:?}, pid = {:?}", p.cmd(), p.pid());
         return Ok(());
     }
-    bail!("failed to find rustdesk main window process");
+    bail!("failed to find FuntiDesk main window process");
 }
 
 fn nt_terminate_process(process_id: DWORD) -> ResultType<()> {
