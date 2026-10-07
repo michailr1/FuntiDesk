@@ -39,9 +39,9 @@ jobs:
           old = 'RustDesk.app'
           new = 'FuntiDesk.app'
           count = text.count(old)
-          if count not in (0, 3):
+          if count not in (0, 4):
               raise SystemExit(f'unexpected macOS product-name count: {count}')
-          if count == 3:
+          if count == 4:
               text = text.replace(old, new)
               mac.write_text(text)
 
