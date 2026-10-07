@@ -1,0 +1,63 @@
+name: identity-runtime-tail-patcher
+
+on:
+  push:
+    branches:
+      - michailr/m2-funtidesk-identity-refactor
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 0
+
+      - name: Patch remaining low-risk runtime strings
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def repl(path, old, new, expected=1):
+              p = Path(path)
+              s = p.read_text()
+              n = s.count(old)
+              if n not in (0, expected):
+                  raise SystemExit(f'{path}: expected 0 or {expected} occurrences of {old!r}, got {n}')
+              if n:
+                  p.write_text(s.replace(old, new))
+
+          repl('client/src/naming.rs', 'rustdesk-custom_serverd-{}.exe', 'funtidesk-custom_serverd-{}.exe')
+          repl('client/src/server/connection.rs', 'RustDesk://FsJob//Printer/{}', 'FuntiDesk://FsJob//Printer/{}')
+          repl('client/src/ui_session_interface.rs', 'rustdesk_printer_{id}', 'funtidesk_printer_{id}')
+          repl('client/src/ui_session_interface.rs', ' rustdesk --port-forward remote-id listen-port remote-host remote-port', ' funtidesk --port-forward remote-id listen-port remote-host remote-port')
+          repl('client/src/rendezvous_mediator.rs', 'rustdesk --deploy --token <api_token>', 'funtidesk --deploy --token <api_token>', 4)
+          repl('client/src/platform/delegate.rs', 'Invoking the main rustdesk process', 'Invoking the main FuntiDesk process')
+          repl('client/src/platform/windows.rs', 'failed to find rustdesk main window process', 'failed to find FuntiDesk main window process')
+
+      - name: Validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          ! grep -Fq 'rustdesk-custom_serverd-{}.exe' client/src/naming.rs
+          ! grep -Fq 'RustDesk://FsJob//Printer/{}' client/src/server/connection.rs
+          ! grep -Fq 'rustdesk_printer_{id}' client/src/ui_session_interface.rs
+          ! grep -Fq ' rustdesk --port-forward remote-id listen-port remote-host remote-port' client/src/ui_session_interface.rs
+          ! grep -Fq 'rustdesk --deploy --token <api_token>' client/src/rendezvous_mediator.rs
+          grep -Fq 'FuntiDesk://FsJob//Printer/{}' client/src/server/connection.rs
+          grep -Fq 'funtidesk --deploy --token <api_token>' client/src/rendezvous_mediator.rs
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add client/src/naming.rs client/src/server/connection.rs client/src/ui_session_interface.rs client/src/rendezvous_mediator.rs client/src/platform/delegate.rs client/src/platform/windows.rs
+          git commit -m 'identity: remove remaining low-risk runtime RustDesk strings'
+          git push origin HEAD:michailr/m2-funtidesk-identity-refactor
