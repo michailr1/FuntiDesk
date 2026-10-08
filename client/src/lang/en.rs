@@ -305,5 +305,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-net-online", "Connected to the FuntiDesk network"),
         ("funti-net-connecting", "Connecting to the FuntiDesk network…"),
         ("funti-net-offline", "No connection to the FuntiDesk network"),
+        ("funti-copy-id-and-password", "Copy ID and password"),
+        ("funti-share-title", "FuntiDesk: connect to"),
     ].iter().cloned().collect();
 }

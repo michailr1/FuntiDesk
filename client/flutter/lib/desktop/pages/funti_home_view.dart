@@ -443,7 +443,32 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
     );
   }
 
+  String _shareText(ServerModel model, bool withPassword) {
+    final lines = [
+      '${translate('funti-share-title')} ${Platform.localHostname}',
+      'ID: ${model.serverId.text}',
+      if (withPassword)
+        '${translate('One-time Password')}: ${model.serverPasswd.text}',
+    ];
+    return lines.join('\n');
+  }
+
   Widget _buildCard(BuildContext context, ServerModel model) {
+    // Permanent access sits at the bottom of the card; when the window is
+    // too low for everything, the card scrolls instead of cutting it off.
+    return _Card(
+      child: LayoutBuilder(
+        builder: (context, c) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: IntrinsicHeight(child: _cardContent(context, model)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cardContent(BuildContext context, ServerModel model) {
     final t = FuntiTokens.of(context);
     final showOneTime = model.approveMode != 'click' &&
         model.verificationMethod != kUsePermanentPassword;
@@ -452,157 +477,169 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
     final permanentLocked = isChangePermanentPasswordDisabled() ||
         isOptionFixed(kOptionVerificationMethod);
     final labelStyle = TextStyle(fontSize: 13, color: t.muted);
-
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: _SectionTitle(translate('This computer'))),
-              Obx(() => _StatusPill(
-                    stopped: _svcStopped.value,
-                    status: stateGlobal.svcStatus.value,
-                  )),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _SectionTitle(translate('This computer'))),
+            Obx(() => _StatusPill(
+                  stopped: _svcStopped.value,
+                  status: stateGlobal.svcStatus.value,
+                )),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          Platform.localHostname,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+            color: t.text,
           ),
-          const SizedBox(height: 14),
-          Text(
-            Platform.localHostname,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
-              color: t.text,
+        ),
+        const SizedBox(height: 14),
+        Text(translate('ID for connection'), style: labelStyle),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                model.serverId.text,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: t.text,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text(translate('ID for connection'), style: labelStyle),
-          const SizedBox(height: 6),
+            const SizedBox(width: 12),
+            _SquareButton(
+              icon: Icons.copy_rounded,
+              tooltip: translate('Copy ID'),
+              onPressed: () => _copy(model.serverId.text.replaceAll(' ', '')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(translate('One-time Password'), style: labelStyle),
+        const SizedBox(height: 6),
+        if (showOneTime) ...[
           Row(
             children: [
               Expanded(
                 child: SelectableText(
-                  model.serverId.text,
+                  model.serverPasswd.text,
                   maxLines: 1,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 24,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                    letterSpacing: 2,
+                    fontFamily: 'Consolas',
                     color: t.text,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               _SquareButton(
+                icon: Icons.refresh_rounded,
+                tooltip: translate('Refresh Password'),
+                onPressed: () => bind.mainUpdateTemporaryPassword(),
+              ),
+              const SizedBox(width: 8),
+              _SquareButton(
                 icon: Icons.copy_rounded,
-                tooltip: translate('Copy ID'),
-                onPressed: () => _copy(model.serverId.text.replaceAll(' ', '')),
+                tooltip: translate('Copy password'),
+                onPressed: () => _copy(model.serverPasswd.text),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(translate('One-time Password'), style: labelStyle),
           const SizedBox(height: 6),
-          if (showOneTime) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: SelectableText(
-                    model.serverPasswd.text,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 2,
-                      fontFamily: 'Consolas',
-                      color: t.text,
+          Text(translate('funti-otp-rotates-tip'),
+              style: TextStyle(fontSize: 12, color: t.muted)),
+        ] else
+          Text(translate('funti-otp-off-tip'),
+              style: TextStyle(fontSize: 14, color: t.muted)),
+        const SizedBox(height: 14),
+        // Ready-to-send text for a messenger: who, ID and the password.
+        OutlinedButton.icon(
+          onPressed: () => _copy(_shareText(model, showOneTime)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: t.link,
+            side: BorderSide(color: t.stroke),
+            minimumSize: const Size(0, 40),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          icon: const Icon(Icons.ios_share_rounded, size: 18),
+          label: Text(translate(
+              showOneTime ? 'funti-copy-id-and-password' : 'Copy ID')),
+        ),
+        const SizedBox(height: 14),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.only(top: 14),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: t.stroke)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      translate('Permanent access'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: t.text,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _SquareButton(
-                  icon: Icons.refresh_rounded,
-                  tooltip: translate('Refresh Password'),
-                  onPressed: () => bind.mainUpdateTemporaryPassword(),
-                ),
-                const SizedBox(width: 8),
-                _SquareButton(
-                  icon: Icons.copy_rounded,
-                  tooltip: translate('Copy password'),
-                  onPressed: () => _copy(model.serverPasswd.text),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(translate('funti-otp-rotates-tip'),
-                style: TextStyle(fontSize: 12, color: t.muted)),
-          ] else
-            Text(translate('funti-otp-off-tip'),
-                style: TextStyle(fontSize: 14, color: t.muted)),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.only(top: 14),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: t.stroke)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        translate('Permanent access'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: t.text,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        translate(permanentOn
-                            ? 'funti-permanent-on-tip'
-                            : 'funti-permanent-off-tip'),
-                        style: TextStyle(
-                            fontSize: 12, height: 1.4, color: t.muted),
-                      ),
-                      if (permanentOn && !permanentLocked)
-                        InkWell(
-                          onTap: () => _withUnlock(() => setPasswordDialog()),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              translate('Change Password'),
-                              style: TextStyle(fontSize: 12, color: t.link),
-                            ),
+                    const SizedBox(height: 3),
+                    Text(
+                      translate(permanentOn
+                          ? 'funti-permanent-on-tip'
+                          : 'funti-permanent-off-tip'),
+                      style:
+                          TextStyle(fontSize: 12, height: 1.4, color: t.muted),
+                    ),
+                    if (permanentOn && !permanentLocked)
+                      InkWell(
+                        onTap: () => _withUnlock(() => setPasswordDialog()),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            translate('Change Password'),
+                            style: TextStyle(fontSize: 12, color: t.link),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Switch(
-                  value: permanentOn,
-                  activeColor: t.onAccent,
-                  activeTrackColor: t.accent,
-                  inactiveThumbColor: t.muted,
-                  inactiveTrackColor: t.surface2,
-                  trackOutlineColor: WidgetStatePropertyAll(t.inputStroke),
-                  onChanged: permanentLocked
-                      ? null
-                      : (on) =>
-                          _withUnlock(() => _setPermanentAccess(model, on)),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Switch(
+                value: permanentOn,
+                activeColor: t.onAccent,
+                activeTrackColor: t.accent,
+                inactiveThumbColor: t.muted,
+                inactiveTrackColor: t.surface2,
+                trackOutlineColor: WidgetStatePropertyAll(t.inputStroke),
+                onChanged: permanentLocked
+                    ? null
+                    : (on) => _withUnlock(() => _setPermanentAccess(model, on)),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
