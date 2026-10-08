@@ -811,7 +811,7 @@ class _ConnectCardState extends State<_ConnectCard> {
                                             child: Text(
                                               _peerName(p).isEmpty
                                                   ? formatID(p.id)
-                                                  : '${_peerName(p)} В· ${formatID(p.id)}',
+                                                  : '${_peerName(p)} · ${formatID(p.id)}',
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
                                                   fontSize: 14, color: t.text),
@@ -1205,7 +1205,7 @@ class _DeviceRow extends StatelessWidget {
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            '$status В· ID ${formatID(peer.id)}',
+                            '$status · ID ${formatID(peer.id)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12, color: t.muted),
