@@ -6,15 +6,24 @@
 
 ## Baseline
 
-Server baseline: `1.1.16`.
+Server baseline: upstream `1.1.16` (дерево `/server`) с правками FuntiDesk.
 
-Container image фиксируется по tag + amd64 digest:
+**Собственная сборка (ADR-004, с 2026-10-08).** Production запускает `hbbs`/`hbbr`, собранные из `/server`:
+
+- workflow `.github/workflows/server-build.yml` собирает статические бинарники `x86_64-unknown-linux-musl` (Rust 1.90, как upstream), прогоняет `server/tests/tcp_signaling.rs` и публикует GitHub release `funtidesk-server-<коммит>` с `SHA256SUMS`;
+- `infra/funtidesk-server/server-release.env` фиксирует тег релиза и SHA256 обоих бинарников — единственный источник версии сервера;
+- `scripts/server/build-image.sh` скачивает бинарники, проверяет SHA256 (fail closed) и собирает локальный образ `funtidesk-server:<тег>` (`infra/funtidesk-server/Dockerfile`: `scratch`, как upstream classic image); компиляции на сервере нет;
+- `deploy.sh` и `r01-runtime-integration.sh` вызывают `build-image.sh`; `compose.yaml` использует образ с `pull_policy: never`.
+
+Правки относительно upstream: TCP-сигнализация (ADR-004) и отключённая проверка версии — upstream `hbbs` при каждом запуске отправлял на `api.rustdesk.com` ОС, архитектуру и отпечаток машины.
+
+**Откат.** Задеплоить предыдущий коммит из `/opt/funtidesk/DEPLOYED_COMMIT`: до ADR-004 `compose.yaml` указывал upstream image по digest:
 
 ```text
 ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
 ```
 
-Production M1 разворачивается из зафиксированного upstream container image `ghcr.io/rustdesk/rustdesk-server`; импортированное дерево `/server` сейчас **не участвует** в production server build. Оно хранится для аудита upstream, возможных security backport и будущего контролируемого собственного server build. Переход на собственный image выполняется только если потребуется серверная правка, которой нет в upstream release; тогда добавляются отдельный воспроизводимый CI build, image digest, rollback и повторная M1/M3 acceptance.
+Клиенты в TCP-режиме против upstream-сервера не зарегистрируются (ADR-004), поэтому откат сервера означает и возврат клиентов в UDP-режим.
 
 Оба сервиса запускаются с явной проверкой ключа: `hbbs ... -k _` и `hbbr -k _`.
 Это не позволяет использовать `hbbr` как keyless public relay. `hbbr` зависит от `hbbs`, чтобы на чистом развёртывании persistent server identity была создана до старта relay. `verify.sh` сверяет ключ, объявленный обоими сервисами, с `id_ed25519.pub`.

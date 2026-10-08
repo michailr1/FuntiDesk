@@ -54,8 +54,13 @@ if [[ -f "$DATA_DIR/id_ed25519.pub" ]]; then
   chmod 644 "$DATA_DIR/id_ed25519.pub"
 fi
 
+# FUNTIDESK ADR-004: own server build from the pinned, hash-checked release.
+set -a
+# shellcheck disable=SC1091
+source "$REPO_DIR/infra/funtidesk-server/server-release.env"
+set +a
+REPO_DIR="$REPO_DIR" bash "$REPO_DIR/scripts/server/build-image.sh"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/dev/null
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" pull
 
 # FUNTIDESK R-01: on a clean data directory, hbbs owns creation of the
 # persistent server identity. Do not start hbbr until both key files exist,
