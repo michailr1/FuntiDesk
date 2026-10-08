@@ -16,7 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  # FUNTIDESK: publishes the Windows release used by install.ps1.
+  contents: write
 
 jobs:
   windows-x64:
@@ -74,6 +75,32 @@ jobs:
           path: client/flutter/build/windows/x64/runner/Release/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Windows release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # FUNTIDESK: one-line install (install.ps1) downloads
+          # releases/latest/download/FuntiDesk-windows-x64.zip and checks it
+          # against SHA256SUMS.txt. Server releases stay prereleases, so
+          # "latest" always points to the Windows client.
+          $ErrorActionPreference = 'Stop'
+          $short = $env:GITHUB_SHA.Substring(0, 12)
+          $tag = "funtidesk-windows-$short"
+          $dist = Join-Path $env:RUNNER_TEMP 'dist'
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          $zip = Join-Path $dist 'FuntiDesk-windows-x64.zip'
+          Compress-Archive -Path 'client/flutter/build/windows/x64/runner/Release/*' -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  FuntiDesk-windows-x64.zip" | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
+          Get-Content (Join-Path $dist 'SHA256SUMS.txt')
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "release $tag already exists"; exit 0 }
+          gh release create $tag $zip (Join-Path $dist 'SHA256SUMS.txt') `
+            --target $env:GITHUB_SHA --latest `
+            --title "FuntiDesk для Windows $short" `
+            --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex"
 
       - name: Upload build logs
         if: always()
