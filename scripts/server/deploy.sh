@@ -59,7 +59,8 @@ set -a
 # shellcheck disable=SC1091
 source "$REPO_DIR/infra/funtidesk-server/server-release.env"
 set +a
-REPO_DIR="$REPO_DIR" bash "$REPO_DIR/scripts/server/build-image.sh"
+export REPO_DIR
+bash "$REPO_DIR/scripts/server/build-image.sh"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" config >/dev/null
 
 # FUNTIDESK R-01: on a clean data directory, hbbs owns creation of the
