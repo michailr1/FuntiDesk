@@ -46,12 +46,22 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/bootstrap.ps1
 
+      - name: Ensure python3 command
+        shell: powershell
+        run: |
+          # build.py calls `python3` for the single-file packer (libs/portable).
+          if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+            $py = (Get-Command python).Source
+            Copy-Item $py (Join-Path (Split-Path $py) 'python3.exe')
+          }
+          python3 --version
+
       - name: Build Windows runtime
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1 -PortablePack
 
       - name: Write SHA256 manifest
         shell: powershell
@@ -92,15 +102,21 @@ jobs:
           New-Item -ItemType Directory -Force $dist | Out-Null
           $zip = Join-Path $dist 'FuntiDesk-windows-x64.zip'
           Compress-Archive -Path 'client/flutter/build/windows/x64/runner/Release/*' -DestinationPath $zip
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  FuntiDesk-windows-x64.zip" | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
+          # Single-file portable: one FuntiDesk.exe that unpacks itself to
+          # %LOCALAPPDATA%\FuntiDesk\portable. Not named *install.exe on purpose.
+          $single = Join-Path $dist 'FuntiDesk-portable.exe'
+          Copy-Item 'client/dist/FuntiDesk.exe' $single
+          $sums = foreach ($f in @($zip, $single)) {
+            "$((Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant())  $(Split-Path $f -Leaf)"
+          }
+          $sums | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
           Get-Content (Join-Path $dist 'SHA256SUMS.txt')
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "release $tag already exists"; exit 0 }
-          gh release create $tag $zip (Join-Path $dist 'SHA256SUMS.txt') `
+          gh release create $tag $zip $single (Join-Path $dist 'SHA256SUMS.txt') `
             --target $env:GITHUB_SHA --latest `
             --title "FuntiDesk для Windows $short" `
-            --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex"
+            --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex. FuntiDesk-portable.exe — тот же клиент одним файлом."
 
       - name: Upload build logs
         if: always()

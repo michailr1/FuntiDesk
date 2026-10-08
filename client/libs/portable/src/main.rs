@@ -17,7 +17,10 @@ const APP_METADATA: &[u8] = include_bytes!("../app_metadata.toml");
 const APP_METADATA: &[u8] = &[];
 const APP_METADATA_CONFIG: &str = "meta.toml";
 const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
-const APP_PREFIX: &str = "rustdesk";
+// FUNTIDESK: unpacks to %LOCALAPPDATA%\FuntiDesk\portable (wiped on a new
+// version); nothing else of FuntiDesk lives there.
+const APP_PREFIX: &str = "FuntiDesk";
+const APP_PORTABLE_DIR: &str = "portable";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -71,7 +74,7 @@ fn setup(
     } else {
         // home dir
         if let Some(dir) = dirs::data_local_dir() {
-            dir.join(APP_PREFIX)
+            dir.join(APP_PREFIX).join(APP_PORTABLE_DIR)
         } else {
             eprintln!("not found data local dir");
             return None;

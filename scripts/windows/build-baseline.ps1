@@ -1,5 +1,8 @@
 ﻿param(
-    [string]$ToolsRoot = "$PSScriptRoot\..\..\.tools"
+    [string]$ToolsRoot = "$PSScriptRoot\..\..\.tools",
+    # FUNTIDESK: also pack client\dist\FuntiDesk.exe, a single-file portable
+    # (libs/portable). Off by default: the folder build is the baseline.
+    [switch]$PortablePack
 )
 
 $ErrorActionPreference = 'Stop'
@@ -166,8 +169,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'vcpkg install failed' }
 
     Write-Host '== Baseline build =='
-    python .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+    $packArgs = if ($PortablePack) { @() } else { @('--skip-portable-pack') }
+    python .\build.py --portable --flutter @packArgs --hwcodec --vram
     if ($LASTEXITCODE -ne 0) { throw 'build.py failed' }
+    if ($PortablePack) {
+        $single = Join-Path $ClientRoot 'dist\FuntiDesk.exe'
+        if (-not (Test-Path $single)) { throw "Однофайловый FuntiDesk.exe не найден: $single" }
+        Write-Host "PORTABLE=$single"
+        Write-Host "PORTABLE_SHA256=$((Get-FileHash $single -Algorithm SHA256).Hash)"
+    }
 
     $releaseDir = Join-Path $ClientRoot 'flutter\build\windows\x64\runner\Release'
     if (-not (Test-Path $releaseDir)) { throw "Release dir не найден: $releaseDir" }
