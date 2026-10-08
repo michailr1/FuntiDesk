@@ -761,14 +761,19 @@ class _ConnectCardState extends State<_ConnectCard> {
     return exact.isEmpty && partial.isEmpty && !raw.contains(' ') ? raw : null;
   }
 
-  void _connect({bool isFileTransfer = false, bool isViewCamera = false}) {
+  void _connect(
+      {bool isFileTransfer = false,
+      bool isViewCamera = false,
+      bool isTerminal = false}) {
     final id = _resolve(_controller.text);
     if (id == null) {
       showToast(translate('funti-device-not-found'));
       return;
     }
     connect(context, id,
-        isFileTransfer: isFileTransfer, isViewCamera: isViewCamera);
+        isFileTransfer: isFileTransfer,
+        isViewCamera: isViewCamera,
+        isTerminal: isTerminal);
   }
 
   @override
@@ -898,6 +903,11 @@ class _ConnectCardState extends State<_ConnectCard> {
                 icon: Icons.videocam_outlined,
                 text: translate('funti-view-camera'),
                 onTap: () => _connect(isViewCamera: true),
+              ),
+              _LinkButton(
+                icon: Icons.terminal_rounded,
+                text: translate('funti-open-terminal'),
+                onTap: () => _connect(isTerminal: true),
               ),
             ],
           ),
@@ -1106,7 +1116,7 @@ class _Segmented extends StatelessWidget {
   }
 }
 
-enum _DeviceAction { rename, relay, remove }
+enum _DeviceAction { files, camera, terminal, rename, relay, remove }
 
 class _DeviceRow extends StatelessWidget {
   const _DeviceRow(
@@ -1125,8 +1135,17 @@ class _DeviceRow extends StatelessWidget {
     bind.mainLoadFavPeers();
   }
 
-  void _onAction(_DeviceAction action, bool forceRelay) {
+  void _onAction(BuildContext context, _DeviceAction action, bool forceRelay) {
     switch (action) {
+      case _DeviceAction.files:
+        connect(context, peer.id, isFileTransfer: true);
+        break;
+      case _DeviceAction.camera:
+        connect(context, peer.id, isViewCamera: true);
+        break;
+      case _DeviceAction.terminal:
+        connect(context, peer.id, isTerminal: true);
+        break;
       case _DeviceAction.rename:
         renameDialog(
           oldName: peer.alias,
@@ -1173,8 +1192,18 @@ class _DeviceRow extends StatelessWidget {
       color: t.surface,
       splashRadius: 18,
       icon: Icon(Icons.more_horiz_rounded, size: 20, color: t.muted),
-      onSelected: (a) => _onAction(a, forceRelay),
+      onSelected: (a) => _onAction(context, a, forceRelay),
       itemBuilder: (context) => [
+        PopupMenuItem(
+            value: _DeviceAction.files,
+            child: Text(translate('funti-transfer-files-only'), style: style)),
+        PopupMenuItem(
+            value: _DeviceAction.camera,
+            child: Text(translate('funti-view-camera'), style: style)),
+        PopupMenuItem(
+            value: _DeviceAction.terminal,
+            child: Text(translate('funti-open-terminal'), style: style)),
+        const PopupMenuDivider(),
         PopupMenuItem(
             value: _DeviceAction.rename,
             child: Text(translate('Rename'), style: style)),
