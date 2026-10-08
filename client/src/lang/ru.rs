@@ -785,6 +785,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-target-hint", "Например, Домашний ПК или 348 112 905"),
         ("funti-transfer-files-only", "Только передать файлы"),
         ("funti-call", "Позвонить"),
+        ("funti-call-title", "Звонок"),
+        ("funti-call-no-camera", "У собеседника нет камеры. Звонок идёт без видео."),
         ("funti-incoming-call", "Входящий звонок"),
         ("funti-answer-call", "Ответить"),
         ("funti-decline-call", "Отклонить"),

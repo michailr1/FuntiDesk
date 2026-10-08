@@ -2100,6 +2100,11 @@ impl Connection {
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
+        // FUNTIDESK: see the login handler; no-op if the manager is already started.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        if password::approve_mode() == ApproveMode::Password {
+            self.try_start_cm_ipc();
+        }
         self.send_to_cm(ipc::Data::Login {
             id: self.inner.id(),
             is_file_transfer: self.file_transfer.is_some(),
@@ -2634,8 +2639,14 @@ impl Connection {
                 return false;
             }
 
+            // FUNTIDESK: with password-only approval the connection manager is
+            // started by try_start_cm() once there is something to show (a
+            // signed-in session or an incoming call). Started here with no client
+            // to show, it closes itself after ~6 s and takes the connection with it.
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username) {
+            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username)
+                && password::approve_mode() != ApproveMode::Password
+            {
                 self.try_start_cm_ipc();
             }
 
@@ -5619,6 +5630,8 @@ impl Connection {
             | Some(misc::Union::ToggleVirtualDisplay(_))
             | Some(misc::Union::ChangeResolution(_))
             | Some(misc::Union::ChangeDisplayResolution(_)) => true,
+            // FUNTIDESK (ADR-005): the caller asks for the callee's video back.
+            Some(misc::Union::FuntiCallBackRequest(_)) => true,
             Some(misc::Union::Option(option)) => Self::is_view_camera_scoped_option(option),
             #[cfg(windows)]
             Some(misc::Union::SelectedSid(_)) => true,

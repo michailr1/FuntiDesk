@@ -1853,6 +1853,12 @@ impl<T: InvokeUiSession> Interface for Session<T> {
             if pi.displays.is_empty() {
                 self.lc.write().unwrap().handle_peer_info(&pi);
                 self.update_privacy_mode();
+                if self.is_view_camera() {
+                    // FUNTIDESK (ADR-005): a call goes on without video, voice
+                    // still works; an "error" box would end the session.
+                    self.msgbox("custom-nocancel-info", "funti-call-title", "funti-call-no-camera", "");
+                    return;
+                }
                 let msg = if self.is_view_camera() {
                     "No cameras"
                 } else {

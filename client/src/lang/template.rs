@@ -785,6 +785,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-target-hint", ""),
         ("funti-transfer-files-only", ""),
         ("funti-call", ""),
+        ("funti-call-title", ""),
+        ("funti-call-no-camera", ""),
         ("funti-incoming-call", ""),
         ("funti-answer-call", ""),
         ("funti-decline-call", ""),
