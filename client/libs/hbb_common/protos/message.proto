@@ -799,6 +799,14 @@ message SwitchSidesResponse {
 
 message SwitchBack {}
 
+// FUNTIDESK (ADR-005): in an answered call the caller asks the callee to open
+// a camera session back to it. The caller's service admits that session by
+// this one-time uuid instead of a password; only a camera session qualifies.
+// Peers that do not know this field ignore it, the call stays one-way.
+message FuntiCallBackRequest {
+  bytes uuid = 1;
+}
+
 message PluginRequest {
   string id = 1;
   bytes content = 2;
@@ -859,6 +867,8 @@ message Misc {
     DisplayResolution change_display_resolution = 36;
     MessageQuery message_query = 37;
     int32 follow_current_display = 38;
+    // FUNTIDESK: numbers from 1000 are reserved for FuntiDesk messages.
+    FuntiCallBackRequest funti_call_back_request = 1001;
   }
 }
 

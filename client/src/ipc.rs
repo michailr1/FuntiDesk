@@ -368,6 +368,11 @@ pub enum Data {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesUuid(String, String, Option<bool>),
+    // FUNTIDESK (ADR-005): peer id -> one-time uuid for the callee's camera
+    // session back to this computer.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiCallBackRequest(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -971,6 +976,17 @@ async fn handle(data: Data, stream: &mut Connection) {
             allow_err!(
                 stream
                     .send(&Data::SwitchSidesRequest(uuid.to_string()))
+                    .await
+            );
+        }
+        #[cfg(feature = "flutter")]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiCallBackRequest(id) => {
+            let uuid = uuid::Uuid::new_v4();
+            crate::server::insert_funti_call_back_uuid(id, uuid.clone());
+            allow_err!(
+                stream
+                    .send(&Data::FuntiCallBackRequest(uuid.to_string()))
                     .await
             );
         }

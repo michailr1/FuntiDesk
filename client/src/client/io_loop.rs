@@ -1384,10 +1384,14 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                         }
                         self.handler.handle_peer_info(pi);
-                        if self.handler.is_view_camera() {
+                        if self.handler.is_view_camera()
+                            && !self.handler.lc.read().unwrap().funti_call_back
+                        {
                             // FUNTIDESK: "Call" is the camera plus voice; the other side
                             // has already answered, or answers voice in its own window.
                             self.handler.request_voice_call();
+                            // ADR-005 stage 2: ask the callee to open our camera too.
+                            self.handler.funti_request_call_back();
                         }
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();

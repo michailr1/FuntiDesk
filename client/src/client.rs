@@ -1741,6 +1741,9 @@ pub struct LoginConfigHandler {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     switch_back_allowed: bool,
+    // FUNTIDESK (ADR-005): this camera session is the callee's video back to
+    // the caller, admitted by a one-time uuid; it starts no voice and no call-back.
+    pub funti_call_back: bool,
     pub save_ab_password_to_recent: bool, // true: connected with ab password
     pub other_server: Option<(String, String, String)>,
     pub custom_fps: Arc<Mutex<Option<usize>>>,
@@ -3479,7 +3482,11 @@ pub async fn handle_hash(
                 if !consume_local_switch_sides_uuid(&id, &uuid).await {
                     log::warn!("Ignored untrusted switch_uuid");
                 } else {
-                    lc.write().unwrap().allow_switch_back_once();
+                    if lc.read().unwrap().conn_type.eq(&ConnType::VIEW_CAMERA) {
+                        lc.write().unwrap().funti_call_back = true;
+                    } else {
+                        lc.write().unwrap().allow_switch_back_once();
+                    }
                     send_switch_login_request(lc.clone(), peer, uuid).await;
                     lc.write().unwrap().password_source = Default::default();
                     return;

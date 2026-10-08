@@ -88,6 +88,8 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref SWITCH_SIDES_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
     static ref PENDING_SWITCH_SIDES_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
+    // FUNTIDESK (ADR-005): callee id -> one-time uuid for its camera session back.
+    static ref FUNTI_CALL_BACK_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
 }
 
 #[cfg(target_os = "windows")]
@@ -2845,6 +2847,27 @@ impl Connection {
                     .retain(|_, v| v.0.elapsed() < Duration::from_secs(10));
                 let uuid_old = SWITCH_SIDES_UUID.lock().unwrap().remove(&lr.my_id);
                 if let Ok(uuid) = uuid::Uuid::from_slice(_s.uuid.to_vec().as_ref()) {
+                    if uuid_old.is_none() && take_funti_call_back_uuid(&lr.my_id, &uuid) {
+                        // FUNTIDESK (ADR-005): the callee's video back to the caller.
+                        // Only a camera session, and only if the camera is allowed here.
+                        if !matches!(lr.union, Some(login_request::Union::ViewCamera(_)))
+                            || !Self::permission(
+                                keys::OPTION_ENABLE_CAMERA,
+                                &self.control_permissions,
+                            )
+                        {
+                            log::warn!("FuntiDesk: call-back uuid used for a non-camera session");
+                            return false;
+                        }
+                        self.reset_session_scope_for_login();
+                        self.view_camera = true;
+                        self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::SwitchSides);
+                        if !self.send_logon_response_and_keep_alive().await {
+                            return false;
+                        }
+                        self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), self.authorized);
+                        return true;
+                    }
                     if let Some((_instant, uuid_old)) = uuid_old {
                         if uuid == uuid_old {
                             self.from_switch = true;
@@ -3562,6 +3585,28 @@ impl Connection {
                             self.audio_sender
                                 .as_ref()
                                 .map(|a| allow_err!(a.send(MediaData::AudioFormat(format))));
+                        }
+                    }
+                    #[cfg(feature = "flutter")]
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    Some(misc::Union::FuntiCallBackRequest(r)) => {
+                        // FUNTIDESK (ADR-005): only inside a call answered here (or
+                        // auto-answered by the owner's setting): open the caller's
+                        // camera in a window of our own. This session stays open.
+                        if self.view_camera {
+                            if let Ok(uuid) = uuid::Uuid::from_slice(&r.uuid.to_vec()[..]) {
+                                crate::server::insert_pending_switch_sides_uuid(
+                                    self.lr.my_id.clone(),
+                                    uuid.clone(),
+                                );
+                                crate::run_me(vec![
+                                    "--view-camera",
+                                    &self.lr.my_id,
+                                    "--switch_uuid",
+                                    uuid.to_string().as_ref(),
+                                ])
+                                .ok();
+                            }
                         }
                     }
                     #[cfg(feature = "flutter")]
@@ -5827,6 +5872,28 @@ pub fn insert_switch_sides_uuid(id: String, uuid: uuid::Uuid) {
         .lock()
         .unwrap()
         .insert(id, (tokio::time::Instant::now(), uuid));
+}
+
+// FUNTIDESK (ADR-005): one-time uuid for the callee's camera session back.
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn insert_funti_call_back_uuid(id: String, uuid: uuid::Uuid) {
+    let mut uuids = FUNTI_CALL_BACK_UUID.lock().unwrap();
+    uuids.retain(|_, (instant, _)| instant.elapsed() < Duration::from_secs(30));
+    uuids.insert(id, (tokio::time::Instant::now(), uuid));
+}
+
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn take_funti_call_back_uuid(id: &str, uuid: &uuid::Uuid) -> bool {
+    let mut uuids = FUNTI_CALL_BACK_UUID.lock().unwrap();
+    uuids.retain(|_, (instant, _)| instant.elapsed() < Duration::from_secs(30));
+    if uuids.get(id).map(|(_, stored)| stored == uuid) == Some(true) {
+        uuids.remove(id);
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(feature = "flutter")]

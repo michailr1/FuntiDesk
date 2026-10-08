@@ -1486,6 +1486,49 @@ impl<T: InvokeUiSession> Session<T> {
     #[cfg(any(target_os = "android", target_os = "ios", not(feature = "flutter")))]
     pub fn switch_sides(&self) {}
 
+    #[cfg(any(target_os = "android", target_os = "ios", not(feature = "flutter")))]
+    pub fn funti_request_call_back(&self) {}
+
+    // FUNTIDESK (ADR-005): get a one-time uuid from our own service and send it
+    // to the callee, which opens a camera session back to us with it.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    pub fn funti_request_call_back(&self) {
+        let session = self.clone();
+        std::thread::spawn(move || session.funti_request_call_back_blocking());
+    }
+
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[tokio::main(flavor = "current_thread")]
+    async fn funti_request_call_back_blocking(&self) {
+        let Ok(mut conn) = crate::ipc::connect(1000, "").await else {
+            log::warn!("FuntiDesk: no local service, the call stays one-way");
+            return;
+        };
+        if conn
+            .send(&crate::ipc::Data::FuntiCallBackRequest(self.get_id()))
+            .await
+            .is_err()
+        {
+            return;
+        }
+        if let Ok(Some(crate::ipc::Data::FuntiCallBackRequest(str_uuid))) =
+            conn.next_timeout(1000).await
+        {
+            if let Ok(uuid) = Uuid::from_str(&str_uuid) {
+                let mut misc = Misc::new();
+                misc.set_funti_call_back_request(FuntiCallBackRequest {
+                    uuid: Bytes::from(uuid.as_bytes().to_vec()),
+                    ..Default::default()
+                });
+                let mut msg_out = Message::new();
+                msg_out.set_misc(misc);
+                self.send(Data::Message(msg_out));
+            }
+        }
+    }
+
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[tokio::main(flavor = "current_thread")]

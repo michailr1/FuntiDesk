@@ -2374,7 +2374,9 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
       case UriLinkType.viewCamera:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newViewCamera(id!,
-              password: password, forceRelay: forceRelay);
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
         });
         break;
       case UriLinkType.portForward:

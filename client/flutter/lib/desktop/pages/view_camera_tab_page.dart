@@ -102,6 +102,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
           connToken: params['connToken'],
           forceRelay: params['forceRelay'],
           isSharedPassword: params['isSharedPassword'],
+          switchUuid: params['switch_uuid'],
         ),
       ));
       _update_remote_count();
@@ -438,6 +439,7 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
           connToken: args['connToken'],
           forceRelay: args['forceRelay'],
           isSharedPassword: args['isSharedPassword'],
+          switchUuid: args['switch_uuid'],
         ),
       ));
     } else if (call.method == kWindowDisableGrabKeyboard) {
