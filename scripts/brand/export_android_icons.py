@@ -10,6 +10,9 @@
   ic_stat_logo — белый силуэт для строки уведомлений.
 
 Запуск из корня репозитория: python scripts/brand/export_android_icons.py
+
+client/.gitignore (upstream) игнорирует *png: новые файлы добавлять
+`git add -f`, иначе сборка APK не найдёт ресурс.
 """
 
 import pathlib
