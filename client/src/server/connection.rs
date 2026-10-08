@@ -2115,6 +2115,18 @@ impl Connection {
         });
     }
 
+    // FUNTIDESK: with password-only approval the pre-auth card in the connection
+    // manager has no Accept button and only says "access requested" while the
+    // helper is still typing the password. Show the window once the session is
+    // authorized; failed attempts stay in the log and the failure counters.
+    fn try_start_cm_unauthorized(&mut self, peer_id: String, name: String) {
+        if password::approve_mode() == ApproveMode::Password {
+            log::info!("FuntiDesk: password-only approval, no pre-auth card for {}", peer_id);
+            return;
+        }
+        self.try_start_cm(peer_id, name, false);
+    }
+
     #[inline]
     fn send_to_cm(&mut self, data: ipc::Data) {
         self.tx_to_cm.send(data).ok();
@@ -2712,7 +2724,7 @@ impl Connection {
                             return keep_alive;
                         }
                     }
-                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    self.try_start_cm_unauthorized(lr.my_id, lr.my_name);
                 } else {
                     self.send_login_error(
                         crate::client::LOGIN_MSG_DESKTOP_SESSION_NOT_READY_PASSWORD_EMPTY,
@@ -2730,7 +2742,7 @@ impl Connection {
                     if err_msg.is_empty() {
                         self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_WRONG)
                             .await;
-                        self.try_start_cm(lr.my_id, lr.my_name, false);
+                        self.try_start_cm_unauthorized(lr.my_id, lr.my_name);
                     } else {
                         self.send_login_error(
                             crate::client::LOGIN_MSG_DESKTOP_SESSION_NOT_READY_PASSWORD_WRONG,
