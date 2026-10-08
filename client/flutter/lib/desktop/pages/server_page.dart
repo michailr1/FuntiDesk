@@ -502,7 +502,8 @@ class _CmHeaderState extends State<_CmHeader>
                 if (client.type_() == ClientType.camera)
                   FittedBox(
                     child: Text(
-                      translate("View Camera"),
+                      // FUNTIDESK: camera sessions are calls (ADR-005).
+                      translate("funti-call-title"),
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ),
@@ -1063,9 +1064,12 @@ class _CmControlPanel extends StatelessWidget {
         model.showElevation &&
         client.type_() == ClientType.remote;
     // FUNTIDESK: a call (camera session) is always answered here, even when
-    // other sessions are approved by password only.
+    // other sessions are approved by password only. With password-only
+    // approval the service shows a session here before sign-in only when it
+    // has to be accepted (a call, or a family member — ADR-006), so "Accept"
+    // is always offered.
     final isCall = client.isViewCamera;
-    final showAccept = model.approveMode != 'password' || isCall;
+    final showAccept = true;
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [

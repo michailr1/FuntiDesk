@@ -88,6 +88,22 @@ message LoginRequest {
   string my_platform = 13;
   bytes hwid = 14;
   string avatar = 17;
+  // FUNTIDESK (ADR-006): numbers from 1000 are reserved for FuntiDesk.
+  FuntiFamilyPair funti_family_pair = 1001;
+  // Device-key signature of the family login message, sent instead of a
+  // password by a paired family member.
+  bytes funti_family_proof = 1002;
+  // A family member asks for help ("help" family message signed in
+  // funti_family_proof); no session follows.
+  bool funti_help_request = 1003;
+}
+
+// FUNTIDESK (ADR-006): pairing with the one-time code shown on the other
+// computer. `signature` is over the "pair" family message of this connection.
+message FuntiFamilyPair {
+  string code = 1;
+  bytes pk = 2;
+  bytes signature = 3;
 }
 
 message Terminal {
@@ -150,6 +166,8 @@ message LoginResponse {
     PeerInfo peer_info = 2;
   }
   bool enable_trusted_devices = 3;
+  // FUNTIDESK (ADR-006): the paired computer's name, with error "funti-family-paired".
+  string funti_family_paired = 1001;
 }
 
 message TouchScaleUpdate {

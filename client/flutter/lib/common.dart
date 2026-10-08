@@ -9,6 +9,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
+import 'package:flutter_hbb/desktop/widgets/funti_family.dart'
+    show showFuntiHelpRequestDialog;
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/main.dart';
@@ -2301,8 +2303,26 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   String? password;
   String? switchUuid;
   bool? forceRelay;
+  // FUNTIDESK (ADR-006): "<name> asks for help", started by the service.
+  String? funtiHelpId;
+  String funtiHelpName = '';
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
+      case '--funti-help':
+        funtiHelpId = args[i + 1];
+        i++;
+        if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
+          funtiHelpName = args[i + 1];
+          i++;
+        }
+        break;
+      case '--funti-help-name':
+        try {
+          funtiHelpName =
+              utf8.decode(base64Url.decode(base64Url.normalize(args[i + 1])));
+        } catch (_) {}
+        i++;
+        break;
       case '--connect':
       case '--play':
         type = UriLinkType.remoteDesktop;
@@ -2354,6 +2374,13 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
       default:
         break;
     }
+  }
+  if (funtiHelpId != null) {
+    final helpId = funtiHelpId;
+    windowOnTop(null);
+    Future.delayed(Duration.zero,
+        () => showFuntiHelpRequestDialog(helpId, funtiHelpName));
+    return true;
   }
   if (type != null && id != null) {
     switch (type) {
@@ -2417,6 +2444,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     "rdp",
     "terminal",
     "terminal-admin",
+    "funti-help",
   ];
   if (uri.authority.isEmpty &&
       uri.path.split('').every((char) => char == '/')) {
@@ -2498,7 +2526,8 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     }
   }
 
-  if (isMobile && id != null) {
+  // FUNTIDESK (ADR-006): help requests come from the desktop service only.
+  if (isMobile && id != null && command != '--funti-help') {
     final forceRelay = queryParameters["relay"] != null;
     final password = queryParameters["password"];
 
@@ -2532,6 +2561,10 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     if (password != null) args.addAll(['--password', password]);
     String? switch_uuid = param["switch_uuid"];
     if (switch_uuid != null) args.addAll(['--switch_uuid', switch_uuid]);
+    String? funtiHelpName = param["name"];
+    if (command == '--funti-help' && funtiHelpName != null) {
+      args.addAll(['--funti-help-name', funtiHelpName]);
+    }
     if (param["relay"] != null) args.add("--relay");
     return args;
   }
@@ -3049,14 +3082,15 @@ String getWindowName({WindowType? overrideType}) {
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;
+    // FUNTIDESK: translated window titles; a camera session is a call (ADR-005).
     case WindowType.FileTransfer:
-      return "File Transfer - $name";
+      return "${translate('funti-window-files')} - $name";
     case WindowType.ViewCamera:
-      return "View Camera - $name";
+      return "${translate('funti-call-title')} - $name";
     case WindowType.PortForward:
-      return "Port Forward - $name";
+      return "${translate('funti-window-tunnel')} - $name";
     case WindowType.RemoteDesktop:
-      return "Remote Desktop - $name";
+      return "${translate('funti-window-control')} - $name";
     default:
       break;
   }

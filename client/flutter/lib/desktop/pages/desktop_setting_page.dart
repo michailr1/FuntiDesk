@@ -11,6 +11,8 @@ import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
+    show funtiHomeBannerHidden, setFuntiHomeBannerHidden;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -487,6 +489,12 @@ class _GeneralState extends State<_General> {
     final outgoingOnly = bind.isOutgoingOnly();
     final showAutoUpdate = isWindows && bind.mainIsInstalled();
     final children = <Widget>[
+      // FUNTIDESK: brings back the main-screen picture closed with its cross.
+      if (!isWeb && !incomingOnly)
+        _OptionCheckBox(context, 'funti-show-home-banner', 'funti-home-banner',
+            isServer: false,
+            optGetter: () => !funtiHomeBannerHidden.value,
+            optSetter: (_, show) async => setFuntiHomeBannerHidden(!show)),
       if (!isWeb && !incomingOnly)
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
             kOptionEnableConfirmClosingTabs,

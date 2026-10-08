@@ -953,6 +953,44 @@ pub fn main_get_http_status(url: String) -> Option<String> {
     get_async_http_status(url)
 }
 
+// FUNTIDESK (ADR-005): ring for an incoming call in the connection manager.
+pub fn cm_funti_ring(on: bool) {
+    crate::funti_ring::set(on);
+}
+
+// FUNTIDESK (ADR-006): family access. Start (or cancel) pairing on this
+// computer; returns the one-time code, empty if the service is unreachable.
+pub fn main_funti_family_code(start: bool) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::funti_family::code_blocking(start);
+    #[allow(unreachable_code)]
+    String::new()
+}
+
+// FUNTIDESK (ADR-006): pair with computer `id` by the code shown there.
+// JSON: {"name": "..."} on success, {"error": "..."} otherwise.
+pub fn main_funti_family_pair(id: String, code: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return match crate::funti_family::pair_blocking(&id, &code) {
+        Ok(name) => serde_json::json!({ "name": name }).to_string(),
+        Err(error) => serde_json::json!({ "error": error }).to_string(),
+    };
+    #[allow(unreachable_code)]
+    serde_json::json!({ "error": "not supported" }).to_string()
+}
+
+// FUNTIDESK (ADR-006): ask family member `id` for help.
+// JSON: {} when delivered, {"error": "..."} otherwise.
+pub fn main_funti_family_help(id: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return match crate::funti_family::help_blocking(&id) {
+        Ok(()) => "{}".to_owned(),
+        Err(error) => serde_json::json!({ "error": error }).to_string(),
+    };
+    #[allow(unreachable_code)]
+    serde_json::json!({ "error": "not supported" }).to_string()
+}
+
 pub fn main_get_option(key: String) -> String {
     get_option(key)
 }

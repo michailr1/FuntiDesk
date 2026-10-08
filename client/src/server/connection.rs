@@ -211,6 +211,16 @@ enum MessageInput {
     BlockOffPlugin(String),
 }
 
+// FUNTIDESK (ADR-006): family fields of a login request.
+struct FuntiFamilyLogin {
+    pair: Option<FuntiFamilyPair>,
+    proof: Vec<u8>,
+    password_empty: bool,
+    help_request: bool,
+    my_id: String,
+    my_name: String,
+}
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct SessionKey {
     peer_id: String,
@@ -695,7 +705,9 @@ impl Connection {
                             conn.chat_unanswered = false; // seen
                             conn.file_transferred = false; //seen
                             // FUNTIDESK (ADR-005): "Disconnect" in a call is a hang-up.
-                            let reason = if conn.view_camera {
+                            let reason = if conn.view_camera && !conn.authorized {
+                                crate::common::FUNTI_CALL_DECLINED
+                            } else if conn.view_camera {
                                 crate::common::FUNTI_CALL_ENDED
                             } else {
                                 ""
@@ -2171,6 +2183,90 @@ impl Connection {
         self.send_to_cm(ipc::Data::FS(data));
     }
 
+    // FUNTIDESK (ADR-006). Some(keep_alive) when the login was handled here:
+    // - pairing: a correct one-time code adds the guest to this computer's
+    //   family and the connection ends; a wrong code counts as a failed login;
+    // - a family member's signature over this connection's challenge: no
+    //   password, but the person here has to accept (any session type).
+    // None: no family data, or the signature does not match a member — the
+    // usual password path follows (fail closed).
+    async fn funti_family_login(&mut self, lr: FuntiFamilyLogin) -> Option<bool> {
+        use crate::funti_family as family;
+        if let Some(pair) = lr.pair.as_ref() {
+            let (failure, res) = self.check_failure(0).await;
+            if !res {
+                return Some(true);
+            }
+            let msg = family::message(
+                family::KIND_PAIR,
+                &self.hash.challenge,
+                &Config::get_id(),
+                &lr.my_id,
+            );
+            if family::take_pair_code(&pair.code)
+                && family::verify(&pair.pk, &msg, &pair.signature)
+            {
+                self.update_failure(failure, true, 0);
+                family::add(&lr.my_id, &lr.my_name, &pair.pk);
+                let mut res = LoginResponse::new();
+                res.set_error(family::LOGIN_MSG_PAIRED.to_owned());
+                res.funti_family_paired = crate::common::hostname();
+                let mut msg_out = Message::new();
+                msg_out.set_login_response(res);
+                self.send(msg_out).await;
+            } else {
+                self.update_failure(failure, false, 0);
+                log::warn!("FuntiDesk family: pairing from {} rejected", lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_PAIR_FAILED).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
+        if lr.help_request {
+            // A family member asks for help: notify the person here, no session.
+            let delivered = !lr.proof.is_empty()
+                && family::verify_member(family::KIND_HELP, &lr.my_id, &self.hash.challenge, &lr.proof);
+            if delivered {
+                let name = family::member(&lr.my_id)
+                    .map(|m| m.name)
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| lr.my_name.clone());
+                log::info!("FuntiDesk family: {} asks for help", lr.my_id);
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                funti_show_help_request(&lr.my_id, &name);
+                self.send_login_error(family::LOGIN_MSG_HELP_DELIVERED).await;
+            } else {
+                log::warn!("FuntiDesk family: help request from {} not accepted", lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_HELP_REFUSED).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
+        if lr.proof.is_empty() || !lr.password_empty {
+            return None;
+        }
+        if !family::verify_member_login(&lr.my_id, &self.hash.challenge, &lr.proof) {
+            log::warn!("FuntiDesk family: login proof from {} not accepted", lr.my_id);
+            self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY).await;
+            return Some(true);
+        }
+        if family::take_help(&lr.my_id) {
+            // The person here asked this member for help a moment ago.
+            log::info!("FuntiDesk family: {} answers a help request", lr.my_id);
+            self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
+            if !self.send_logon_response_and_keep_alive().await {
+                return Some(false);
+            }
+            self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
+            return Some(true);
+        }
+        log::info!("FuntiDesk family: {} signed in, waiting for accept", lr.my_id);
+        self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), false);
+        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+            .await;
+        Some(true)
+    }
+
     async fn send_login_error<T: std::string::ToString>(&mut self, err: T) {
         let mut msg_out = Message::new();
         let mut res = LoginResponse::new();
@@ -2574,6 +2670,15 @@ impl Connection {
                 return true;
             }
             self.reset_session_scope_for_login();
+            // FUNTIDESK (ADR-006): taken before `lr.union` is moved below.
+            let funti_family = FuntiFamilyLogin {
+                pair: lr.funti_family_pair.clone().into_option(),
+                proof: lr.funti_family_proof.to_vec(),
+                password_empty: lr.password.is_empty(),
+                help_request: lr.funti_help_request,
+                my_id: lr.my_id.clone(),
+                my_name: lr.my_name.clone(),
+            };
             match lr.union {
                 Some(login_request::Union::FileTransfer(ft)) => {
                     if !Self::permission(
@@ -2699,6 +2804,11 @@ impl Connection {
                 }
                 self.send_login_error(err_msg).await;
                 return true;
+            }
+
+            // FUNTIDESK (ADR-006): pairing by code, or a family member's signed login.
+            if let Some(keep_alive) = self.funti_family_login(funti_family).await {
+                return keep_alive;
             }
 
             // https://github.com/rustdesk/rustdesk-server-pro/discussions/646
@@ -5912,6 +6022,19 @@ pub fn funti_end_call(peer_id: &str) {
             c.sender.send(ipc::Data::FuntiCallEnded(peer_id.to_owned())).ok();
         }
     }
+}
+
+// FUNTIDESK (ADR-006): show "<name> asks for help" in this computer's UI.
+// From the installed service the UI is started in the user's session.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn funti_show_help_request(id: &str, name: &str) {
+    let args = vec!["--funti-help", id, name];
+    #[cfg(windows)]
+    if crate::is_server() {
+        crate::platform::run_as_user(args).ok();
+        return;
+    }
+    crate::run_me(args).ok();
 }
 
 // FUNTIDESK (ADR-005): one-time uuid for the callee's camera session back.

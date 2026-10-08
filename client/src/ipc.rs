@@ -378,6 +378,20 @@ pub enum Data {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiCallEnded(String),
+    // FUNTIDESK (ADR-006), answered by the service, which holds the device key
+    // and the family list: sign (kind, challenge, host id) -> (signature, own
+    // public key); a "login" signature only for a host in the family list.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilySign(String, String, String, Option<(Vec<u8>, Vec<u8>)>),
+    // New pairing code on this computer (None = cancel) -> the code.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyCode(bool, Option<String>),
+    // Add a paired computer: id, name, public key.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyAdd(String, String, Vec<u8>),
+    // This computer asks family member `id` for help: allow its next login.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiHelpAllow(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -983,6 +997,44 @@ async fn handle(data: Data, stream: &mut Connection) {
                     .send(&Data::SwitchSidesRequest(uuid.to_string()))
                     .await
             );
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilySign(kind, challenge, host_id, None) => {
+            use crate::funti_family as family;
+            let allowed = kind == family::KIND_PAIR
+                || ((kind == family::KIND_LOGIN || kind == family::KIND_HELP)
+                    && family::member(&host_id).is_some());
+            let reply = if allowed {
+                let msg = family::message(&kind, &challenge, &host_id, &Config::get_id());
+                let sig = family::sign_message(&msg);
+                (!sig.is_empty()).then(|| (sig, family::own_pk()))
+            } else {
+                None
+            };
+            let reply = reply.unwrap_or_default();
+            allow_err!(
+                stream
+                    .send(&Data::FuntiFamilySign(kind, challenge, host_id, Some(reply)))
+                    .await
+            );
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyCode(start, None) => {
+            let code = if start {
+                crate::funti_family::new_pair_code()
+            } else {
+                crate::funti_family::cancel_pair_code();
+                String::new()
+            };
+            allow_err!(stream.send(&Data::FuntiFamilyCode(start, Some(code))).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyAdd(id, name, pk) => {
+            crate::funti_family::add(&id, &name, &pk);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiHelpAllow(id) => {
+            crate::funti_family::allow_help(&id);
         }
         #[cfg(feature = "flutter")]
         #[cfg(not(any(target_os = "android", target_os = "ios")))]

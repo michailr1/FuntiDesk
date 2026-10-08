@@ -1978,6 +1978,9 @@ pub const FUNTI_OPTION_CALL_AUTO_ANSWER: &str = "funti-call-auto-answer";
 // window without an error box (one "hang up" ends the whole call).
 pub const FUNTI_CALL_ENDED: &str = "funti-call-ended";
 
+// FUNTIDESK (ADR-005): the callee pressed "Decline" before answering.
+pub const FUNTI_CALL_DECLINED: &str = "funti-call-declined";
+
 pub fn apply_funtidesk_security_policy() {
     // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
     // network-exposure locks (direct-server, LAN discovery, remote config

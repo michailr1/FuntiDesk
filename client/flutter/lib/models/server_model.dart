@@ -24,6 +24,23 @@ const kUsePermanentPassword = "use-permanent-password";
 const kUseBothPasswords = "use-both-passwords";
 
 class ServerModel with ChangeNotifier {
+  // FUNTIDESK (ADR-005): ring while a call waits for "Answer" here. Checked
+  // on every change of the client list, only in the connection manager.
+  bool _funtiRinging = false;
+
+  @override
+  void notifyListeners() {
+    if (desktopType == DesktopType.cm) {
+      final ring = _clients.any(
+          (c) => c.isViewCamera && !c.authorized && !c.disconnected);
+      if (ring != _funtiRinging) {
+        _funtiRinging = ring;
+        bind.cmFuntiRing(on: ring);
+      }
+    }
+    super.notifyListeners();
+  }
+
   bool _isStart = false; // Android MainService status
   bool _mediaOk = false;
   bool _inputOk = false;

@@ -10,6 +10,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -25,10 +26,21 @@ import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import '../../models/server_model.dart';
 import '../../models/state_model.dart';
+import '../widgets/funti_family.dart';
 import '../widgets/funti_home_scene.dart';
 import 'desktop_home_page.dart' show setPasswordDialog;
 
 const String _kOptionHideBanner = 'funti-home-banner-hidden';
+
+/// Whether the main-screen picture is hidden. Shared with the settings page,
+/// which can bring the picture back after it was closed.
+final ValueNotifier<bool> funtiHomeBannerHidden =
+    ValueNotifier(bind.mainGetLocalOption(key: _kOptionHideBanner) == 'Y');
+
+void setFuntiHomeBannerHidden(bool hidden) {
+  bind.mainSetLocalOption(key: _kOptionHideBanner, value: hidden ? 'Y' : '');
+  funtiHomeBannerHidden.value = hidden;
+}
 
 class FuntiHomeView extends StatefulWidget {
   const FuntiHomeView({
@@ -49,11 +61,12 @@ class FuntiHomeView extends StatefulWidget {
 
 class _FuntiHomeViewState extends State<FuntiHomeView> {
   Timer? _statusTimer;
-  bool _bannerHidden = bind.mainGetLocalOption(key: _kOptionHideBanner) == 'Y';
+  bool get _bannerHidden => funtiHomeBannerHidden.value;
 
   @override
   void initState() {
     super.initState();
+    funtiHomeBannerHidden.addListener(_onBannerChanged);
     // The upstream status line is not shown here, so poll the same source.
     _statusTimer = periodic_immediate(const Duration(seconds: 1), () async {
       final status =
@@ -72,13 +85,15 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
 
   @override
   void dispose() {
+    funtiHomeBannerHidden.removeListener(_onBannerChanged);
     _statusTimer?.cancel();
     super.dispose();
   }
 
-  void _hideBanner() {
-    bind.mainSetLocalOption(key: _kOptionHideBanner, value: 'Y');
-    setState(() => _bannerHidden = true);
+  void _hideBanner() => setFuntiHomeBannerHidden(true);
+
+  void _onBannerChanged() {
+    if (mounted) setState(() {});
   }
 
   // Height of the banner and notices above the cards, measured after layout:
@@ -581,6 +596,24 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
           label: Text(translate(
               showOneTime ? 'funti-copy-id-and-password' : 'Copy ID')),
         ),
+        // FUNTIDESK (ADR-006): one button for "come and help me", sent to the
+        // family; shown once this computer has family members.
+        if (funtiFamilyMembers().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: showFuntiAskHelpDialog,
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: t.accent,
+              foregroundColor: t.onAccent,
+              minimumSize: const Size(0, 40),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.support_agent_rounded, size: 18),
+            label: Text(translate('funti-help-ask')),
+          ),
+        ],
         const SizedBox(height: 14),
         const Spacer(),
         Container(
@@ -952,8 +985,12 @@ class _MyDevicesCard extends StatefulWidget {
 }
 
 class _MyDevicesCardState extends State<_MyDevicesCard> {
-  bool _favorites = false;
+  // 0: recent, 1: favorites, 2: family (ADR-006).
+  int _tab = 0;
+  bool get _favorites => _tab == 1;
   Timer? _onlineTimer;
+  Timer? _familyTimer;
+  List<FuntiFamilyMember> _family = funtiFamilyMembers();
 
   Peers get _model =>
       _favorites ? gFFI.favoritePeersModel : gFFI.recentPeersModel;
@@ -968,11 +1005,19 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
     _onlineTimer = periodic_immediate(const Duration(seconds: 20), () async {
       _queryOnlines();
     });
+    // The family list is changed by the service (pairing on the other side).
+    _familyTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      final family = funtiFamilyMembers();
+      if (mounted && !listEquals(family, _family)) {
+        setState(() => _family = family);
+      }
+    });
   }
 
   @override
   void dispose() {
     _onlineTimer?.cancel();
+    _familyTimer?.cancel();
     gFFI.recentPeersModel.removeListener(_onPeers);
     gFFI.favoritePeersModel.removeListener(_onPeers);
     super.dispose();
@@ -1024,13 +1069,26 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
                   labels: [
                     translate('funti-tab-recent'),
                     translate('funti-tab-favorites'),
+                    translate('funti-tab-family'),
                   ],
-                  selected: _favorites ? 1 : 0,
-                  onSelected: (i) => setState(() => _favorites = i == 1),
+                  selected: _tab,
+                  onSelected: (i) => setState(() {
+                    _tab = i;
+                    if (i == 2) _family = funtiFamilyMembers();
+                  }),
                 ),
               ],
             ),
           ),
+          if (_tab == 2)
+            Expanded(
+              child: _FamilyList(
+                members: _family,
+                onChanged: () =>
+                    setState(() => _family = funtiFamilyMembers()),
+              ),
+            )
+          else
           Expanded(
             child: peers.isEmpty
                 ? Center(
@@ -1110,6 +1168,158 @@ class _Segmented extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Family (ADR-006)
+
+enum _FamilyAction { connect, files, terminal, remove }
+
+class _FamilyList extends StatelessWidget {
+  const _FamilyList({required this.members, required this.onChanged});
+
+  final List<FuntiFamilyMember> members;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    final add = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => showFuntiFamilyAddDialog(onChanged: onChanged),
+          icon: const Icon(Icons.group_add_outlined, size: 18),
+          label: Text(translate('funti-family-add')),
+          style: TextButton.styleFrom(foregroundColor: t.link),
+        ),
+      ),
+    );
+    if (members.isEmpty) {
+      return Column(
+        children: [
+          add,
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  translate('funti-family-empty'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: t.muted),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        add,
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            itemCount: members.length,
+            itemBuilder: (context, i) =>
+                _FamilyRow(member: members[i], onChanged: onChanged),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FamilyRow extends StatelessWidget {
+  const _FamilyRow({required this.member, required this.onChanged});
+
+  final FuntiFamilyMember member;
+  final VoidCallback onChanged;
+
+  void _onAction(BuildContext context, _FamilyAction action) {
+    switch (action) {
+      case _FamilyAction.connect:
+        connect(context, member.id);
+        break;
+      case _FamilyAction.files:
+        connect(context, member.id, isFileTransfer: true);
+        break;
+      case _FamilyAction.terminal:
+        connect(context, member.id, isTerminal: true);
+        break;
+      case _FamilyAction.remove:
+        deleteConfirmDialog(() async {
+          await funtiFamilyRemove(member.id);
+          onChanged();
+          showToast(translate('Successful'));
+        }, translate('funti-family-remove-confirm').replaceAll('{}', member.title));
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    final style = TextStyle(fontSize: 14, color: t.text);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: t.rowStroke)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.family_restroom_rounded, size: 22, color: t.accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(member.title,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: t.text)),
+                const SizedBox(height: 2),
+                Text('ID ${formatFuntiId(member.id)}',
+                    style: TextStyle(fontSize: 12.5, color: t.muted)),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: translate('funti-call'),
+            onPressed: () => connect(context, member.id, isViewCamera: true),
+            icon: Icon(Icons.video_call_outlined, color: t.link),
+          ),
+          PopupMenuButton<_FamilyAction>(
+            tooltip: translate('More'),
+            color: t.surface,
+            splashRadius: 18,
+            icon: Icon(Icons.more_horiz_rounded, size: 20, color: t.muted),
+            onSelected: (a) => _onAction(context, a),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                  value: _FamilyAction.connect,
+                  child: Text(translate('Connect'), style: style)),
+              PopupMenuItem(
+                  value: _FamilyAction.files,
+                  child: Text(translate('funti-transfer-files-only'),
+                      style: style)),
+              PopupMenuItem(
+                  value: _FamilyAction.terminal,
+                  child: Text(translate('funti-open-terminal'), style: style)),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                  value: _FamilyAction.remove,
+                  child: Text(translate('funti-family-remove'), style: style)),
+            ],
+          ),
         ],
       ),
     );

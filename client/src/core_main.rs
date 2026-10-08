@@ -60,6 +60,8 @@ pub fn core_main() -> Option<Vec<String>> {
                 "--port-forward",
                 "--terminal",
                 "--rdp",
+                // FUNTIDESK (ADR-006): "<name> asks for help" from the service.
+                "--funti-help",
             ]
             .contains(&arg.as_str())
             {
@@ -822,6 +824,21 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             }
             "--relay" => {
                 param_array.push(format!("relay=true"));
+            }
+            // FUNTIDESK (ADR-006): --funti-help <id> <name>; the name travels
+            // base64url-encoded in the link.
+            "--funti-help" => {
+                authority = Some("funti-help".to_owned());
+                id = args.next();
+                if let Some(name) = args.next() {
+                    param_array.push(format!(
+                        "name={}",
+                        hbb_common::sodiumoxide::base64::encode(
+                            name,
+                            hbb_common::sodiumoxide::base64::Variant::UrlSafeNoPadding
+                        )
+                    ));
+                }
             }
             // inner
             "--switch_uuid" => {

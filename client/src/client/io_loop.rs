@@ -1893,6 +1893,12 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::CloseReason(c)) => {
                         self.sent_close_reason = true; // The controlled end will close, no need to send close reason
+                        if c == crate::common::FUNTI_CALL_DECLINED {
+                            // FUNTIDESK (ADR-005): say it plainly; OK closes the window.
+                            self.handler
+                                .msgbox("info", "funti-call-title", "funti-call-declined", "");
+                            return false;
+                        }
                         if c == crate::common::FUNTI_CALL_ENDED {
                             // FUNTIDESK (ADR-005): the other side hung up; the UI
                             // closes the call window without an error box.
