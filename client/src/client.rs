@@ -745,7 +745,36 @@ impl Client {
             start.elapsed(),
             punch_type
         );
-        let res = Self::secure_connection(peer_id, signed_id_pk, key, &mut conn).await;
+        let mut res = Self::secure_connection(peer_id, signed_id_pk.clone(), key, &mut conn).await;
+        // FUNTIDESK: a direct path can reach something that is not this peer
+        // (a VPN exit or a NAT that forwards the punched port elsewhere): the
+        // handshake then fails with "peer did not send SignedId". Try the relay
+        // once; it is verified by the same SignedId check (fail closed).
+        let mut kcp = kcp;
+        if res.is_err() && direct && !relay_server.is_empty() {
+            log::warn!(
+                "FuntiDesk: direct handshake with {} failed ({:?}), trying relay",
+                peer_id,
+                res.as_ref().err()
+            );
+            if let Ok(relay) = Self::request_relay(
+                peer_id,
+                relay_server.to_owned(),
+                rendezvous_server,
+                true,
+                key,
+                token,
+                conn_type,
+            )
+            .await
+            {
+                conn = relay;
+                kcp = None;
+                typ = "Relay";
+                direct = false;
+                res = Self::secure_connection(peer_id, signed_id_pk, key, &mut conn).await;
+            }
+        }
         let pk: Option<Vec<u8>> = match res {
             Ok(pk) => pk,
             Err(e) => {
