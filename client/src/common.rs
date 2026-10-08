@@ -1974,6 +1974,10 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 // 2026-10-08); anything other than "Y" means the call has to be accepted.
 pub const FUNTI_OPTION_CALL_AUTO_ANSWER: &str = "funti-call-auto-answer";
 
+// FUNTIDESK (ADR-005): close reason that makes the other side close its call
+// window without an error box (one "hang up" ends the whole call).
+pub const FUNTI_CALL_ENDED: &str = "funti-call-ended";
+
 pub fn apply_funtidesk_security_policy() {
     // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
     // network-exposure locks (direct-server, LAN discovery, remote config

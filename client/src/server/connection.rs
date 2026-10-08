@@ -694,7 +694,13 @@ impl Connection {
                         ipc::Data::Close => {
                             conn.chat_unanswered = false; // seen
                             conn.file_transferred = false; //seen
-                            conn.send_close_reason_no_retry("").await;
+                            // FUNTIDESK (ADR-005): "Disconnect" in a call is a hang-up.
+                            let reason = if conn.view_camera {
+                                crate::common::FUNTI_CALL_ENDED
+                            } else {
+                                ""
+                            };
+                            conn.send_close_reason_no_retry(reason).await;
                             conn.on_close("connection manager", true).await;
                             break;
                         }
@@ -1061,6 +1067,14 @@ impl Connection {
                 },
                 Some(data) = rx_from_authed.recv() => {
                     match data {
+                        // FUNTIDESK (ADR-005): the call ended on this computer.
+                        #[cfg(feature = "flutter")]
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        ipc::Data::FuntiCallEnded(_) => {
+                            conn.send_close_reason_no_retry(crate::common::FUNTI_CALL_ENDED).await;
+                            conn.on_close("call ended", true).await;
+                            break;
+                        }
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
                         ipc::Data::PrinterData(data) => {
                             if Self::permission(keys::OPTION_ENABLE_REMOTE_PRINTER, &conn.control_permissions) {
@@ -5885,6 +5899,19 @@ pub fn insert_switch_sides_uuid(id: String, uuid: uuid::Uuid) {
         .lock()
         .unwrap()
         .insert(id, (tokio::time::Instant::now(), uuid));
+}
+
+// FUNTIDESK (ADR-005): a call with `peer_id` ended on this computer (either the
+// caller's window or the callee's window back): close the camera sessions that
+// peer has here, so one "hang up" ends the whole call.
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn funti_end_call(peer_id: &str) {
+    for c in AUTHED_CONNS.lock().unwrap().iter() {
+        if c.conn_type == AuthConnType::ViewCamera && c.session_key.peer_id == peer_id {
+            c.sender.send(ipc::Data::FuntiCallEnded(peer_id.to_owned())).ok();
+        }
+    }
 }
 
 // FUNTIDESK (ADR-005): one-time uuid for the callee's camera session back.

@@ -373,6 +373,11 @@ pub enum Data {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiCallBackRequest(String),
+    // FUNTIDESK (ADR-005): a call with this peer id ended on this computer;
+    // the service closes its camera sessions from that peer.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiCallEnded(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -978,6 +983,11 @@ async fn handle(data: Data, stream: &mut Connection) {
                     .send(&Data::SwitchSidesRequest(uuid.to_string()))
                     .await
             );
+        }
+        #[cfg(feature = "flutter")]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiCallEnded(id) => {
+            crate::server::funti_end_call(&id);
         }
         #[cfg(feature = "flutter")]
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
