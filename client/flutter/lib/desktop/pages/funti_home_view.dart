@@ -1208,90 +1208,110 @@ class _DeviceRow extends StatelessWidget {
         onTap: () {},
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: t.surface2,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.desktop_windows_outlined,
-                    size: 19, color: t.muted),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: t.text,
-                      ),
+          // Narrow card: drop the device tile and shorten the action so the
+          // name and status always keep their room.
+          child: LayoutBuilder(builder: (context, c) {
+            final compact = c.maxWidth < 460;
+            return Row(
+              children: [
+                if (!compact) ...[
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        _Dot(peer.online ? t.ok : t.off),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            '$status · ID ${formatID(peer.id)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: t.muted),
-                          ),
+                    child: Icon(Icons.desktop_windows_outlined,
+                        size: 19, color: t.muted),
+                  ),
+                  const SizedBox(width: 14),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: t.text,
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Tooltip(
-                message: translate(
-                    isFav ? 'Remove from Favorites' : 'Add to Favorites'),
-                child: IconButton(
-                  onPressed: onToggleFav,
-                  splashRadius: 18,
-                  icon: Icon(
-                    isFav ? Icons.star_rounded : Icons.star_outline_rounded,
-                    size: 20,
-                    color: isFav ? t.star : t.muted,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _Dot(peer.online ? t.ok : t.off),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '$status · ID ${formatID(peer.id)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: t.muted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              _menu(context),
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 132,
-                child: peer.online
-                    ? OutlinedButton(
-                        onPressed: () => connect(context, peer.id),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: t.link,
-                          side: BorderSide(color: t.accent),
-                          minimumSize: const Size(0, 34),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6)),
-                          textStyle: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        child: Text(translate('Connect')),
-                      )
-                    : Text(
-                        translate('funti-device-unavailable'),
-                        textAlign: TextAlign.right,
-                        style: TextStyle(fontSize: 12, color: t.muted),
-                      ),
-              ),
-            ],
-          ),
+                Tooltip(
+                  message: translate(
+                      isFav ? 'Remove from Favorites' : 'Add to Favorites'),
+                  child: IconButton(
+                    onPressed: onToggleFav,
+                    splashRadius: 18,
+                    icon: Icon(
+                      isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                      size: 20,
+                      color: isFav ? t.star : t.muted,
+                    ),
+                  ),
+                ),
+                _menu(context),
+                const SizedBox(width: 4),
+                if (compact)
+                  peer.online
+                      ? IconButton.outlined(
+                          tooltip: translate('Connect'),
+                          onPressed: () => connect(context, peer.id),
+                          color: t.link,
+                          style: IconButton.styleFrom(
+                              side: BorderSide(color: t.accent)),
+                          icon:
+                              const Icon(Icons.arrow_forward_rounded, size: 18),
+                        )
+                      : const SizedBox(width: 40)
+                else
+                  SizedBox(
+                    width: 132,
+                    child: peer.online
+                        ? OutlinedButton(
+                            onPressed: () => connect(context, peer.id),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: t.link,
+                              side: BorderSide(color: t.accent),
+                              minimumSize: const Size(0, 34),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6)),
+                              textStyle: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            child: Text(translate('Connect')),
+                          )
+                        : Text(
+                            translate('funti-device-unavailable'),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(fontSize: 12, color: t.muted),
+                          ),
+                  ),
+              ],
+            );
+          }),
         ),
       ),
     );
