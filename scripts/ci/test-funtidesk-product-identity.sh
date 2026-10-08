@@ -97,10 +97,9 @@ if grep -Eq 'copy_plugin_tree_missing|return Ok\(legacy\)|using legacy directory
   fail 'legacy executable plugins must not be copied or used as FuntiDesk runtime state'
 fi
 
-# Android product/runtime identity. Keep the legacy applicationId until a
-# dedicated Android data/update migration is designed and accepted. Product-facing
-# labels, actions and URI scheme must still be FuntiDesk.
-grep -Fq 'applicationId "com.carriez.flutter_hbb"' "$android_gradle" || fail 'Android compatibility applicationId changed unexpectedly'
+# Android product/runtime identity (docs/ANDROID.md): own applicationId,
+# product-facing labels, actions and URI scheme are FuntiDesk.
+grep -Fq 'applicationId "cc.funti.funtidesk"' "$android_gradle" || fail 'Android applicationId is not FuntiDesk'
 grep -Fq 'android:label="FuntiDesk"' "$android_manifest" || fail 'Android app label is not FuntiDesk'
 grep -Fq 'android:label="FuntiDesk Input"' "$android_manifest" || fail 'Android accessibility-service label is not FuntiDesk'
 grep -Fq 'android:scheme="funtidesk"' "$android_manifest" || fail 'Android URI scheme is not FuntiDesk'

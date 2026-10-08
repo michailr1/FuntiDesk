@@ -96,9 +96,11 @@ android {
     }
 
     defaultConfig {
-        // Keep the legacy runtime application id until Android data/update migration is designed.
-        // Product-facing labels and URI scheme are branded separately as FuntiDesk.
-        applicationId "com.carriez.flutter_hbb"
+        // FUNTIDESK (docs/ANDROID.md, 2026-10-09): own application id. No Android
+        // users existed, so there is no data to migrate; with the upstream id
+        // FuntiDesk could not be installed next to RustDesk. The Kotlin package
+        // (com.carriez.flutter_hbb) stays: it is code, not identity.
+        applicationId "cc.funti.funtidesk"
         minSdkVersion 22
         targetSdkVersion 33
         versionCode flutterVersionCode.toInteger()
