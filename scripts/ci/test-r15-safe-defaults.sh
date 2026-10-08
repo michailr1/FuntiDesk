@@ -37,4 +37,6 @@ grep -Fq 'OPTION_APPROVE_MODE.to_owned(), "password".to_owned()' "$COMMON"
 grep -Fq '"use-temporary-password".to_owned()' "$COMMON"
 grep -Fq 'OPTION_TEMPORARY_PASSWORD_LENGTH.to_owned()' "$COMMON"
 grep -Fq 'apply_funtidesk_security_policy();' "$COMMON"
+# ADR-004: TCP signaling is the default, as a default (not a hard lock).
+grep -Fq 'defaults.insert(keys::OPTION_DISABLE_UDP.to_owned(), "Y".to_owned());' "$COMMON"
 echo "R15_SAFE_DEFAULTS_TEST_OK=true"

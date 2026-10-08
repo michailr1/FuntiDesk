@@ -1991,6 +1991,11 @@ pub fn apply_funtidesk_security_policy() {
             keys::OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD.to_owned(),
             "N".to_owned(),
         );
+        // FUNTIDESK ADR-004: signaling with the FuntiDesk server over a
+        // persistent TCP connection. Some home routers and providers drop
+        // incoming UDP, so a UDP-registered device shows as online but never
+        // receives connection requests. Requires the own server build.
+        defaults.insert(keys::OPTION_DISABLE_UDP.to_owned(), "Y".to_owned());
     }
 }
 
