@@ -1003,6 +1003,7 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
                     itemCount: peers.length,
                     itemBuilder: (context, i) => _DeviceRow(
                       peer: peers[i],
+                      inFavorites: _favorites,
                       isFav: favIds.contains(peers[i].id),
                       onToggleFav: () => _toggleFavorite(
                           peers[i], favIds.contains(peers[i].id)),
@@ -1068,13 +1069,88 @@ class _Segmented extends StatelessWidget {
   }
 }
 
+enum _DeviceAction { rename, relay, remove }
+
 class _DeviceRow extends StatelessWidget {
   const _DeviceRow(
-      {required this.peer, required this.isFav, required this.onToggleFav});
+      {required this.peer,
+      required this.inFavorites,
+      required this.isFav,
+      required this.onToggleFav});
 
   final Peer peer;
+  final bool inFavorites;
   final bool isFav;
   final VoidCallback onToggleFav;
+
+  static void _reload() {
+    bind.mainLoadRecentPeers();
+    bind.mainLoadFavPeers();
+  }
+
+  void _onAction(_DeviceAction action, bool forceRelay) {
+    switch (action) {
+      case _DeviceAction.rename:
+        renameDialog(
+          oldName: peer.alias,
+          onSubmit: (newName) async {
+            if (newName == peer.alias) return;
+            await bind.mainSetPeerAlias(id: peer.id, alias: newName);
+            _reload();
+          },
+        );
+        break;
+      case _DeviceAction.relay:
+        // Per-device transport preference, as in the upstream peer card.
+        // It is deliberately not a main-screen setting (docs/PRODUCT.md).
+        bind
+            .mainSetPeerOption(
+                id: peer.id,
+                key: kOptionForceAlwaysRelay,
+                value: bool2option(kOptionForceAlwaysRelay, !forceRelay))
+            .then((_) => showToast(translate('Successful')));
+        break;
+      case _DeviceAction.remove:
+        final name = peer.alias.isEmpty ? formatID(peer.id) : peer.alias;
+        deleteConfirmDialog(() async {
+          if (inFavorites) {
+            final favs = (await bind.mainGetFav()).toList();
+            if (favs.remove(peer.id)) await bind.mainStoreFav(favs: favs);
+          } else {
+            await bind.mainRemovePeer(id: peer.id);
+          }
+          _reload();
+          showToast(translate('Successful'));
+        }, '${translate('Delete')} "$name"?');
+        break;
+    }
+  }
+
+  Widget _menu(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    final forceRelay = option2bool(kOptionForceAlwaysRelay,
+        bind.mainGetPeerOptionSync(id: peer.id, key: kOptionForceAlwaysRelay));
+    final style = TextStyle(fontSize: 14, color: t.text);
+    return PopupMenuButton<_DeviceAction>(
+      tooltip: translate('More'),
+      color: t.surface,
+      splashRadius: 18,
+      icon: Icon(Icons.more_horiz_rounded, size: 20, color: t.muted),
+      onSelected: (a) => _onAction(a, forceRelay),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+            value: _DeviceAction.rename,
+            child: Text(translate('Rename'), style: style)),
+        CheckedPopupMenuItem(
+            value: _DeviceAction.relay,
+            checked: forceRelay,
+            child: Text(translate('Always connect via relay'), style: style)),
+        PopupMenuItem(
+            value: _DeviceAction.remove,
+            child: Text(translate('Delete'), style: style)),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1153,6 +1229,7 @@ class _DeviceRow extends StatelessWidget {
                   ),
                 ),
               ),
+              _menu(context),
               const SizedBox(width: 4),
               SizedBox(
                 width: 132,
