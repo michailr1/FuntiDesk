@@ -1384,6 +1384,11 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                         }
                         self.handler.handle_peer_info(pi);
+                        if self.handler.is_view_camera() {
+                            // FUNTIDESK: "Call" is the camera plus voice; the other side
+                            // has already answered, or answers voice in its own window.
+                            self.handler.request_voice_call();
+                        }
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
                         if self.handler.is_default() {

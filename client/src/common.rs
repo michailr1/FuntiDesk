@@ -1969,6 +1969,11 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+// FUNTIDESK: "Y" lets a correct password answer a call (camera session) without
+// the person at this computer pressing "Accept". Off by default (owner decision
+// 2026-10-08); anything other than "Y" means the call has to be accepted.
+pub const FUNTI_OPTION_CALL_AUTO_ANSWER: &str = "funti-call-auto-answer";
+
 pub fn apply_funtidesk_security_policy() {
     // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
     // network-exposure locks (direct-server, LAN discovery, remote config

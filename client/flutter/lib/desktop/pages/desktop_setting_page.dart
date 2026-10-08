@@ -1102,6 +1102,17 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 enabled: enabled, fakeValue: fakeValue),
             _OptionCheckBox(context, 'Enable camera', kOptionEnableCamera,
                 enabled: enabled, fakeValue: fakeValue),
+            // FUNTIDESK: calls (camera sessions) are answered by the person
+            // here unless this is on. Strict "Y": empty means "ask".
+            _OptionCheckBox(
+                context, 'funti-call-auto-answer', kFuntiOptionCallAutoAnswer,
+                enabled: enabled,
+                fakeValue: fakeValue,
+                optGetter: () =>
+                    bind.mainGetOptionSync(key: kFuntiOptionCallAutoAnswer) ==
+                    'Y',
+                optSetter: (key, value) =>
+                    bind.mainSetOption(key: key, value: value ? 'Y' : '')),
             _OptionCheckBox(context, 'Enable terminal', kOptionEnableTerminal,
                 enabled: enabled, fakeValue: fakeValue),
             _OptionCheckBox(

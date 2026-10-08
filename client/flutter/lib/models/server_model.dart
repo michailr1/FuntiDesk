@@ -597,7 +597,8 @@ class ServerModel with ChangeNotifier {
       if (!hideCm) windowOnTop(null);
     });
     // Only do the hidden task when on Desktop.
-    if (client.authorized && isDesktop) {
+    // FUNTIDESK: a call window stays visible, it holds "hang up".
+    if (client.authorized && isDesktop && !client.isViewCamera) {
       cmHiddenTimer = Timer(const Duration(seconds: 3), () {
         if (!hideCm) windowManager.minimize();
         cmHiddenTimer = null;

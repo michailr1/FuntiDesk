@@ -900,8 +900,8 @@ class _ConnectCardState extends State<_ConnectCard> {
                 onTap: () => _connect(isFileTransfer: true),
               ),
               _LinkButton(
-                icon: Icons.videocam_outlined,
-                text: translate('funti-view-camera'),
+                icon: Icons.video_call_outlined,
+                text: translate('funti-call'),
                 onTap: () => _connect(isViewCamera: true),
               ),
               _LinkButton(
@@ -1199,7 +1199,7 @@ class _DeviceRow extends StatelessWidget {
             child: Text(translate('funti-transfer-files-only'), style: style)),
         PopupMenuItem(
             value: _DeviceAction.camera,
-            child: Text(translate('funti-view-camera'), style: style)),
+            child: Text(translate('funti-call'), style: style)),
         PopupMenuItem(
             value: _DeviceAction.terminal,
             child: Text(translate('funti-open-terminal'), style: style)),

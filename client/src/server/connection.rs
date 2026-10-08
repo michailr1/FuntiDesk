@@ -363,6 +363,8 @@ pub struct Connection {
     from_switch: bool,
     voice_call_request_timestamp: Option<NonZeroI64>,
     voice_calling: bool,
+    // FUNTIDESK: a camera session ("call") answered by the person at this computer.
+    funti_call_answered: bool,
     options_in_login: Option<OptionMessage>,
     #[cfg(not(any(target_os = "ios")))]
     pressed_modifiers: HashSet<rdev::Key>,
@@ -558,6 +560,7 @@ impl Connection {
             audio_sender: None,
             voice_call_request_timestamp: None,
             voice_calling: false,
+            funti_call_answered: false,
             options_in_login: None,
             #[cfg(not(any(target_os = "ios")))]
             pressed_modifiers: Default::default(),
@@ -674,6 +677,9 @@ impl Connection {
                 Some(data) = rx_from_cm.recv() => {
                     match data {
                         ipc::Data::Authorize => {
+                            if conn.view_camera {
+                                conn.funti_call_answered = true;
+                            }
                             conn.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
                             conn.require_2fa.take();
                             if !conn.send_logon_response_and_keep_alive().await {
@@ -2119,6 +2125,13 @@ impl Connection {
     // manager has no Accept button and only says "access requested" while the
     // helper is still typing the password. Show the window once the session is
     // authorized; failed attempts stay in the log and the failure counters.
+    // FUNTIDESK: camera sessions are calls. Unless the owner of this computer
+    // enabled auto-answer, a correct password is not enough: the person here
+    // has to accept. Missing or unknown values mean "ask" (fail closed).
+    fn funti_call_needs_answer(&self) -> bool {
+        self.view_camera && Config::get_option(crate::common::FUNTI_OPTION_CALL_AUTO_ANSWER) != "Y"
+    }
+
     fn try_start_cm_unauthorized(&mut self, peer_id: String, name: String) {
         if password::approve_mode() == ApproveMode::Password {
             log::info!("FuntiDesk: password-only approval, no pre-auth card for {}", peer_id);
@@ -2751,7 +2764,13 @@ impl Connection {
                     }
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
-                    if err_msg.is_empty() {
+                    if err_msg.is_empty() && self.funti_call_needs_answer() {
+                        // FUNTIDESK: a correct password only rings; the camera turns on
+                        // after "Accept" in the connection manager (ipc::Data::Authorize).
+                        self.try_start_cm(lr.my_id, lr.my_name, false);
+                        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+                            .await;
+                    } else if err_msg.is_empty() {
                         #[cfg(target_os = "linux")]
                         self.linux_headless_handle.wait_desktop_cm_ready().await;
                         if !self.send_logon_response_and_keep_alive().await {
@@ -3648,8 +3667,13 @@ impl Connection {
                             NonZeroI64::new(request.req_timestamp)
                                 .unwrap_or(NonZeroI64::new(get_time()).unwrap()),
                         );
-                        // Notify the connection manager.
-                        self.send_to_cm(Data::VoiceCallIncoming);
+                        if self.funti_call_answered {
+                            // FUNTIDESK: the call was already answered, voice is part of it.
+                            self.handle_voice_call(true).await;
+                        } else {
+                            // Notify the connection manager.
+                            self.send_to_cm(Data::VoiceCallIncoming);
+                        }
                     } else {
                         self.close_voice_call().await;
                     }
