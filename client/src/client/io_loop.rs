@@ -342,6 +342,18 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                 }
                 log::debug!("Exit io_loop of id={}", self.handler.get_id());
+                // FUNTIDESK (ADR-005): this end of a call is over (hung up here or
+                // there): ask our own service to close the other direction too.
+                #[cfg(feature = "flutter")]
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                if self.handler.is_view_camera() {
+                    if let Ok(mut c) = crate::ipc::connect(1000, "").await {
+                        allow_err!(
+                            c.send(&crate::ipc::Data::FuntiCallEnded(self.handler.get_id()))
+                                .await
+                        );
+                    }
+                }
                 // Stop client audio server.
                 if let Some(s) = self.stop_voice_call_sender.take() {
                     s.send(()).ok();
@@ -1384,6 +1396,15 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                         }
                         self.handler.handle_peer_info(pi);
+                        if self.handler.is_view_camera()
+                            && !self.handler.lc.read().unwrap().funti_call_back
+                        {
+                            // FUNTIDESK: "Call" is the camera plus voice; the other side
+                            // has already answered, or answers voice in its own window.
+                            self.handler.request_voice_call();
+                            // ADR-005 stage 2: ask the callee to open our camera too.
+                            self.handler.funti_request_call_back();
+                        }
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
                         if self.handler.is_default() {
@@ -1872,6 +1893,18 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::CloseReason(c)) => {
                         self.sent_close_reason = true; // The controlled end will close, no need to send close reason
+                        if c == crate::common::FUNTI_CALL_DECLINED {
+                            // FUNTIDESK (ADR-005): say it plainly; OK closes the window.
+                            self.handler
+                                .msgbox("info", "funti-call-title", "funti-call-declined", "");
+                            return false;
+                        }
+                        if c == crate::common::FUNTI_CALL_ENDED {
+                            // FUNTIDESK (ADR-005): the other side hung up; the UI
+                            // closes the call window without an error box.
+                            self.handler.msgbox("funti-call-ended", "", "", "");
+                            return false;
+                        }
                         self.handler.msgbox("error", "Connection Error", &c, "");
                         return false;
                     }

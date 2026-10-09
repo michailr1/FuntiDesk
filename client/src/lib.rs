@@ -19,6 +19,12 @@ mod rendezvous_mediator;
 pub use self::rendezvous_mediator::*;
 /// cbindgen:ignore
 pub mod common;
+/// cbindgen:ignore
+/// FUNTIDESK (ADR-006): family access.
+pub mod funti_family;
+/// cbindgen:ignore
+/// FUNTIDESK (ADR-005): incoming call ring.
+pub mod funti_ring;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

@@ -11,6 +11,8 @@ import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
+    show funtiHomeBannerHidden, setFuntiHomeBannerHidden;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -487,6 +489,12 @@ class _GeneralState extends State<_General> {
     final outgoingOnly = bind.isOutgoingOnly();
     final showAutoUpdate = isWindows && bind.mainIsInstalled();
     final children = <Widget>[
+      // FUNTIDESK: brings back the main-screen picture closed with its cross.
+      if (!isWeb && !incomingOnly)
+        _OptionCheckBox(context, 'funti-show-home-banner', 'funti-home-banner',
+            isServer: false,
+            optGetter: () => !funtiHomeBannerHidden.value,
+            optSetter: (_, show) async => setFuntiHomeBannerHidden(!show)),
       if (!isWeb && !incomingOnly)
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
             kOptionEnableConfirmClosingTabs,
@@ -1102,6 +1110,17 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 enabled: enabled, fakeValue: fakeValue),
             _OptionCheckBox(context, 'Enable camera', kOptionEnableCamera,
                 enabled: enabled, fakeValue: fakeValue),
+            // FUNTIDESK: calls (camera sessions) are answered by the person
+            // here unless this is on. Strict "Y": empty means "ask".
+            _OptionCheckBox(
+                context, 'funti-call-auto-answer', kFuntiOptionCallAutoAnswer,
+                enabled: enabled,
+                fakeValue: fakeValue,
+                optGetter: () =>
+                    bind.mainGetOptionSync(key: kFuntiOptionCallAutoAnswer) ==
+                    'Y',
+                optSetter: (key, value) =>
+                    bind.mainSetOption(key: key, value: value ? 'Y' : '')),
             _OptionCheckBox(context, 'Enable terminal', kOptionEnableTerminal,
                 enabled: enabled, fakeValue: fakeValue),
             _OptionCheckBox(

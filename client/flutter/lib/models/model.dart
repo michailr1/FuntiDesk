@@ -914,6 +914,11 @@ class FfiModel with ChangeNotifier {
       parent.target?.inputModel.setRelativeMouseMode(false);
     }
 
+    if (type == 'funti-call-ended') {
+      // FUNTIDESK (ADR-005): the other side hung up, close the call window.
+      closeConnection();
+      return;
+    }
     if (type == 're-input-password') {
       wrongPasswordDialog(sessionId, dialogManager, type, title, text);
     } else if (type == 'input-2fa') {

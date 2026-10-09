@@ -88,6 +88,8 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref SWITCH_SIDES_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
     static ref PENDING_SWITCH_SIDES_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
+    // FUNTIDESK (ADR-005): callee id -> one-time uuid for its camera session back.
+    static ref FUNTI_CALL_BACK_UUID: Arc::<Mutex<HashMap<String, (Instant, uuid::Uuid)>>> = Default::default();
 }
 
 #[cfg(target_os = "windows")]
@@ -207,6 +209,17 @@ enum MessageInput {
     #[cfg(all(feature = "flutter", feature = "plugin_framework"))]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     BlockOffPlugin(String),
+}
+
+// FUNTIDESK (ADR-006): family fields of a login request.
+struct FuntiFamilyLogin {
+    pair: Option<FuntiFamilyPair>,
+    proof: Vec<u8>,
+    password_empty: bool,
+    help_request: bool,
+    unpair: bool,
+    my_id: String,
+    my_name: String,
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -363,6 +376,8 @@ pub struct Connection {
     from_switch: bool,
     voice_call_request_timestamp: Option<NonZeroI64>,
     voice_calling: bool,
+    // FUNTIDESK: a camera session ("call") answered by the person at this computer.
+    funti_call_answered: bool,
     options_in_login: Option<OptionMessage>,
     #[cfg(not(any(target_os = "ios")))]
     pressed_modifiers: HashSet<rdev::Key>,
@@ -558,6 +573,7 @@ impl Connection {
             audio_sender: None,
             voice_call_request_timestamp: None,
             voice_calling: false,
+            funti_call_answered: false,
             options_in_login: None,
             #[cfg(not(any(target_os = "ios")))]
             pressed_modifiers: Default::default(),
@@ -674,6 +690,9 @@ impl Connection {
                 Some(data) = rx_from_cm.recv() => {
                     match data {
                         ipc::Data::Authorize => {
+                            if conn.view_camera {
+                                conn.funti_call_answered = true;
+                            }
                             conn.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
                             conn.require_2fa.take();
                             if !conn.send_logon_response_and_keep_alive().await {
@@ -686,7 +705,15 @@ impl Connection {
                         ipc::Data::Close => {
                             conn.chat_unanswered = false; // seen
                             conn.file_transferred = false; //seen
-                            conn.send_close_reason_no_retry("").await;
+                            // FUNTIDESK (ADR-005): "Disconnect" in a call is a hang-up.
+                            let reason = if conn.view_camera && !conn.authorized {
+                                crate::common::FUNTI_CALL_DECLINED
+                            } else if conn.view_camera {
+                                crate::common::FUNTI_CALL_ENDED
+                            } else {
+                                ""
+                            };
+                            conn.send_close_reason_no_retry(reason).await;
                             conn.on_close("connection manager", true).await;
                             break;
                         }
@@ -1053,6 +1080,14 @@ impl Connection {
                 },
                 Some(data) = rx_from_authed.recv() => {
                     match data {
+                        // FUNTIDESK (ADR-005): the call ended on this computer.
+                        #[cfg(feature = "flutter")]
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        ipc::Data::FuntiCallEnded(_) => {
+                            conn.send_close_reason_no_retry(crate::common::FUNTI_CALL_ENDED).await;
+                            conn.on_close("call ended", true).await;
+                            break;
+                        }
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
                         ipc::Data::PrinterData(data) => {
                             if Self::permission(keys::OPTION_ENABLE_REMOTE_PRINTER, &conn.control_permissions) {
@@ -2092,6 +2127,11 @@ impl Connection {
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
+        // FUNTIDESK: see the login handler; no-op if the manager is already started.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        if password::approve_mode() == ApproveMode::Password {
+            self.try_start_cm_ipc();
+        }
         self.send_to_cm(ipc::Data::Login {
             id: self.inner.id(),
             is_file_transfer: self.file_transfer.is_some(),
@@ -2115,6 +2155,25 @@ impl Connection {
         });
     }
 
+    // FUNTIDESK: with password-only approval the pre-auth card in the connection
+    // manager has no Accept button and only says "access requested" while the
+    // helper is still typing the password. Show the window once the session is
+    // authorized; failed attempts stay in the log and the failure counters.
+    // FUNTIDESK: camera sessions are calls. Unless the owner of this computer
+    // enabled auto-answer, a correct password is not enough: the person here
+    // has to accept. Missing or unknown values mean "ask" (fail closed).
+    fn funti_call_needs_answer(&self) -> bool {
+        self.view_camera && Config::get_option(crate::common::FUNTI_OPTION_CALL_AUTO_ANSWER) != "Y"
+    }
+
+    fn try_start_cm_unauthorized(&mut self, peer_id: String, name: String) {
+        if password::approve_mode() == ApproveMode::Password {
+            log::info!("FuntiDesk: password-only approval, no pre-auth card for {}", peer_id);
+            return;
+        }
+        self.try_start_cm(peer_id, name, false);
+    }
+
     #[inline]
     fn send_to_cm(&mut self, data: ipc::Data) {
         self.tx_to_cm.send(data).ok();
@@ -2123,6 +2182,112 @@ impl Connection {
     #[inline]
     fn send_fs(&mut self, data: ipc::FS) {
         self.send_to_cm(ipc::Data::FS(data));
+    }
+
+    // FUNTIDESK (ADR-006). Some(keep_alive) when the login was handled here:
+    // - pairing: a correct one-time code adds the guest to this computer's
+    //   family and the connection ends; a wrong code counts as a failed login;
+    // - a family member's signature over this connection's challenge: no
+    //   password and no "Accept" for control, files and terminal; a call
+    //   (camera session) still has to be answered here.
+    // None: no family data, or the signature does not match a member — the
+    // usual password path follows (fail closed).
+    async fn funti_family_login(&mut self, lr: FuntiFamilyLogin) -> Option<bool> {
+        use crate::funti_family as family;
+        if let Some(pair) = lr.pair.as_ref() {
+            let (failure, res) = self.check_failure(0).await;
+            if !res {
+                return Some(true);
+            }
+            let msg = family::message(
+                family::KIND_PAIR,
+                &self.hash.challenge,
+                &Config::get_id(),
+                &lr.my_id,
+            );
+            if family::take_pair_code(&pair.code)
+                && family::verify(&pair.pk, &msg, &pair.signature)
+            {
+                self.update_failure(failure, true, 0);
+                family::add(&lr.my_id, &lr.my_name, &pair.pk);
+                let mut res = LoginResponse::new();
+                res.set_error(family::LOGIN_MSG_PAIRED.to_owned());
+                res.funti_family_paired = crate::common::hostname();
+                let mut msg_out = Message::new();
+                msg_out.set_login_response(res);
+                self.send(msg_out).await;
+            } else {
+                self.update_failure(failure, false, 0);
+                log::warn!("FuntiDesk family: pairing from {} rejected", lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_PAIR_FAILED).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
+        if lr.unpair {
+            // A family member leaves: removing is mutual. Only the member
+            // itself can ask (signature with its own key).
+            if !lr.proof.is_empty()
+                && family::verify_member(family::KIND_UNPAIR, &lr.my_id, &self.hash.challenge, &lr.proof)
+            {
+                family::remove(&lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_UNPAIRED).await;
+            } else {
+                self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_WRONG).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
+        if lr.help_request {
+            // A family member asks for help: notify the person here, no session.
+            let delivered = !lr.proof.is_empty()
+                && family::verify_member(family::KIND_HELP, &lr.my_id, &self.hash.challenge, &lr.proof);
+            if delivered {
+                let name = family::member(&lr.my_id)
+                    .map(|m| m.name)
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| lr.my_name.clone());
+                log::info!("FuntiDesk family: {} asks for help", lr.my_id);
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                funti_show_help_request(&lr.my_id, &name);
+                self.send_login_error(family::LOGIN_MSG_HELP_DELIVERED).await;
+            } else {
+                log::warn!("FuntiDesk family: help request from {} not accepted", lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_HELP_REFUSED).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
+        if lr.proof.is_empty() || !lr.password_empty {
+            return None;
+        }
+        if !family::verify_member_login(&lr.my_id, &self.hash.challenge, &lr.proof) {
+            log::warn!("FuntiDesk family: login proof from {} not accepted", lr.my_id);
+            self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY).await;
+            return Some(true);
+        }
+        // Owner decision 2026-10-09: a family member connects to control,
+        // files and terminal without "Accept" (like a permanent password);
+        // only a call (camera session) has to be answered here.
+        let help_answer = family::take_help(&lr.my_id);
+        if help_answer || !self.view_camera {
+            log::info!(
+                "FuntiDesk family: {} signed in{}",
+                lr.my_id,
+                if help_answer { " (answers a help request)" } else { "" }
+            );
+            self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
+            if !self.send_logon_response_and_keep_alive().await {
+                return Some(false);
+            }
+            self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
+            return Some(true);
+        }
+        log::info!("FuntiDesk family: {} calls, waiting for answer", lr.my_id);
+        self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), false);
+        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+            .await;
+        Some(true)
     }
 
     async fn send_login_error<T: std::string::ToString>(&mut self, err: T) {
@@ -2528,6 +2693,16 @@ impl Connection {
                 return true;
             }
             self.reset_session_scope_for_login();
+            // FUNTIDESK (ADR-006): taken before `lr.union` is moved below.
+            let funti_family = FuntiFamilyLogin {
+                pair: lr.funti_family_pair.clone().into_option(),
+                proof: lr.funti_family_proof.to_vec(),
+                password_empty: lr.password.is_empty(),
+                help_request: lr.funti_help_request,
+                unpair: lr.funti_family_unpair,
+                my_id: lr.my_id.clone(),
+                my_name: lr.my_name.clone(),
+            };
             match lr.union {
                 Some(login_request::Union::FileTransfer(ft)) => {
                     if !Self::permission(
@@ -2607,8 +2782,14 @@ impl Connection {
                 return false;
             }
 
+            // FUNTIDESK: with password-only approval the connection manager is
+            // started by try_start_cm() once there is something to show (a
+            // signed-in session or an incoming call). Started here with no client
+            // to show, it closes itself after ~6 s and takes the connection with it.
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username) {
+            if !should_use_terminal_os_login_scope(self.terminal, &lr.os_login.username)
+                && password::approve_mode() != ApproveMode::Password
+            {
                 self.try_start_cm_ipc();
             }
 
@@ -2647,6 +2828,11 @@ impl Connection {
                 }
                 self.send_login_error(err_msg).await;
                 return true;
+            }
+
+            // FUNTIDESK (ADR-006): pairing by code, or a family member's signed login.
+            if let Some(keep_alive) = self.funti_family_login(funti_family).await {
+                return keep_alive;
             }
 
             // https://github.com/rustdesk/rustdesk-server-pro/discussions/646
@@ -2712,7 +2898,7 @@ impl Connection {
                             return keep_alive;
                         }
                     }
-                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    self.try_start_cm_unauthorized(lr.my_id, lr.my_name);
                 } else {
                     self.send_login_error(
                         crate::client::LOGIN_MSG_DESKTOP_SESSION_NOT_READY_PASSWORD_EMPTY,
@@ -2730,7 +2916,7 @@ impl Connection {
                     if err_msg.is_empty() {
                         self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_WRONG)
                             .await;
-                        self.try_start_cm(lr.my_id, lr.my_name, false);
+                        self.try_start_cm_unauthorized(lr.my_id, lr.my_name);
                     } else {
                         self.send_login_error(
                             crate::client::LOGIN_MSG_DESKTOP_SESSION_NOT_READY_PASSWORD_WRONG,
@@ -2739,7 +2925,13 @@ impl Connection {
                     }
                 } else {
                     self.update_failure_with_scope(failure, true, 0, FailureScope::Default);
-                    if err_msg.is_empty() {
+                    if err_msg.is_empty() && self.funti_call_needs_answer() {
+                        // FUNTIDESK: a correct password only rings; the camera turns on
+                        // after "Accept" in the connection manager (ipc::Data::Authorize).
+                        self.try_start_cm(lr.my_id, lr.my_name, false);
+                        self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+                            .await;
+                    } else if err_msg.is_empty() {
                         #[cfg(target_os = "linux")]
                         self.linux_headless_handle.wait_desktop_cm_ready().await;
                         if !self.send_logon_response_and_keep_alive().await {
@@ -2814,6 +3006,27 @@ impl Connection {
                     .retain(|_, v| v.0.elapsed() < Duration::from_secs(10));
                 let uuid_old = SWITCH_SIDES_UUID.lock().unwrap().remove(&lr.my_id);
                 if let Ok(uuid) = uuid::Uuid::from_slice(_s.uuid.to_vec().as_ref()) {
+                    if uuid_old.is_none() && take_funti_call_back_uuid(&lr.my_id, &uuid) {
+                        // FUNTIDESK (ADR-005): the callee's video back to the caller.
+                        // Only a camera session, and only if the camera is allowed here.
+                        if !matches!(lr.union, Some(login_request::Union::ViewCamera(_)))
+                            || !Self::permission(
+                                keys::OPTION_ENABLE_CAMERA,
+                                &self.control_permissions,
+                            )
+                        {
+                            log::warn!("FuntiDesk: call-back uuid used for a non-camera session");
+                            return false;
+                        }
+                        self.reset_session_scope_for_login();
+                        self.view_camera = true;
+                        self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::SwitchSides);
+                        if !self.send_logon_response_and_keep_alive().await {
+                            return false;
+                        }
+                        self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), self.authorized);
+                        return true;
+                    }
                     if let Some((_instant, uuid_old)) = uuid_old {
                         if uuid == uuid_old {
                             self.from_switch = true;
@@ -3535,6 +3748,28 @@ impl Connection {
                     }
                     #[cfg(feature = "flutter")]
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    Some(misc::Union::FuntiCallBackRequest(r)) => {
+                        // FUNTIDESK (ADR-005): only inside a call answered here (or
+                        // auto-answered by the owner's setting): open the caller's
+                        // camera in a window of our own. This session stays open.
+                        if self.view_camera {
+                            if let Ok(uuid) = uuid::Uuid::from_slice(&r.uuid.to_vec()[..]) {
+                                crate::server::insert_pending_switch_sides_uuid(
+                                    self.lr.my_id.clone(),
+                                    uuid.clone(),
+                                );
+                                crate::run_me(vec![
+                                    "--view-camera",
+                                    &self.lr.my_id,
+                                    "--switch_uuid",
+                                    uuid.to_string().as_ref(),
+                                ])
+                                .ok();
+                            }
+                        }
+                    }
+                    #[cfg(feature = "flutter")]
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
                     Some(misc::Union::SwitchSidesRequest(s)) => {
                         if let Ok(uuid) = uuid::Uuid::from_slice(&s.uuid.to_vec()[..]) {
                             crate::server::insert_pending_switch_sides_uuid(
@@ -3636,8 +3871,13 @@ impl Connection {
                             NonZeroI64::new(request.req_timestamp)
                                 .unwrap_or(NonZeroI64::new(get_time()).unwrap()),
                         );
-                        // Notify the connection manager.
-                        self.send_to_cm(Data::VoiceCallIncoming);
+                        if self.funti_call_answered {
+                            // FUNTIDESK: the call was already answered, voice is part of it.
+                            self.handle_voice_call(true).await;
+                        } else {
+                            // Notify the connection manager.
+                            self.send_to_cm(Data::VoiceCallIncoming);
+                        }
                     } else {
                         self.close_voice_call().await;
                     }
@@ -5538,6 +5778,8 @@ impl Connection {
             | Some(misc::Union::ToggleVirtualDisplay(_))
             | Some(misc::Union::ChangeResolution(_))
             | Some(misc::Union::ChangeDisplayResolution(_)) => true,
+            // FUNTIDESK (ADR-005): the caller asks for the callee's video back.
+            Some(misc::Union::FuntiCallBackRequest(_)) => true,
             Some(misc::Union::Option(option)) => Self::is_view_camera_scoped_option(option),
             #[cfg(windows)]
             Some(misc::Union::SelectedSid(_)) => true,
@@ -5698,7 +5940,7 @@ impl Connection {
     #[cfg(all(target_os = "windows", feature = "flutter"))]
     async fn send_printer_request(&mut self, data: Vec<u8>) {
         // This path is only used to identify the printer job.
-        let path = format!("RustDesk://FsJob//Printer/{}", get_time());
+        let path = format!("FuntiDesk://FsJob//Printer/{}", get_time());
 
         let msg = fs::new_send(0, fs::JobType::Printer, path.clone(), 1, false);
         self.send(msg).await;
@@ -5791,6 +6033,54 @@ pub fn insert_switch_sides_uuid(id: String, uuid: uuid::Uuid) {
         .lock()
         .unwrap()
         .insert(id, (tokio::time::Instant::now(), uuid));
+}
+
+// FUNTIDESK (ADR-005): a call with `peer_id` ended on this computer (either the
+// caller's window or the callee's window back): close the camera sessions that
+// peer has here, so one "hang up" ends the whole call.
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn funti_end_call(peer_id: &str) {
+    for c in AUTHED_CONNS.lock().unwrap().iter() {
+        if c.conn_type == AuthConnType::ViewCamera && c.session_key.peer_id == peer_id {
+            c.sender.send(ipc::Data::FuntiCallEnded(peer_id.to_owned())).ok();
+        }
+    }
+}
+
+// FUNTIDESK (ADR-006): show "<name> asks for help" in this computer's UI.
+// From the installed service the UI is started in the user's session.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn funti_show_help_request(id: &str, name: &str) {
+    let args = vec!["--funti-help", id, name];
+    #[cfg(windows)]
+    if crate::is_server() {
+        crate::platform::run_as_user(args).ok();
+        return;
+    }
+    crate::run_me(args).ok();
+}
+
+// FUNTIDESK (ADR-005): one-time uuid for the callee's camera session back.
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn insert_funti_call_back_uuid(id: String, uuid: uuid::Uuid) {
+    let mut uuids = FUNTI_CALL_BACK_UUID.lock().unwrap();
+    uuids.retain(|_, (instant, _)| instant.elapsed() < Duration::from_secs(30));
+    uuids.insert(id, (tokio::time::Instant::now(), uuid));
+}
+
+#[cfg(feature = "flutter")]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn take_funti_call_back_uuid(id: &str, uuid: &uuid::Uuid) -> bool {
+    let mut uuids = FUNTI_CALL_BACK_UUID.lock().unwrap();
+    uuids.retain(|_, (instant, _)| instant.elapsed() < Duration::from_secs(30));
+    if uuids.get(id).map(|(_, stored)| stored == uuid) == Some(true) {
+        uuids.remove(id);
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(feature = "flutter")]

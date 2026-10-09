@@ -17,7 +17,8 @@ use hbb_common::{
     bail, base64,
     bytes::Bytes,
     config::{
-        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT,
+        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, FUNTIDESK_APP_NAME, READ_TIMEOUT,
+        RENDEZVOUS_PORT,
     },
     futures::future::join_all,
     futures_util::future::poll_fn,
@@ -53,7 +54,7 @@ pub enum GrabState {
 pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Output = ()>;
 
 // the executable name of the portable version
-pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "FUNTIDESK_APPNAME";
 
 pub const PLATFORM_WINDOWS: &str = "Windows";
 pub const PLATFORM_LINUX: &str = "Linux";
@@ -954,7 +955,10 @@ pub fn get_app_name() -> String {
 
 #[inline]
 pub fn is_rustdesk() -> bool {
-    hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
+    hbb_common::config::APP_NAME
+        .read()
+        .unwrap()
+        .eq(FUNTIDESK_APP_NAME)
 }
 
 #[inline]
@@ -1965,6 +1969,18 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+// FUNTIDESK: "Y" lets a correct password answer a call (camera session) without
+// the person at this computer pressing "Accept". Off by default (owner decision
+// 2026-10-08); anything other than "Y" means the call has to be accepted.
+pub const FUNTI_OPTION_CALL_AUTO_ANSWER: &str = "funti-call-auto-answer";
+
+// FUNTIDESK (ADR-005): close reason that makes the other side close its call
+// window without an error box (one "hang up" ends the whole call).
+pub const FUNTI_CALL_ENDED: &str = "funti-call-ended";
+
+// FUNTIDESK (ADR-005): the callee pressed "Decline" before answering.
+pub const FUNTI_CALL_DECLINED: &str = "funti-call-declined";
+
 pub fn apply_funtidesk_security_policy() {
     // FUNTIDESK R-15 rollback (owner decision 2026-10-05): the hard
     // network-exposure locks (direct-server, LAN discovery, remote config
@@ -1987,6 +2003,11 @@ pub fn apply_funtidesk_security_policy() {
             keys::OPTION_ALLOW_NUMERNIC_ONE_TIME_PASSWORD.to_owned(),
             "N".to_owned(),
         );
+        // FUNTIDESK ADR-004: signaling with the FuntiDesk server over a
+        // persistent TCP connection. Some home routers and providers drop
+        // incoming UDP, so a UDP-registered device shows as online but never
+        // receives connection requests. Requires the own server build.
+        defaults.insert(keys::OPTION_DISABLE_UDP.to_owned(), "Y".to_owned());
     }
 }
 
@@ -2050,7 +2071,7 @@ pub fn get_builtin_option(key: &str) -> String {
 
 #[inline]
 pub fn is_custom_client() -> bool {
-    get_app_name() != "RustDesk"
+    get_app_name() != FUNTIDESK_APP_NAME
 }
 
 pub fn verify_login(_raw: &str, _id: &str) -> bool {

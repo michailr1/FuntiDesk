@@ -9,6 +9,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
+import 'package:flutter_hbb/desktop/widgets/funti_family.dart'
+    show showFuntiHelpRequestDialog;
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/main.dart';
@@ -29,6 +31,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 
 import '../consts.dart';
+import 'common/funti_theme.dart';
 import 'common/widgets/overlay.dart';
 import 'mobile/pages/file_manager_page.dart';
 import 'mobile/pages/remote_page.dart';
@@ -168,11 +171,12 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
   final Color? toastText;
   final Color? divider;
 
+  // FUNTIDESK: warm neutrals from FuntiPalette instead of upstream greys.
   static final light = ColorThemeExtension(
-    border: Color(0xFFCCCCCC),
-    border2: Color(0xFFBBBBBB),
+    border: FuntiPalette.lightInputStroke,
+    border2: Color(0xFFBDB4A6),
     border3: Colors.black26,
-    highlight: Color(0xFFE5E5E5),
+    highlight: FuntiPalette.lightHover,
     drag_indicator: Colors.grey[800],
     shadow: Colors.black,
     errorBannerBg: Color(0xFFFDEEEB),
@@ -183,10 +187,10 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
   );
 
   static final dark = ColorThemeExtension(
-    border: Color(0xFF555555),
+    border: FuntiPalette.darkInputStroke,
     border2: Color(0xFFE5E5E5),
     border3: Colors.white24,
-    highlight: Color(0xFF3F3F3F),
+    highlight: FuntiPalette.darkHover,
     drag_indicator: Colors.grey,
     shadow: Colors.grey,
     errorBannerBg: Color(0xFF470F2D),
@@ -250,13 +254,14 @@ class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {
 class MyTheme {
   MyTheme._();
 
-  static const Color grayBg = Color(0xFFEFEFF2);
-  static const Color accent = Color(0xFF0071FF);
-  static const Color accent50 = Color(0x770071FF);
-  static const Color accent80 = Color(0xAA0071FF);
+  // FUNTIDESK: palette values come from FuntiPalette (common/funti_theme.dart).
+  static const Color grayBg = FuntiPalette.lightSurface2;
+  static const Color accent = FuntiPalette.brandBlue;
+  static const Color accent50 = Color(0x771267EF);
+  static const Color accent80 = Color(0xAA1267EF);
   static const Color canvasColor = Color(0xFF212121);
-  static const Color border = Color(0xFFCCCCCC);
-  static const Color idColor = Color(0xFF00B6F0);
+  static const Color border = FuntiPalette.lightInputStroke;
+  static const Color idColor = FuntiPalette.brandBlue;
   static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
   static const Color cmIdColor = Color(0xFF21790B);
   static const Color dark = Colors.black87;
@@ -375,8 +380,8 @@ class MyTheme {
     // https://stackoverflow.com/questions/77537315/after-upgrading-to-flutter-3-16-the-app-bar-background-color-button-size-and
     useMaterial3: false,
     brightness: Brightness.light,
-    hoverColor: Color.fromARGB(255, 224, 224, 224),
-    scaffoldBackgroundColor: Colors.white,
+    hoverColor: FuntiPalette.lightHover,
+    scaffoldBackgroundColor: FuntiPalette.lightCanvas,
     dialogBackgroundColor: Colors.white,
     appBarTheme: AppBarTheme(
       shadowColor: Colors.transparent,
@@ -403,17 +408,18 @@ class MyTheme {
           )
         : null,
     textTheme: const TextTheme(
-        titleLarge: TextStyle(fontSize: 19, color: Colors.black87),
-        titleSmall: TextStyle(fontSize: 14, color: Colors.black87),
-        bodySmall: TextStyle(fontSize: 12, color: Colors.black87, height: 1.25),
-        bodyMedium:
-            TextStyle(fontSize: 14, color: Colors.black87, height: 1.25),
+        titleLarge: TextStyle(fontSize: 19, color: FuntiPalette.lightText),
+        titleSmall: TextStyle(fontSize: 14, color: FuntiPalette.lightText),
+        bodySmall: TextStyle(
+            fontSize: 12, color: FuntiPalette.lightText, height: 1.25),
+        bodyMedium: TextStyle(
+            fontSize: 14, color: FuntiPalette.lightText, height: 1.25),
         labelLarge: TextStyle(fontSize: 16.0, color: MyTheme.accent80)),
     cardColor: grayBg,
-    hintColor: Color(0xFFAAAAAA),
+    hintColor: FuntiPalette.lightHint,
     visualDensity: VisualDensity.adaptivePlatformDensity,
     tabBarTheme: const TabBarTheme(
-      labelColor: Colors.black87,
+      labelColor: FuntiPalette.lightText,
     ),
     tooltipTheme: tooltipTheme(),
     splashColor: (isDesktop || isWebDesktop) ? Colors.transparent : null,
@@ -440,7 +446,7 @@ class MyTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         backgroundColor: grayBg,
-        foregroundColor: Colors.black87,
+        foregroundColor: FuntiPalette.lightText,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8.0),
         ),
@@ -454,13 +460,13 @@ class MyTheme {
         style:
             MenuStyle(backgroundColor: MaterialStatePropertyAll(Colors.white))),
     colorScheme: ColorScheme.light(
-        primary: Colors.blue, secondary: accent, background: grayBg),
+        primary: accent, secondary: accent, background: grayBg),
     popupMenuTheme: PopupMenuThemeData(
         color: Colors.white,
         shape: RoundedRectangleBorder(
           side: BorderSide(
               color: (isDesktop || isWebDesktop)
-                  ? Color(0xFFECECEC)
+                  ? FuntiPalette.lightStroke
                   : Colors.transparent),
           borderRadius: BorderRadius.all(Radius.circular(8.0)),
         )),
@@ -468,14 +474,15 @@ class MyTheme {
     extensions: <ThemeExtension<dynamic>>[
       ColorThemeExtension.light,
       TabbarTheme.light,
+      FuntiTokens.light,
     ],
   );
   static ThemeData darkTheme = ThemeData(
     useMaterial3: false,
     brightness: Brightness.dark,
-    hoverColor: Color.fromARGB(255, 45, 46, 53),
-    scaffoldBackgroundColor: Color(0xFF18191E),
-    dialogBackgroundColor: Color(0xFF18191E),
+    hoverColor: FuntiPalette.darkHover,
+    scaffoldBackgroundColor: FuntiPalette.darkBg,
+    dialogBackgroundColor: FuntiPalette.darkBg,
     appBarTheme: AppBarTheme(
       shadowColor: Colors.transparent,
     ),
@@ -485,14 +492,14 @@ class MyTheme {
         borderRadius: BorderRadius.circular(18.0),
         side: BorderSide(
           width: 1,
-          color: Color(0xFF24252B),
+          color: FuntiPalette.darkStroke,
         ),
       ),
     ),
     scrollbarTheme: scrollbarThemeDark,
     inputDecorationTheme: (isDesktop || isWebDesktop)
         ? InputDecorationTheme(
-            fillColor: Color(0xFF24252B),
+            fillColor: FuntiPalette.darkSurface2,
             filled: true,
             isDense: true,
             border: OutlineInputBorder(
@@ -511,7 +518,7 @@ class MyTheme {
         color: accent80,
       ),
     ),
-    cardColor: Color(0xFF24252B),
+    cardColor: FuntiPalette.darkSurface,
     visualDensity: VisualDensity.adaptivePlatformDensity,
     tabBarTheme: const TabBarTheme(
       labelColor: Colors.white70,
@@ -545,7 +552,7 @@ class MyTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        backgroundColor: Color(0xFF24252B),
+        backgroundColor: FuntiPalette.darkSurface2,
         side: BorderSide(color: Colors.white12, width: 0.5),
         disabledForegroundColor: Colors.white70,
         foregroundColor: Colors.white70,
@@ -560,11 +567,12 @@ class MyTheme {
     listTileTheme: listTileTheme,
     menuBarTheme: MenuBarThemeData(
         style: MenuStyle(
-            backgroundColor: MaterialStatePropertyAll(Color(0xFF121212)))),
+            backgroundColor:
+                MaterialStatePropertyAll(FuntiPalette.darkChrome))),
     colorScheme: ColorScheme.dark(
-      primary: Colors.blue,
+      primary: FuntiPalette.darkAccent,
       secondary: accent,
-      background: Color(0xFF24252B),
+      background: FuntiPalette.darkSurface2,
     ),
     popupMenuTheme: PopupMenuThemeData(
         shape: RoundedRectangleBorder(
@@ -575,6 +583,7 @@ class MyTheme {
     extensions: <ThemeExtension<dynamic>>[
       ColorThemeExtension.dark,
       TabbarTheme.dark,
+      FuntiTokens.dark,
     ],
   );
 
@@ -2294,8 +2303,26 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   String? password;
   String? switchUuid;
   bool? forceRelay;
+  // FUNTIDESK (ADR-006): "<name> asks for help", started by the service.
+  String? funtiHelpId;
+  String funtiHelpName = '';
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
+      case '--funti-help':
+        funtiHelpId = args[i + 1];
+        i++;
+        if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
+          funtiHelpName = args[i + 1];
+          i++;
+        }
+        break;
+      case '--funti-help-name':
+        try {
+          funtiHelpName =
+              utf8.decode(base64Url.decode(base64Url.normalize(args[i + 1])));
+        } catch (_) {}
+        i++;
+        break;
       case '--connect':
       case '--play':
         type = UriLinkType.remoteDesktop;
@@ -2348,6 +2375,13 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
         break;
     }
   }
+  if (funtiHelpId != null) {
+    final helpId = funtiHelpId;
+    windowOnTop(null);
+    Future.delayed(Duration.zero,
+        () => showFuntiHelpRequestDialog(helpId, funtiHelpName));
+    return true;
+  }
   if (type != null && id != null) {
     switch (type) {
       case UriLinkType.remoteDesktop:
@@ -2367,7 +2401,9 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
       case UriLinkType.viewCamera:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newViewCamera(id!,
-              password: password, forceRelay: forceRelay);
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
         });
         break;
       case UriLinkType.portForward:
@@ -2408,6 +2444,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     "rdp",
     "terminal",
     "terminal-admin",
+    "funti-help",
   ];
   if (uri.authority.isEmpty &&
       uri.path.split('').every((char) => char == '/')) {
@@ -2489,7 +2526,8 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     }
   }
 
-  if (isMobile && id != null) {
+  // FUNTIDESK (ADR-006): help requests come from the desktop service only.
+  if (isMobile && id != null && command != '--funti-help') {
     final forceRelay = queryParameters["relay"] != null;
     final password = queryParameters["password"];
 
@@ -2523,6 +2561,10 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     if (password != null) args.addAll(['--password', password]);
     String? switch_uuid = param["switch_uuid"];
     if (switch_uuid != null) args.addAll(['--switch_uuid', switch_uuid]);
+    String? funtiHelpName = param["name"];
+    if (command == '--funti-help' && funtiHelpName != null) {
+      args.addAll(['--funti-help-name', funtiHelpName]);
+    }
     if (param["relay"] != null) args.add("--relay");
     return args;
   }
@@ -2858,7 +2900,7 @@ Future<void> onActiveWindowChanged() async {
     } catch (err) {
       debugPrintStack(label: "$err");
     } finally {
-      debugPrint("Start closing RustDesk...");
+      debugPrint("Start closing FuntiDesk...");
       await windowManager.setPreventClose(false);
       await windowManager.close();
       if (isMacOS) {
@@ -3040,14 +3082,15 @@ String getWindowName({WindowType? overrideType}) {
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;
+    // FUNTIDESK: translated window titles; a camera session is a call (ADR-005).
     case WindowType.FileTransfer:
-      return "File Transfer - $name";
+      return "${translate('funti-window-files')} - $name";
     case WindowType.ViewCamera:
-      return "View Camera - $name";
+      return "${translate('funti-call-title')} - $name";
     case WindowType.PortForward:
-      return "Port Forward - $name";
+      return "${translate('funti-window-tunnel')} - $name";
     case WindowType.RemoteDesktop:
-      return "Remote Desktop - $name";
+      return "${translate('funti-window-control')} - $name";
     default:
       break;
   }
@@ -3075,7 +3118,7 @@ Future<void> updateSystemWindowTheme() async {
 ///
 /// Note: not found a general solution for rust based AVFoundation bingding.
 /// [AVFoundation] crate has compile error.
-const kMacOSPermChannel = MethodChannel("org.rustdesk.rustdesk/host");
+const kMacOSPermChannel = MethodChannel("org.funtidesk.funtidesk/host");
 
 enum PermissionAuthorizeType {
   undetermined,

@@ -368,6 +368,33 @@ pub enum Data {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesUuid(String, String, Option<bool>),
+    // FUNTIDESK (ADR-005): peer id -> one-time uuid for the callee's camera
+    // session back to this computer.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiCallBackRequest(String),
+    // FUNTIDESK (ADR-005): a call with this peer id ended on this computer;
+    // the service closes its camera sessions from that peer.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiCallEnded(String),
+    // FUNTIDESK (ADR-006), answered by the service, which holds the device key
+    // and the family list: sign (kind, challenge, host id) -> (signature, own
+    // public key); a "login" signature only for a host in the family list.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilySign(String, String, String, Option<(Vec<u8>, Vec<u8>)>),
+    // New pairing code on this computer (None = cancel) -> the code.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyCode(bool, Option<String>),
+    // Add a paired computer: id, name, public key.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyAdd(String, String, Vec<u8>),
+    // This computer asks family member `id` for help: allow its next login.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiHelpAllow(String),
+    // Remove family member `id` here; "leave" to it stays signable briefly.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyRemove(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -971,6 +998,68 @@ async fn handle(data: Data, stream: &mut Connection) {
             allow_err!(
                 stream
                     .send(&Data::SwitchSidesRequest(uuid.to_string()))
+                    .await
+            );
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilySign(kind, challenge, host_id, None) => {
+            use crate::funti_family as family;
+            let allowed = kind == family::KIND_PAIR
+                || ((kind == family::KIND_LOGIN
+                    || kind == family::KIND_HELP
+                    || kind == family::KIND_UNPAIR)
+                    && family::member(&host_id).is_some())
+                || (kind == family::KIND_UNPAIR && family::is_leaving(&host_id));
+            let reply = if allowed {
+                let msg = family::message(&kind, &challenge, &host_id, &Config::get_id());
+                let sig = family::sign_message(&msg);
+                (!sig.is_empty()).then(|| (sig, family::own_pk()))
+            } else {
+                None
+            };
+            let reply = reply.unwrap_or_default();
+            allow_err!(
+                stream
+                    .send(&Data::FuntiFamilySign(kind, challenge, host_id, Some(reply)))
+                    .await
+            );
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyCode(start, None) => {
+            let code = if start {
+                crate::funti_family::new_pair_code()
+            } else {
+                crate::funti_family::cancel_pair_code();
+                String::new()
+            };
+            allow_err!(stream.send(&Data::FuntiFamilyCode(start, Some(code))).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyAdd(id, name, pk) => {
+            crate::funti_family::add(&id, &name, &pk);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiHelpAllow(id) => {
+            crate::funti_family::allow_help(&id);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyRemove(id) => {
+            crate::funti_family::remove_and_leave(&id);
+            allow_err!(stream.send(&Data::FuntiFamilyRemove(id)).await);
+        }
+        #[cfg(feature = "flutter")]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiCallEnded(id) => {
+            crate::server::funti_end_call(&id);
+        }
+        #[cfg(feature = "flutter")]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiCallBackRequest(id) => {
+            let uuid = uuid::Uuid::new_v4();
+            crate::server::insert_funti_call_back_uuid(id, uuid.clone());
+            allow_err!(
+                stream
+                    .send(&Data::FuntiCallBackRequest(uuid.to_string()))
                     .await
             );
         }

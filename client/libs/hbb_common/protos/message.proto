@@ -88,6 +88,25 @@ message LoginRequest {
   string my_platform = 13;
   bytes hwid = 14;
   string avatar = 17;
+  // FUNTIDESK (ADR-006): numbers from 1000 are reserved for FuntiDesk.
+  FuntiFamilyPair funti_family_pair = 1001;
+  // Device-key signature of the family login message, sent instead of a
+  // password by a paired family member.
+  bytes funti_family_proof = 1002;
+  // A family member asks for help ("help" family message signed in
+  // funti_family_proof); no session follows.
+  bool funti_help_request = 1003;
+  // A family member leaves this computer's family ("unpair" family message
+  // signed in funti_family_proof); no session follows.
+  bool funti_family_unpair = 1004;
+}
+
+// FUNTIDESK (ADR-006): pairing with the one-time code shown on the other
+// computer. `signature` is over the "pair" family message of this connection.
+message FuntiFamilyPair {
+  string code = 1;
+  bytes pk = 2;
+  bytes signature = 3;
 }
 
 message Terminal {
@@ -150,6 +169,8 @@ message LoginResponse {
     PeerInfo peer_info = 2;
   }
   bool enable_trusted_devices = 3;
+  // FUNTIDESK (ADR-006): the paired computer's name, with error "funti-family-paired".
+  string funti_family_paired = 1001;
 }
 
 message TouchScaleUpdate {
@@ -799,6 +820,14 @@ message SwitchSidesResponse {
 
 message SwitchBack {}
 
+// FUNTIDESK (ADR-005): in an answered call the caller asks the callee to open
+// a camera session back to it. The caller's service admits that session by
+// this one-time uuid instead of a password; only a camera session qualifies.
+// Peers that do not know this field ignore it, the call stays one-way.
+message FuntiCallBackRequest {
+  bytes uuid = 1;
+}
+
 message PluginRequest {
   string id = 1;
   bytes content = 2;
@@ -859,6 +888,8 @@ message Misc {
     DisplayResolution change_display_resolution = 36;
     MessageQuery message_query = 37;
     int32 follow_current_display = 38;
+    // FUNTIDESK: numbers from 1000 are reserved for FuntiDesk messages.
+    FuntiCallBackRequest funti_call_back_request = 1001;
   }
 }
 

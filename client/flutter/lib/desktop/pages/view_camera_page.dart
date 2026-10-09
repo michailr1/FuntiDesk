@@ -43,6 +43,7 @@ class ViewCameraPage extends StatefulWidget {
     this.connToken,
     this.forceRelay,
     this.isSharedPassword,
+    this.switchUuid,
   }) : super(key: key) {
     initSharedStates(id);
   }
@@ -57,6 +58,8 @@ class ViewCameraPage extends StatefulWidget {
   final bool? forceRelay;
   final bool? isSharedPassword;
   final String? connToken;
+  // FUNTIDESK: set for the callee's video back to the caller (ADR-005).
+  final String? switchUuid;
   final SimpleWrapper<State<ViewCameraPage>?> _lastState = SimpleWrapper(null);
   final DesktopTabController? tabController;
 
@@ -118,6 +121,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
       display: widget.display,
       displays: widget.displays,
       connToken: widget.connToken,
+      switchUuid: widget.switchUuid,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);

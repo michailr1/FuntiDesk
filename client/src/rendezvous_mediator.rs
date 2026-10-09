@@ -62,7 +62,7 @@ lazy_static::lazy_static! {
 
 // Single source of truth for the "awaiting deployment" backoff. The server has
 // already told us this device is not in its db; until the operator runs
-// `rustdesk --deploy --token <api_token>` there is no point re-running the
+// `funtidesk --deploy --token <api_token>` there is no point re-running the
 // register path more often than DEPLOY_RETRY_INTERVAL. Gating in the timer
 // loops (rather than only inside register_pk) also avoids the
 // last_register_sent / fails / latency / UDP-rebind churn the loop would
@@ -363,7 +363,7 @@ impl RendezvousMediator {
                     }
                     Ok(register_pk_response::Result::NOT_DEPLOYED) => {
                         if !NEEDS_DEPLOY.load(Ordering::SeqCst) {
-                            log::warn!("Server requires deployment. Run `rustdesk --deploy --token <api_token>` on this device.");
+                            log::warn!("Server requires deployment. Run `funtidesk --deploy --token <api_token>` on this device.");
                         }
                         NEEDS_DEPLOY.store(true, Ordering::SeqCst);
                         // Clear key_confirmed so the UI reflects the truth: this device is
@@ -747,7 +747,7 @@ impl RendezvousMediator {
         // Throttle register_pk when the device is awaiting deployment: server
         // already told us we're not in its db; sending more often than every
         // DEPLOY_RETRY_INTERVAL ms is wasted traffic until the operator runs
-        // `rustdesk --deploy --token <api_token>`.
+        // `funtidesk --deploy --token <api_token>`.
         if NEEDS_DEPLOY.load(Ordering::SeqCst) {
             let mut last = LAST_NOT_DEPLOYED_REGISTER.lock().await;
             if let Some(t) = *last {

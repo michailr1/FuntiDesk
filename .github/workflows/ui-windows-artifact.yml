@@ -1,0 +1,128 @@
+name: UI Windows artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/rustdesk-fork-planning-324gyk
+    paths:
+      - ".github/workflows/ui-windows-artifact.yml"
+      - "scripts/windows/**"
+      - "scripts/ci/test-funtidesk-product-identity.sh"
+      - "client/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # FUNTIDESK: publishes the Windows release used by install.ps1.
+  contents: write
+
+jobs:
+  windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Guard FuntiDesk product identity
+        shell: bash
+        run: bash scripts/ci/test-funtidesk-product-identity.sh
+
+      - name: Prepare pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: 1.75.0
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - name: Bootstrap pinned toolchain
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/bootstrap.ps1
+
+      - name: Ensure python3 command
+        shell: powershell
+        run: |
+          # build.py calls `python3` for the single-file packer (libs/portable).
+          if (-not (Get-Command python3 -ErrorAction SilentlyContinue)) {
+            $py = (Get-Command python).Source
+            Copy-Item $py (Join-Path (Split-Path $py) 'python3.exe')
+          }
+          python3 --version
+
+      - name: Build Windows runtime
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1 -PortablePack
+
+      - name: Write SHA256 manifest
+        shell: powershell
+        run: |
+          $release = Resolve-Path 'client/flutter/build/windows/x64/runner/Release'
+          $manifest = Join-Path $release 'SHA256SUMS.txt'
+          Get-ChildItem $release -File -Recurse |
+            Where-Object { $_.FullName -ne $manifest } |
+            Sort-Object FullName |
+            ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              $relative = $_.FullName.Substring($release.Path.Length + 1).Replace('\\','/')
+              "$hash  $relative"
+            } | Set-Content -Encoding ascii $manifest
+          Get-Content $manifest
+
+      - name: Upload Windows runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-ui-windows-x64-${{ github.sha }}
+          path: client/flutter/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Windows release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # FUNTIDESK: one-line install (install.ps1) downloads
+          # releases/latest/download/FuntiDesk-windows-x64.zip and checks it
+          # against SHA256SUMS.txt. Server releases stay prereleases, so
+          # "latest" always points to the Windows client.
+          $ErrorActionPreference = 'Stop'
+          $short = $env:GITHUB_SHA.Substring(0, 12)
+          $tag = "funtidesk-windows-$short"
+          $dist = Join-Path $env:RUNNER_TEMP 'dist'
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          $zip = Join-Path $dist 'FuntiDesk-windows-x64.zip'
+          Compress-Archive -Path 'client/flutter/build/windows/x64/runner/Release/*' -DestinationPath $zip
+          # Single-file portable: one FuntiDesk.exe that unpacks itself to
+          # %LOCALAPPDATA%\FuntiDesk\portable. Not named *install.exe on purpose.
+          $single = Join-Path $dist 'FuntiDesk-portable.exe'
+          Copy-Item 'client/dist/FuntiDesk.exe' $single
+          $sums = foreach ($f in @($zip, $single)) {
+            "$((Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant())  $(Split-Path $f -Leaf)"
+          }
+          $sums | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
+          Get-Content (Join-Path $dist 'SHA256SUMS.txt')
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "release $tag already exists"; exit 0 }
+          gh release create $tag $zip $single (Join-Path $dist 'SHA256SUMS.txt') `
+            --target $env:GITHUB_SHA --latest `
+            --title "FuntiDesk для Windows $short" `
+            --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex. FuntiDesk-portable.exe — тот же клиент одним файлом."
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-ui-build-logs-${{ github.sha }}
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 30

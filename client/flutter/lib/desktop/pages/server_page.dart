@@ -502,7 +502,8 @@ class _CmHeaderState extends State<_CmHeader>
                 if (client.type_() == ClientType.camera)
                   FittedBox(
                     child: Text(
-                      translate("View Camera"),
+                      // FUNTIDESK: camera sessions are calls (ADR-005).
+                      translate("funti-call-title"),
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ),
@@ -522,7 +523,10 @@ class _CmHeaderState extends State<_CmHeader>
                           ? client.disconnected
                               ? translate("Disconnected")
                               : translate("Connected")
-                          : "${translate("Request access to your device")}...",
+                          : client.isViewCamera
+                              // FUNTIDESK: camera sessions are calls.
+                              ? "${translate("funti-incoming-call")}..."
+                              : "${translate("Request access to your device")}...",
                       style: TextStyle(color: Colors.white),
                     ).marginOnly(right: 8.0),
                     if (client.authorized)
@@ -1059,7 +1063,13 @@ class _CmControlPanel extends StatelessWidget {
     final showElevation = canElevate &&
         model.showElevation &&
         client.type_() == ClientType.remote;
-    final showAccept = model.approveMode != 'password';
+    // FUNTIDESK: a call (camera session) is always answered here, even when
+    // other sessions are approved by password only. With password-only
+    // approval the service shows a session here before sign-in only when it
+    // has to be accepted (a call, or a family member — ADR-006), so "Accept"
+    // is always offered.
+    final isCall = client.isViewCamera;
+    final showAccept = true;
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -1091,9 +1101,10 @@ class _CmControlPanel extends StatelessWidget {
                       color: MyTheme.accent,
                       onClick: () {
                         handleAccept(context);
-                        windowManager.minimize();
+                        // Keep the call window in sight: it holds "hang up".
+                        if (!isCall) windowManager.minimize();
                       },
-                      text: 'Accept',
+                      text: isCall ? 'funti-answer-call' : 'Accept',
                       textColor: Colors.white,
                     ),
                   ],
@@ -1105,7 +1116,7 @@ class _CmControlPanel extends StatelessWidget {
                 color: Colors.transparent,
                 border: Border.all(color: Colors.grey),
                 onClick: handleDisconnect,
-                text: 'Cancel',
+                text: isCall ? 'funti-decline-call' : 'Cancel',
                 textColor: null,
               ),
             ),

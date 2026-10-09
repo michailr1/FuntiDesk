@@ -1,10 +1,11 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-project(rustdesk LANGUAGES CXX)
+project(funtidesk LANGUAGES CXX)
 
-# The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
-set(BINARY_NAME "rustdesk")
+# FuntiDesk product identity. Keep this separate from the upstream-derived
+# Rust core library name so product-facing artifacts do not inherit upstream
+# branding while the core can still be updated safely.
+set(BINARY_NAME "FuntiDesk")
 
 # Explicitly opt into modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -100,11 +101,13 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
-# flutter_rust_bridge
-set(RUSTDESK_LIB_BUILD_TYPE $<IF:$<CONFIG:Debug>,debug,release>)
-message(STATUS "rustdesk lib build type: ${RUSTDESK_LIB_BUILD_TYPE}")
-set(RUSTDESK_LIB "../../target/${RUSTDESK_LIB_BUILD_TYPE}/librustdesk.dll")
-install(FILES "${RUSTDESK_LIB}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+# flutter_rust_bridge / upstream-derived Rust core library.
+# `librustdesk.dll` remains an internal compatibility name for now; it is not
+# the product executable and will be handled in the source/vendor phase.
+set(FUNTIDESK_CORE_LIB_BUILD_TYPE $<IF:$<CONFIG:Debug>,debug,release>)
+message(STATUS "FuntiDesk core lib build type: ${FUNTIDESK_CORE_LIB_BUILD_TYPE}")
+set(FUNTIDESK_CORE_LIB "../../target/${FUNTIDESK_CORE_LIB_BUILD_TYPE}/librustdesk.dll")
+install(FILES "${FUNTIDESK_CORE_LIB}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 COMPONENT Runtime RENAME librustdesk.dll)
 
 # Fully re-copy the assets directory on each build to avoid having stale files

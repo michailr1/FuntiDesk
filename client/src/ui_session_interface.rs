@@ -1486,6 +1486,49 @@ impl<T: InvokeUiSession> Session<T> {
     #[cfg(any(target_os = "android", target_os = "ios", not(feature = "flutter")))]
     pub fn switch_sides(&self) {}
 
+    #[cfg(any(target_os = "android", target_os = "ios", not(feature = "flutter")))]
+    pub fn funti_request_call_back(&self) {}
+
+    // FUNTIDESK (ADR-005): get a one-time uuid from our own service and send it
+    // to the callee, which opens a camera session back to us with it.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    pub fn funti_request_call_back(&self) {
+        let session = self.clone();
+        std::thread::spawn(move || session.funti_request_call_back_blocking());
+    }
+
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[tokio::main(flavor = "current_thread")]
+    async fn funti_request_call_back_blocking(&self) {
+        let Ok(mut conn) = crate::ipc::connect(1000, "").await else {
+            log::warn!("FuntiDesk: no local service, the call stays one-way");
+            return;
+        };
+        if conn
+            .send(&crate::ipc::Data::FuntiCallBackRequest(self.get_id()))
+            .await
+            .is_err()
+        {
+            return;
+        }
+        if let Ok(Some(crate::ipc::Data::FuntiCallBackRequest(str_uuid))) =
+            conn.next_timeout(1000).await
+        {
+            if let Ok(uuid) = Uuid::from_str(&str_uuid) {
+                let mut misc = Misc::new();
+                misc.set_funti_call_back_request(FuntiCallBackRequest {
+                    uuid: Bytes::from(uuid.as_bytes().to_vec()),
+                    ..Default::default()
+                });
+                let mut msg_out = Message::new();
+                msg_out.set_misc(misc);
+                self.send(Data::Message(msg_out));
+            }
+        }
+    }
+
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[tokio::main(flavor = "current_thread")]
@@ -1667,7 +1710,7 @@ impl<T: InvokeUiSession> Session<T> {
 
     pub fn printer_response(&self, id: i32, path: String, printer_name: String) {
         self.printer_names.write().unwrap().insert(id, printer_name);
-        let to = std::env::temp_dir().join(format!("rustdesk_printer_{id}"));
+        let to = std::env::temp_dir().join(format!("funtidesk_printer_{id}"));
         self.send(Data::SendFiles((
             id,
             hbb_common::fs::JobType::Printer,
@@ -1810,6 +1853,12 @@ impl<T: InvokeUiSession> Interface for Session<T> {
             if pi.displays.is_empty() {
                 self.lc.write().unwrap().handle_peer_info(&pi);
                 self.update_privacy_mode();
+                if self.is_view_camera() {
+                    // FUNTIDESK (ADR-005): a call goes on without video, voice
+                    // still works; an "error" box would end the session.
+                    self.msgbox("custom-nocancel-info", "funti-call-title", "funti-call-no-camera", "");
+                    return;
+                }
                 let msg = if self.is_view_camera() {
                     "No cameras"
                 } else {
@@ -2021,7 +2070,7 @@ pub async fn io_loop<T: InvokeUiSession>(handler: Session<T>, round: u32) {
                 || handler.args[2].parse::<i32>().unwrap_or(0) <= 0
                 || port <= 0
             {
-                handler.on_error("Invalid arguments, usage:<br><br> rustdesk --port-forward remote-id listen-port remote-host remote-port");
+                handler.on_error("Invalid arguments, usage:<br><br> funtidesk --port-forward remote-id listen-port remote-host remote-port");
             }
             let remote_host = handler.args[1].clone();
             let remote_port = handler.args[2].parse::<i32>().unwrap_or(0);

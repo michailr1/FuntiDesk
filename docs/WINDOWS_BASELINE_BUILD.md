@@ -4,6 +4,8 @@
 
 Цель этапа — получить рабочую Windows x64-сборку **неизменённого импортированного baseline** до любых FuntiDesk security/branding-патчей. Это позволяет отделить проблемы toolchain от наших изменений.
 
+> Для текущей разработки Windows-клиента поверх baseline используется постоянный Windows build worker. Его режимы, границы ответственности и merge/release gates описаны в `docs/WINDOWS_BUILD_WORKER.md`. Этот worker ускоряет итерационные сборки, но **не заменяет** R21 clean build на GitHub.
+
 ## Зафиксированная upstream-конфигурация
 
 Для x86_64 Windows upstream CI baseline 1.4.9 использует:
@@ -32,7 +34,6 @@ Flutter 3.24.5 получает upstream patch `flutter_3.24.4_dropdown_menu_ena
 `bootstrap.ps1` после clone проверяет `git rev-parse HEAD` для обеих версий Flutter. LLVM проверяется по SHA256 до запуска installer. `build-baseline.ps1` скачивает custom engine через immutable asset API URL и проверяет SHA256 до распаковки. Любое несовпадение останавливает сборку.
 
 Хэши были независимо сняты GitHub Actions на чистом Ubuntu runner прямой загрузкой release assets и затем зафиксированы в скриптах.
-
 
 ## CI-артефакт для acceptance
 
@@ -63,9 +64,23 @@ cd <путь-к-FuntiDesk>
 .\scripts\windows\build-baseline.ps1
 ```
 
-## Фактическая приёмка
+Для постоянной Windows build-машины после первичного bootstrap используйте:
 
-Успешная контрольная сборка выполнена на Windows-машине владельца без изменений production source.
+```powershell
+.\scripts\windows\build-worker.ps1 -Mode Incremental
+```
+
+а для локальной контрольной сборки:
+
+```powershell
+.\scripts\windows\build-worker.ps1 -Mode Clean
+```
+
+`Incremental` сохраняет project/toolchain caches и предназначен для быстрого development loop. `Clean` очищает project build outputs и затем вызывает зафиксированный `build-baseline.ps1`. Если incremental-mode обнаруживает необходимость регенерации Flutter/Rust bridge, он fail-closed и требует `-Mode Clean`.
+
+## Фактическая приёмка baseline
+
+Успешная контрольная сборка была выполнена на Windows-машине владельца без изменений production source.
 
 Зафиксированная среда:
 
@@ -80,7 +95,7 @@ cd <путь-к-FuntiDesk>
 - vcpkg: `120deac3062162151622ca4860575a33844ba10b`;
 - Python: `3.11.15`.
 
-Результат:
+Исторический baseline-результат до FuntiDesk identity-refactor:
 
 - executable: `client/flutter/build/windows/x64/runner/Release/rustdesk.exe`;
 - SHA256: `B341C0536496662ADFF3D73F2BCE7DA18AB5F77C06D94DEA63B52AF655DD16C2`;
@@ -90,13 +105,15 @@ cd <путь-к-FuntiDesk>
 - Sciter для x64 Flutter build не потребовался;
 - production source не изменялся.
 
+Этот `rustdesk.exe` указан только как историческое свидетельство исходного upstream baseline. Текущая FuntiDesk product identity требует `FuntiDesk.exe`; build worker намеренно считает отсутствие `FuntiDesk.exe` ошибкой.
+
 Перед runtime-проверкой ранее установленный экземпляр исходного клиента был закрыт, чтобы исключить single-instance forwarding и гарантировать запуск именно собранного бинарника.
 
 Build log локально сохранялся в `artifacts/logs/baseline-build.log`; бинарник и локальные toolchain-каталоги в git не коммитятся.
 
 ## Артефакты приёмки
 
-Успешная сборка должна вывести:
+Успешная baseline-сборка должна вывести:
 
 ```text
 BASELINE_BUILD_OK=true
@@ -105,7 +122,18 @@ SHA256=...
 LOG=...
 ```
 
-## Что на этом этапе запрещено
+Успешная worker-сборка должна вывести:
+
+```text
+WINDOWS_WORKER_BUILD_OK=true
+ARTIFACT=...\FuntiDesk.exe
+SHA256=...
+MANIFEST=...
+LOG=...
+SNAPSHOT=...
+```
+
+## Что на baseline-этапе запрещалось
 
 До прохождения MIK-19 не менялись:
 

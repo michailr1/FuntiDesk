@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title desc">
+  <title id="title">FuntiDesk — Secure Access shield, small-size derivative (16–24 px)</title>
+  <desc id="desc">Derived from funtidesk-mark.svg: same shield and gradient; the double window edge is merged into one thicker edge, window dots are dropped and the pointer is enlarged so the mark stays legible at 16–24 px.</desc>
+  <defs>
+    <linearGradient id="funti-blue" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#1BC0E8"/>
+      <stop offset="0.49" stop-color="#138FF5"/>
+      <stop offset="1" stop-color="#064BEB"/>
+    </linearGradient>
+    <clipPath id="funti-shield-clip">
+      <path d="M128 15 C133 15 143 22 160 31 C180 41 200 46 220 51 C227 53 231 60 231 69 L231 138 C231 183 193 217 128 241 C64 217 25 183 25 138 L25 69 C25 60 29 53 36 51 C56 46 76 41 96 31 C113 22 123 15 128 15 Z"/>
+    </clipPath>
+  </defs>
+  <path fill="url(#funti-blue)" d="M128 15 C133 15 143 22 160 31 C180 41 200 46 220 51 C227 53 231 60 231 69 L231 138 C231 183 193 217 128 241 C64 217 25 183 25 138 L25 69 C25 60 29 53 36 51 C56 46 76 41 96 31 C113 22 123 15 128 15 Z"/>
+  <!-- One solid window edge instead of the double edge of the full mark. -->
+  <g clip-path="url(#funti-shield-clip)" fill="#fff">
+    <path d="M66 132 L66 111 C66 90 78 78 99 74 L236 50 L236 76 L106 99 C96 101 92 106 92 116 L92 226 L66 214 Z"/>
+  </g>
+  <!-- Same pointer silhouette, scaled up around its tip. -->
+  <path fill="#fff" stroke="#fff" stroke-linejoin="round" stroke-width="2" transform="translate(132 128) scale(1.3) translate(-144 -143)" d="M144 150 Q141 146 144 143 Q146 141 150 143 L201 171 Q207 174 205 180 Q204 183 199 184 L179 186 L171 207 Q169 212 164 211 Q160 211 158 207 Z"/>
+</svg>

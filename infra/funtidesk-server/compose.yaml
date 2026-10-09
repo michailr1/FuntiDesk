@@ -1,6 +1,9 @@
 services:
   hbbs:
-    image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
+    # FUNTIDESK ADR-004: own build, created by scripts/server/build-image.sh
+    # from the release pinned in server-release.env.
+    image: funtidesk-server:${FUNTIDESK_SERVER_RELEASE:?set by server-release.env}
+    pull_policy: never
     container_name: funtidesk-hbbs
     # FUNTIDESK: require server-key verification explicitly; do not rely on upstream defaults.
     command: ["hbbs", "-r", "${FUNTIDESK_FQDN}:21117", "-k", "_"]
@@ -15,7 +18,10 @@ services:
       - funtidesk
 
   hbbr:
-    image: ghcr.io/rustdesk/rustdesk-server:1.1.16@sha256:5c5d42feed1c85c54ffebaaf478dc2551e3efbab1b9ea97bc8bed5815f8c1d54
+    # FUNTIDESK ADR-004: own build, created by scripts/server/build-image.sh
+    # from the release pinned in server-release.env.
+    image: funtidesk-server:${FUNTIDESK_SERVER_RELEASE:?set by server-release.env}
+    pull_policy: never
     container_name: funtidesk-hbbr
     # FUNTIDESK: never expose a keyless public relay.
     command: ["hbbr", "-k", "_"]

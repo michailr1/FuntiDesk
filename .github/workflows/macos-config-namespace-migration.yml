@@ -1,0 +1,22 @@
+name: macOS config namespace migration (archived)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archived:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 1
+      - name: Verify migration source is present
+        run: |
+          set -euo pipefail
+          grep -F 'fn migrate_macos_legacy_profile()' client/libs/hbb_common/src/config.rs
+          grep -F 'fn migrate_macos_profile_from_roots' client/libs/hbb_common/src/config.rs
+          echo 'macOS migration was completed and this workflow is archived/read-only.'

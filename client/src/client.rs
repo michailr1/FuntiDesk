@@ -745,7 +745,36 @@ impl Client {
             start.elapsed(),
             punch_type
         );
-        let res = Self::secure_connection(peer_id, signed_id_pk, key, &mut conn).await;
+        let mut res = Self::secure_connection(peer_id, signed_id_pk.clone(), key, &mut conn).await;
+        // FUNTIDESK: a direct path can reach something that is not this peer
+        // (a VPN exit or a NAT that forwards the punched port elsewhere): the
+        // handshake then fails with "peer did not send SignedId". Try the relay
+        // once; it is verified by the same SignedId check (fail closed).
+        let mut kcp = kcp;
+        if res.is_err() && direct && !relay_server.is_empty() {
+            log::warn!(
+                "FuntiDesk: direct handshake with {} failed ({:?}), trying relay",
+                peer_id,
+                res.as_ref().err()
+            );
+            if let Ok(relay) = Self::request_relay(
+                peer_id,
+                relay_server.to_owned(),
+                rendezvous_server,
+                true,
+                key,
+                token,
+                conn_type,
+            )
+            .await
+            {
+                conn = relay;
+                kcp = None;
+                typ = "Relay";
+                direct = false;
+                res = Self::secure_connection(peer_id, signed_id_pk, key, &mut conn).await;
+            }
+        }
         let pk: Option<Vec<u8>> = match res {
             Ok(pk) => pk,
             Err(e) => {
@@ -1741,6 +1770,12 @@ pub struct LoginConfigHandler {
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     switch_back_allowed: bool,
+    // FUNTIDESK (ADR-005): this camera session is the callee's video back to
+    // the caller, admitted by a one-time uuid; it starts no voice and no call-back.
+    pub funti_call_back: bool,
+    // FUNTIDESK (ADR-006): family login signature for this connection's
+    // challenge, sent instead of a password; empty when not a family member.
+    pub funti_family_proof: Vec<u8>,
     pub save_ab_password_to_recent: bool, // true: connected with ab password
     pub other_server: Option<(String, String, String)>,
     pub custom_fps: Arc<Mutex<Option<usize>>>,
@@ -2630,7 +2665,7 @@ impl LoginConfigHandler {
     }
 
     /// Create a [`Message`] for login.
-    fn create_login_msg(
+    pub fn create_login_msg(
         &self,
         os_username: String,
         os_password: String,
@@ -2720,6 +2755,7 @@ impl LoginConfigHandler {
             .into(),
             hwid,
             avatar,
+            funti_family_proof: self.funti_family_proof.clone().into(),
             ..Default::default()
         };
         match self.conn_type {
@@ -3479,7 +3515,11 @@ pub async fn handle_hash(
                 if !consume_local_switch_sides_uuid(&id, &uuid).await {
                     log::warn!("Ignored untrusted switch_uuid");
                 } else {
-                    lc.write().unwrap().allow_switch_back_once();
+                    if lc.read().unwrap().conn_type.eq(&ConnType::VIEW_CAMERA) {
+                        lc.write().unwrap().funti_call_back = true;
+                    } else {
+                        lc.write().unwrap().allow_switch_back_once();
+                    }
                     send_switch_login_request(lc.clone(), peer, uuid).await;
                     lc.write().unwrap().password_source = Default::default();
                     return;
@@ -3549,6 +3589,37 @@ pub async fn handle_hash(
         }
         lc.write().unwrap().hash = hash;
         return;
+    }
+
+    // FUNTIDESK (ADR-006): no password at hand, but the other computer is in
+    // our family: sign this connection's challenge with the device key instead.
+    // The person there still has to accept; if the signature is not accepted,
+    // the other side asks for the password as usual.
+    lc.write().unwrap().funti_family_proof = Vec::new();
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if password.is_empty() {
+        let host_id = lc.read().unwrap().id.clone();
+        if let Some((sig, _)) = crate::funti_family::request_sign(
+            crate::funti_family::KIND_LOGIN,
+            &hash.challenge,
+            &host_id,
+        )
+        .await
+        {
+            lc.write().unwrap().funti_family_proof = sig;
+            let is_terminal = lc.read().unwrap().conn_type.eq(&ConnType::TERMINAL);
+            let (os_username, os_password) = if is_terminal {
+                ("".to_owned(), "".to_owned())
+            } else {
+                (
+                    lc.read().unwrap().get_option("os-username"),
+                    lc.read().unwrap().get_option("os-password"),
+                )
+            };
+            send_login(lc.clone(), os_username, os_password, Vec::new(), peer).await;
+            lc.write().unwrap().hash = hash;
+            return;
+        }
     }
 
     let password = if password.is_empty() {

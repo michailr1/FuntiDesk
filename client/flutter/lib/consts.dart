@@ -114,6 +114,8 @@ const String kOptionEnableFileTransfer = "enable-file-transfer";
 const String kOptionEnableAudio = "enable-audio";
 const String kOptionEnableCamera = "enable-camera";
 const String kOptionEnableTerminal = "enable-terminal";
+// FUNTIDESK: see FUNTI_OPTION_CALL_AUTO_ANSWER in src/common.rs.
+const String kFuntiOptionCallAutoAnswer = "funti-call-auto-answer";
 const String kOptionTerminalPersistent = "terminal-persistent";
 const String kOptionEnableTunnel = "enable-tunnel";
 const String kOptionEnableRemoteRestart = "enable-remote-restart";

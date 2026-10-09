@@ -3,7 +3,7 @@ use hbb_common::{bail, libc, log, ResultType};
 use std::env;
 use std::{
     ffi::{c_char, c_int, c_void, CStr},
-    path::PathBuf,
+    path::{Path, PathBuf},
     ptr::null,
 };
 
@@ -137,10 +137,19 @@ fn get_share_dir() -> ResultType<PathBuf> {
 }
 
 #[inline]
-fn get_plugins_dir() -> ResultType<PathBuf> {
+fn get_plugins_dir_for(app_name: &str) -> ResultType<PathBuf> {
     Ok(get_share_dir()?
-        .join("RustDesk")
+        .join(app_name)
         .join(PLUGIN_SOURCE_LOCAL_DIR))
+}
+
+#[inline]
+fn get_plugins_dir() -> ResultType<PathBuf> {
+    // Plugins are executable code, not passive profile data. Do not automatically
+    // copy or execute plugins from the legacy RustDesk namespace during identity
+    // migration. Existing legacy plugins remain untouched and must be explicitly
+    // reinstalled/revalidated for FuntiDesk.
+    get_plugins_dir_for("FuntiDesk")
 }
 
 #[inline]
@@ -184,5 +193,20 @@ fn free_c_ptr(p: *mut c_void) {
         unsafe {
             libc::free(p);
         }
+    }
+}
+
+#[cfg(test)]
+mod funtidesk_identity_tests {
+    use super::*;
+
+    #[test]
+    fn plugin_roots_use_separate_product_namespaces() {
+        let current = get_plugins_dir_for("FuntiDesk").unwrap();
+        let legacy = get_plugins_dir_for("RustDesk").unwrap();
+        assert_ne!(current, legacy);
+        assert!(current.ends_with(Path::new("FuntiDesk").join(PLUGIN_SOURCE_LOCAL_DIR)));
+        assert!(legacy.ends_with(Path::new("RustDesk").join(PLUGIN_SOURCE_LOCAL_DIR)));
+        assert_eq!(get_plugins_dir().unwrap(), current);
     }
 }

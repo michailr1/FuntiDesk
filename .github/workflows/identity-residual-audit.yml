@@ -1,0 +1,30 @@
+name: identity residual audit (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: michailr/m2-funtidesk-identity-refactor
+          fetch-depth: 1
+      - name: Audit product/runtime RustDesk residuals
+        shell: bash
+        run: |
+          set -u
+          echo '=== PRODUCT-FACING / RUNTIME CANDIDATES ==='
+          grep -RInE --exclude-dir=.dart_tool --exclude-dir=build --exclude='*.lock' \
+            'RustDesk|rustdesk://|com\.carriez\.(RustDesk|rustdesk|flutterHbb)|Purslane Tech' \
+            client/flutter/android client/flutter/ios client/flutter/macos client/flutter/linux \
+            client/src/platform client/src/server client/src/whiteboard client/src/ui* \
+            2>/dev/null | head -n 700 || true
+          echo '=== KNOWN INTERNAL/COMPATIBILITY CANDIDATES ==='
+          grep -RInE --exclude-dir=.dart_tool --exclude-dir=build --exclude='*.lock' \
+            'librustdesk|RustDeskInterval|RUSTDESK_|MSG_TO_RUSTDESK|dyn\.com\.rustdesk|rustdesk_core_main' \
+            client/flutter client/src 2>/dev/null | head -n 300 || true

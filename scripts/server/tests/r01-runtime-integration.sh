@@ -6,6 +6,12 @@ TMP="$(mktemp -d)"
 export FUNTIDESK_FQDN="127.0.0.1"
 export FUNTIDESK_DATA_DIR="$TMP/data"
 mkdir -p "$FUNTIDESK_DATA_DIR"
+# FUNTIDESK ADR-004: the compose file runs the own server build.
+set -a
+# shellcheck disable=SC1091
+source infra/funtidesk-server/server-release.env
+set +a
+bash scripts/server/build-image.sh
 
 cleanup() {
   docker compose -f "$COMPOSE" down --remove-orphans >/dev/null 2>&1 || true

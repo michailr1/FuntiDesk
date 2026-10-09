@@ -1,0 +1,76 @@
+name: Server build
+
+# FUNTIDESK ADR-004: own hbbs/hbbr build. Builds static Linux binaries from
+# /server, runs the server tests and publishes the binaries with SHA256 as a
+# GitHub release. Production pins the release tag and the hashes in
+# infra/funtidesk-server/server-release.env; deploy.sh verifies them.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/rustdesk-fork-planning-324gyk
+      - main
+    paths:
+      - ".github/workflows/server-build.yml"
+      - "server/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-x64-musl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Rust 1.90 (same as upstream rustdesk-server)
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: 1.90.0
+          targets: x86_64-unknown-linux-musl
+
+      - name: musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Tests
+        working-directory: server
+        run: cargo test --release --locked --test tcp_signaling
+
+      - name: Build static binaries
+        working-directory: server
+        run: cargo build --release --locked --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr
+
+      - name: Package
+        id: pkg
+        run: |
+          set -euo pipefail
+          out=dist
+          mkdir -p "$out"
+          cp server/target/x86_64-unknown-linux-musl/release/hbbs "$out/"
+          cp server/target/x86_64-unknown-linux-musl/release/hbbr "$out/"
+          file "$out/hbbs" "$out/hbbr"
+          (cd "$out" && sha256sum hbbs hbbr > SHA256SUMS && cat SHA256SUMS)
+          echo "tag=funtidesk-server-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.pkg.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists"
+            exit 0
+          fi
+          gh release create "$tag" dist/hbbs dist/hbbr dist/SHA256SUMS \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "FuntiDesk server ${GITHUB_SHA::12}" \
+            --notes "hbbs/hbbr x86_64-unknown-linux-musl from commit ${GITHUB_SHA}. See ADR-004."
