@@ -7,9 +7,24 @@ use std::{
 use nokhwa::{
     pixel_format::RgbAFormat,
     query,
-    utils::{ApiBackend, CameraIndex, RequestedFormat, RequestedFormatType},
+    utils::{ApiBackend, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType},
     Camera,
 };
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    time::Instant,
+};
+
+// FUNTIDESK: a camera that opens but never delivers a frame must not hang the
+// video service (found 2026-10-09: "Integrated Camera" of a laptop, call stuck
+// on "waiting for image", the service never ended). Frames are read on a
+// thread of their own; the service gets an error after this long without one.
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+const FUNTI_NO_FRAME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 use hbb_common::message_proto::{DisplayInfo, Resolution};
 
@@ -133,8 +148,51 @@ impl Cameras {
             RequestedFormat::new::<RgbAFormat>(format_type),
         );
         match result {
-            Ok(camera) => Ok(camera),
+            Ok(mut camera) => {
+                #[cfg(target_os = "windows")]
+                Self::funti_pick_format(&mut camera);
+                Ok(camera)
+            }
             Err(e) => bail!("create camera{} error:  {}", index, e),
+        }
+    }
+
+    // FUNTIDESK: "absolute highest resolution" may pick a mode some cameras
+    // never stream in. Prefer the largest mode with at least 15 fps in a
+    // common format (MJPEG, NV12, YUYV); log what the camera offers.
+    #[cfg(target_os = "windows")]
+    fn funti_pick_format(camera: &mut Camera) {
+        let formats = match camera.compatible_camera_formats() {
+            Ok(formats) => formats,
+            Err(e) => {
+                hbb_common::log::warn!("FuntiDesk camera: no format list: {}", e);
+                return;
+            }
+        };
+        hbb_common::log::info!("FuntiDesk camera formats: {:?}", formats);
+        let rank = |f: FrameFormat| match f {
+            FrameFormat::MJPEG => 3,
+            FrameFormat::NV12 => 2,
+            FrameFormat::YUYV => 1,
+            _ => 0,
+        };
+        let best = formats
+            .iter()
+            .filter(|f| f.frame_rate() >= 15 && rank(f.format()) > 0)
+            .max_by_key(|f| {
+                (
+                    f.width() * f.height(),
+                    rank(f.format()),
+                    f.frame_rate().min(30),
+                )
+            });
+        if let Some(best) = best {
+            match camera.set_camera_requset(RequestedFormat::new::<RgbAFormat>(
+                RequestedFormatType::Exact(*best),
+            )) {
+                Ok(format) => hbb_common::log::info!("FuntiDesk camera format: {:?}", format),
+                Err(e) => hbb_common::log::warn!("FuntiDesk camera: cannot set {:?}: {}", best, e),
+            }
         }
     }
 
@@ -183,9 +241,22 @@ impl Cameras {
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 pub struct CameraCapturer {
-    camera: Camera,
+    // FUNTIDESK: frames come from the reading thread (RGBA, width, height).
+    rx: mpsc::Receiver<Result<(Vec<u8>, usize, usize), String>>,
+    stop: Arc<AtomicBool>,
+    started: Instant,
+    got_frame: bool,
+    width: usize,
+    height: usize,
     data: Vec<u8>,
     last_data: Vec<u8>, // for faster compare and copy
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+impl Drop for CameraCapturer {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+    }
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -194,13 +265,75 @@ pub struct CameraCapturer;
 impl CameraCapturer {
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     fn new(current: usize) -> ResultType<Self> {
-        let index = CameraIndex::Index(current as u32);
-        let camera = Cameras::create_camera(&index)?;
+        // One slot: a slow encoder gets the newest frame, older ones drop.
+        let (tx, rx) = mpsc::sync_channel(1);
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
+        std::thread::Builder::new()
+            .name(format!("funti-camera{current}"))
+            .spawn(move || Self::read_frames(current, tx, thread_stop))?;
         Ok(CameraCapturer {
-            camera,
+            rx,
+            stop,
+            started: Instant::now(),
+            got_frame: false,
+            width: 0,
+            height: 0,
             data: Vec::new(),
             last_data: Vec::new(),
         })
+    }
+
+    // FUNTIDESK: the camera is created, opened and read on this thread only.
+    // A read that blocks forever leaves just this thread waiting; the capturer
+    // and the video service go on (see FUNTI_NO_FRAME_TIMEOUT).
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    fn read_frames(
+        current: usize,
+        tx: mpsc::SyncSender<Result<(Vec<u8>, usize, usize), String>>,
+        stop: Arc<AtomicBool>,
+    ) {
+        let index = CameraIndex::Index(current as u32);
+        let mut camera = match Cameras::create_camera(&index) {
+            Ok(camera) => camera,
+            Err(e) => {
+                tx.send(Err(e.to_string())).ok();
+                return;
+            }
+        };
+        if let Err(e) = camera.open_stream() {
+            tx.send(Err(format!("Camera open stream error: {}", e))).ok();
+            return;
+        }
+        hbb_common::log::info!("FuntiDesk camera{}: stream open, {:?}", current, camera.camera_format());
+        let mut first = true;
+        while !stop.load(Ordering::SeqCst) {
+            let frame = match camera.frame() {
+                Ok(buffer) => match buffer.decode_image::<RgbAFormat>() {
+                    Ok(decoded) => Ok((
+                        decoded.as_raw().to_vec(),
+                        decoded.width() as usize,
+                        decoded.height() as usize,
+                    )),
+                    Err(e) => Err(format!("Camera frame decode error: {}", e)),
+                },
+                Err(e) => Err(format!("Camera frame error: {}", e)),
+            };
+            if first && frame.is_ok() {
+                hbb_common::log::info!("FuntiDesk camera{}: first frame", current);
+                first = false;
+            }
+            let failed = frame.is_err();
+            match tx.try_send(frame) {
+                Ok(()) | Err(mpsc::TrySendError::Full(_)) => {}
+                Err(mpsc::TrySendError::Disconnected(_)) => break,
+            }
+            if failed {
+                break;
+            }
+        }
+        camera.stop_stream().ok();
+        hbb_common::log::info!("FuntiDesk camera{}: reading stopped", current);
     }
 
     #[allow(dead_code)]
@@ -212,48 +345,35 @@ impl CameraCapturer {
 
 impl TraitCapturer for CameraCapturer {
     #[cfg(any(target_os = "windows", target_os = "linux"))]
-    fn frame<'a>(&'a mut self, _timeout: std::time::Duration) -> std::io::Result<Frame<'a>> {
-        // TODO: move this check outside `frame`.
-        if !self.camera.is_stream_open() {
-            if let Err(e) = self.camera.open_stream() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Camera open stream error: {}", e),
-                ));
+    fn frame<'a>(&'a mut self, timeout: std::time::Duration) -> std::io::Result<Frame<'a>> {
+        match self.rx.recv_timeout(timeout) {
+            Ok(Ok((data, width, height))) => {
+                self.got_frame = true;
+                self.data = data;
+                self.width = width;
+                self.height = height;
+                crate::would_block_if_equal(&mut self.last_data, &self.data)?;
+                Ok(Frame::PixelBuffer(PixelBuffer::new(
+                    &self.data,
+                    Pixfmt::RGBA,
+                    self.width,
+                    self.height,
+                )))
             }
-        }
-        match self.camera.frame() {
-            Ok(buffer) => {
-                match buffer.decode_image::<RgbAFormat>() {
-                    Ok(decoded) => {
-                        self.data = decoded.as_raw().to_vec();
-                        crate::would_block_if_equal(&mut self.last_data, &self.data)?;
-                        // FIXME: macos's PixelBuffer cannot be directly created from bytes slice.
-                        cfg_if::cfg_if! {
-                            if #[cfg(any(target_os = "linux", target_os = "windows"))] {
-                                Ok(Frame::PixelBuffer(PixelBuffer::new(
-                                    &self.data,
-                                    Pixfmt::RGBA,
-                                    decoded.width() as usize,
-                                    decoded.height() as usize,
-                                )))
-                            } else {
-                                Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    format!("Camera is not supported on this platform yet"),
-                                ))
-                            }
-                        }
-                    }
-                    Err(e) => Err(io::Error::new(
+            Ok(Err(e)) => Err(io::Error::new(io::ErrorKind::Other, e)),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if !self.got_frame && self.started.elapsed() > FUNTI_NO_FRAME_TIMEOUT {
+                    Err(io::Error::new(
                         io::ErrorKind::Other,
-                        format!("Camera frame decode error: {}", e),
-                    )),
+                        "Camera gives no image (busy, blocked in privacy settings, or unsupported mode)",
+                    ))
+                } else {
+                    Err(io::ErrorKind::WouldBlock.into())
                 }
             }
-            Err(e) => Err(io::Error::new(
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Camera frame error: {}", e),
+                "Camera reading stopped",
             )),
         }
     }

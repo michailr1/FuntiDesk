@@ -169,7 +169,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'vcpkg install failed' }
 
     Write-Host '== Baseline build =='
-    $packArgs = if ($PortablePack) { @() } else { @('--skip-portable-pack') }
+    # Built up explicitly: `if` returning a one-item array yields a string in
+    # PowerShell 5.1, and splatting a string passes it letter by letter.
+    $packArgs = @()
+    if (-not $PortablePack) { $packArgs += '--skip-portable-pack' }
     python .\build.py --portable --flutter @packArgs --hwcodec --vram
     if ($LASTEXITCODE -ne 0) { throw 'build.py failed' }
     if ($PortablePack) {
