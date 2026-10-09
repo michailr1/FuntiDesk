@@ -1177,7 +1177,7 @@ class _Segmented extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Family (ADR-006)
 
-enum _FamilyAction { connect, files, terminal, remove }
+enum _FamilyAction { connect, files, terminal, help, rename, remove }
 
 class _FamilyList extends StatelessWidget {
   const _FamilyList({required this.members, required this.onChanged});
@@ -1188,16 +1188,23 @@ class _FamilyList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
+    // What family means stays visible, not only while the list is empty.
     final add = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => showFuntiFamilyAddDialog(onChanged: onChanged),
-          icon: const Icon(Icons.group_add_outlined, size: 18),
-          label: Text(translate('funti-family-add')),
-          style: TextButton.styleFrom(foregroundColor: t.link),
-        ),
+      padding: const EdgeInsets.fromLTRB(24, 0, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate('funti-family-about'),
+              style: TextStyle(fontSize: 12.5, color: t.muted)),
+          const SizedBox(height: 2),
+          TextButton.icon(
+            onPressed: () => showFuntiFamilyAddDialog(onChanged: onChanged),
+            icon: const Icon(Icons.group_add_outlined, size: 18),
+            label: Text(translate('funti-family-add')),
+            style: TextButton.styleFrom(
+                foregroundColor: t.link, padding: EdgeInsets.zero),
+          ),
+        ],
       ),
     );
     if (members.isEmpty) {
@@ -1253,11 +1260,19 @@ class _FamilyRow extends StatelessWidget {
       case _FamilyAction.terminal:
         connect(context, member.id, isTerminal: true);
         break;
+      case _FamilyAction.help:
+        funtiAskHelpFrom(member);
+        break;
+      case _FamilyAction.rename:
+        showFuntiFamilyRenameDialog(member, onChanged: onChanged);
+        break;
       case _FamilyAction.remove:
         deleteConfirmDialog(() async {
-          await funtiFamilyRemove(member.id);
+          final both = await funtiFamilyLeave(member);
           onChanged();
-          showToast(translate('Successful'));
+          showToast(translate(
+                  both ? 'funti-family-removed-both' : 'funti-family-removed-here')
+              .replaceAll('{}', member.title));
         }, translate('funti-family-remove-confirm').replaceAll('{}', member.title));
         break;
     }
@@ -1314,7 +1329,13 @@ class _FamilyRow extends StatelessWidget {
               PopupMenuItem(
                   value: _FamilyAction.terminal,
                   child: Text(translate('funti-open-terminal'), style: style)),
+              PopupMenuItem(
+                  value: _FamilyAction.help,
+                  child: Text(translate('funti-help-ask'), style: style)),
               const PopupMenuDivider(),
+              PopupMenuItem(
+                  value: _FamilyAction.rename,
+                  child: Text(translate('Rename'), style: style)),
               PopupMenuItem(
                   value: _FamilyAction.remove,
                   child: Text(translate('funti-family-remove'), style: style)),

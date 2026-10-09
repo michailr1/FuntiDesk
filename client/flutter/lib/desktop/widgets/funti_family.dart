@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../common.dart';
@@ -75,6 +76,65 @@ Future<void> funtiFamilyRemove(String id) async {
   await bind.mainSetOption(
       key: kFuntiOptionFamily,
       value: jsonEncode(rest.map((m) => m.toJson()).toList()));
+}
+
+/// Removes [member] from the family here and asks the other computer to
+/// remove this one too, so that removing is mutual. Returns true when the
+/// other side confirmed.
+Future<bool> funtiFamilyLeave(FuntiFamilyMember member) async {
+  // Signed while the member is still in the list here.
+  final res = await bind.mainFuntiFamilyLeave(id: member.id);
+  await funtiFamilyRemove(member.id);
+  try {
+    return (jsonDecode(res) as Map<String, dynamic>)['error'] == null;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Local name for a family member (only on this device).
+Future<void> funtiFamilyRename(String id, String name) async {
+  final list = funtiFamilyMembers()
+      .map((m) => m.id == id
+          ? FuntiFamilyMember(id: m.id, name: name.trim(), pk: m.pk)
+          : m)
+      .toList();
+  await bind.mainSetOption(
+      key: kFuntiOptionFamily,
+      value: jsonEncode(list.map((m) => m.toJson()).toList()));
+}
+
+/// Rename dialog for a family member.
+void showFuntiFamilyRenameDialog(FuntiFamilyMember member,
+    {VoidCallback? onChanged}) {
+  final controller = TextEditingController(text: member.title);
+  gFFI.dialogManager.show((setState, close, context) {
+    Future<void> submit() async {
+      final name = controller.text.trim();
+      if (name.isNotEmpty) {
+        await funtiFamilyRename(member.id, name);
+        onChanged?.call();
+      }
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Rename')),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 420),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: translate('funti-family-name')),
+        onSubmitted: (_) => submit(),
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+      onSubmit: submit,
+      onCancel: close,
+    );
+  });
 }
 
 /// "Add to family": choose between showing this computer's code and entering
@@ -153,6 +213,7 @@ void _showCodeDialog(VoidCallback? onChanged) {
   final code = bind.mainFuntiFamilyCode(start: true);
   final before = funtiFamilyMembers().map((m) => m.id).toSet();
   final added = Rxn<FuntiFamilyMember>();
+  final nameController = TextEditingController();
   Timer? timer;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
@@ -160,13 +221,21 @@ void _showCodeDialog(VoidCallback? onChanged) {
       final now = funtiFamilyMembers();
       final fresh = now.where((m) => !before.contains(m.id));
       if (fresh.isNotEmpty && added.value == null) {
+        nameController.text = fresh.first.title;
         added.value = fresh.first;
         onChanged?.call();
       }
     });
-    void done() {
+    Future<void> done() async {
       timer?.cancel();
-      if (added.value == null) bind.mainFuntiFamilyCode(start: false);
+      final member = added.value;
+      if (member == null) {
+        bind.mainFuntiFamilyCode(start: false);
+      } else if (nameController.text.trim().isNotEmpty &&
+          nameController.text.trim() != member.title) {
+        await funtiFamilyRename(member.id, nameController.text);
+        onChanged?.call();
+      }
       close();
     }
 
@@ -180,16 +249,30 @@ void _showCodeDialog(VoidCallback? onChanged) {
           return Obx(() {
             final member = added.value;
             if (member != null) {
-              return Row(
+              return Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle_rounded, color: t.ok, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      translate('funti-family-added')
-                          .replaceAll('{}', member.title),
-                      style: TextStyle(fontSize: 15, color: t.text),
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: t.ok, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          translate('funti-family-added')
+                              .replaceAll('{}', member.title),
+                          style: TextStyle(fontSize: 15, color: t.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                        labelText: translate('funti-family-name'),
+                        helperText: translate('funti-family-name-hint')),
+                    onSubmitted: (_) => done(),
                   ),
                 ],
               );
@@ -227,6 +310,23 @@ void _showCodeDialog(VoidCallback? onChanged) {
                   '${formatFuntiId(gFFI.serverModel.serverId.text)}',
                   style: TextStyle(fontSize: 13, color: t.muted),
                 ),
+                if (value.length == 6) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final id = formatFuntiId(gFFI.serverModel.serverId.text);
+                      final code =
+                          '${value.substring(0, 3)} ${value.substring(3)}';
+                      Clipboard.setData(ClipboardData(
+                          text: translate('funti-family-share')
+                              .replaceAll('{id}', id)
+                              .replaceAll('{code}', code)));
+                      showToast(translate('Copied'));
+                    },
+                    icon: const Icon(Icons.ios_share_rounded, size: 18),
+                    label: Text(translate('funti-family-copy-code')),
+                  ),
+                ],
               ],
             );
           });
@@ -245,6 +345,7 @@ void _showCodeDialog(VoidCallback? onChanged) {
 void _enterCodeDialog(VoidCallback? onChanged) {
   final idController = TextEditingController();
   final codeController = TextEditingController();
+  final nameController = TextEditingController();
   final busy = false.obs;
   final error = ''.obs;
   final added = ''.obs;
@@ -267,7 +368,9 @@ void _enterCodeDialog(VoidCallback? onChanged) {
           as Map<String, dynamic>;
       busy.value = false;
       if (res['name'] != null) {
-        added.value = res['name'].toString();
+        final name = nameController.text.trim();
+        if (name.isNotEmpty) await funtiFamilyRename(id, name);
+        added.value = name.isNotEmpty ? name : res['name'].toString();
         onChanged?.call();
       } else {
         final e = (res['error'] ?? '').toString();
@@ -322,6 +425,15 @@ void _enterCodeDialog(VoidCallback? onChanged) {
                   labelText: translate('funti-family-code'), counterText: ''),
               onSubmitted: (_) => submit(),
             ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nameController,
+              enabled: !busy.value,
+              decoration: InputDecoration(
+                  labelText: translate('funti-family-name'),
+                  helperText: translate('funti-family-name-hint')),
+              onSubmitted: (_) => submit(),
+            ),
             const SizedBox(height: 8),
             if (busy.value) const LinearProgressIndicator(),
             if (error.value.isNotEmpty)
@@ -347,6 +459,8 @@ void _enterCodeDialog(VoidCallback? onChanged) {
 
 /// Helper side: "<name> asks for help" with "Connect".
 void showFuntiHelpRequestDialog(String id, String name) {
+  // A repeated request from the same person replaces the open one.
+  gFFI.dialogManager.dismissByTag('funti-help-$id');
   final known = funtiFamilyMembers().where((m) => m.id == id).toList();
   final title = name.isNotEmpty
       ? name
@@ -383,77 +497,98 @@ void showFuntiHelpRequestDialog(String id, String name) {
   }, tag: 'funti-help-$id');
 }
 
-/// Asking side: send the request to every family member, show who got it.
+/// Asking side: the request goes to one chosen family member only (owner
+/// decision 2026-10-09: no "everybody"). With one member there is no choice.
 void showFuntiAskHelpDialog() {
   final members = funtiFamilyMembers();
-  // id -> null (sending), '' (delivered), error
-  final status = <String, String?>{for (final m in members) m.id: null}.obs;
-  for (final m in members) {
-    bind.mainFuntiFamilyHelp(id: m.id).then((res) {
-      String result = '';
-      try {
-        final json = jsonDecode(res) as Map<String, dynamic>;
-        result = (json['error'] ?? '').toString();
-      } catch (_) {
-        result = 'error';
-      }
-      status[m.id] = result;
-    });
+  if (members.length == 1) {
+    _sendHelpRequest(members.first);
+    return;
   }
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
     return CustomAlertDialog(
-      title: Text(translate('funti-help-ask')),
-      contentBoxConstraints: const BoxConstraints(maxWidth: 460),
-      content: Obx(() {
-        final delivered = status.values.where((v) => v == '').length;
-        final pending = status.values.where((v) => v == null).length;
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final m in members)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 22,
-                      child: status[m.id] == null
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : Icon(
-                              status[m.id] == ''
-                                  ? Icons.check_circle_rounded
-                                  : Icons.remove_circle_outline_rounded,
-                              size: 18,
-                              color: status[m.id] == '' ? t.ok : t.muted),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: Text(m.title,
-                            style: TextStyle(fontSize: 15, color: t.text))),
-                    Text(
-                      status[m.id] == null
-                          ? translate('funti-help-sending')
-                          : status[m.id] == ''
-                              ? translate('funti-help-delivered')
-                              : translate('funti-help-not-delivered'),
-                      style: TextStyle(fontSize: 13, color: t.muted),
-                    ),
-                  ],
+      title: Text(translate('funti-help-whom')),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 420),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final m in members)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  foregroundColor: t.text,
                 ),
+                onPressed: () {
+                  close();
+                  _sendHelpRequest(m);
+                },
+                icon: Icon(Icons.support_agent_rounded, color: t.accent),
+                label: Text(m.title, style: const TextStyle(fontSize: 16)),
               ),
-            const SizedBox(height: 12),
-            Text(
-              pending > 0
-                  ? translate('funti-help-wait-send')
-                  : delivered > 0
-                      ? translate('funti-help-wait-connect')
-                      : translate('funti-help-nobody'),
-              style: TextStyle(fontSize: 13, color: t.muted),
+            ),
+        ],
+      ),
+      actions: [dialogButton('Cancel', onPressed: close, isOutline: true)],
+      onCancel: close,
+    );
+  });
+}
+
+/// Sends the help request to [member] and shows whether it got through.
+void funtiAskHelpFrom(FuntiFamilyMember member) => _sendHelpRequest(member);
+
+void _sendHelpRequest(FuntiFamilyMember member) {
+  // null: sending, '': delivered, otherwise the error.
+  final status = Rxn<String>();
+  bind.mainFuntiFamilyHelp(id: member.id).then((res) {
+    try {
+      final json = jsonDecode(res) as Map<String, dynamic>;
+      status.value = (json['error'] ?? '').toString();
+    } catch (_) {
+      status.value = 'error';
+    }
+  });
+  gFFI.dialogManager.show((setState, close, context) {
+    final t = FuntiTokens.of(context);
+    return CustomAlertDialog(
+      title: Text(translate('funti-help-ask')),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 420),
+      content: Obx(() {
+        final v = status.value;
+        return Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: v == null
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(
+                      v == ''
+                          ? Icons.check_circle_rounded
+                          : Icons.remove_circle_outline_rounded,
+                      color: v == '' ? t.ok : t.muted),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                v == null
+                    ? translate('funti-help-sending-to')
+                        .replaceAll('{}', member.title)
+                    : v == ''
+                        ? translate('funti-help-sent-to')
+                            .replaceAll('{}', member.title)
+                        : translate('funti-help-offline')
+                            .replaceAll('{}', member.title),
+                style: TextStyle(fontSize: 15, color: t.text),
+              ),
             ),
           ],
         );

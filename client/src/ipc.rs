@@ -1002,7 +1002,9 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::FuntiFamilySign(kind, challenge, host_id, None) => {
             use crate::funti_family as family;
             let allowed = kind == family::KIND_PAIR
-                || ((kind == family::KIND_LOGIN || kind == family::KIND_HELP)
+                || ((kind == family::KIND_LOGIN
+                    || kind == family::KIND_HELP
+                    || kind == family::KIND_UNPAIR)
                     && family::member(&host_id).is_some());
             let reply = if allowed {
                 let msg = family::message(&kind, &challenge, &host_id, &Config::get_id());

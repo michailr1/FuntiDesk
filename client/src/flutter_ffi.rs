@@ -979,6 +979,18 @@ pub fn main_funti_family_pair(id: String, code: String) -> String {
     serde_json::json!({ "error": "not supported" }).to_string()
 }
 
+// FUNTIDESK (ADR-006): ask family member `id` to remove this computer from
+// its family (mutual removal). JSON: {} when done there, {"error": "..."}.
+pub fn main_funti_family_leave(id: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return match crate::funti_family::leave_blocking(&id) {
+        Ok(()) => "{}".to_owned(),
+        Err(error) => serde_json::json!({ "error": error }).to_string(),
+    };
+    #[allow(unreachable_code)]
+    serde_json::json!({ "error": "not supported" }).to_string()
+}
+
 // FUNTIDESK (ADR-006): ask family member `id` for help.
 // JSON: {} when delivered, {"error": "..."} otherwise.
 pub fn main_funti_family_help(id: String) -> String {

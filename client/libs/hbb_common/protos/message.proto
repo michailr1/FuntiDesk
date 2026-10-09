@@ -96,6 +96,9 @@ message LoginRequest {
   // A family member asks for help ("help" family message signed in
   // funti_family_proof); no session follows.
   bool funti_help_request = 1003;
+  // A family member leaves this computer's family ("unpair" family message
+  // signed in funti_family_proof); no session follows.
+  bool funti_family_unpair = 1004;
 }
 
 // FUNTIDESK (ADR-006): pairing with the one-time code shown on the other

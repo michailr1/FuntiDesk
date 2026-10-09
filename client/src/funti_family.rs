@@ -28,11 +28,13 @@ pub const OPTION_FAMILY: &str = "funti-family";
 pub const KIND_PAIR: &str = "pair";
 pub const KIND_LOGIN: &str = "login";
 pub const KIND_HELP: &str = "help";
+pub const KIND_UNPAIR: &str = "unpair";
 /// Login errors used by pairing and help requests.
 pub const LOGIN_MSG_PAIRED: &str = "funti-family-paired";
 pub const LOGIN_MSG_PAIR_FAILED: &str = "funti-family-pair-failed";
 pub const LOGIN_MSG_HELP_DELIVERED: &str = "funti-help-delivered";
 pub const LOGIN_MSG_HELP_REFUSED: &str = "funti-help-refused";
+pub const LOGIN_MSG_UNPAIRED: &str = "funti-family-unpaired";
 
 const PAIR_CODE_TTL: Duration = Duration::from_secs(600);
 const HELP_TTL: Duration = Duration::from_secs(600);
@@ -83,6 +85,13 @@ pub fn add(id: &str, name: &str, pk: &[u8]) {
     });
     store(&list);
     log::info!("FuntiDesk family: {} ({}) added", id, name);
+}
+
+/// Removes the member with this id.
+pub fn remove(id: &str) {
+    let list: Vec<Member> = members().into_iter().filter(|m| m.id != id).collect();
+    store(&list);
+    log::info!("FuntiDesk family: {} removed", id);
 }
 
 /// The message a device signs: bound to one connection (challenge), to the
@@ -263,6 +272,7 @@ mod client_side {
     enum Request {
         Pair(String),
         Help,
+        Unpair,
     }
 
     /// One login to computer `id` without UI: pairing by code, or a help
@@ -299,6 +309,7 @@ mod client_side {
                     let kind = match request {
                         Request::Pair(_) => KIND_PAIR,
                         Request::Help => KIND_HELP,
+                        Request::Unpair => KIND_UNPAIR,
                     };
                     let (sig, own_pk) = request_sign(kind, &hash.challenge, id)
                         .await
@@ -322,6 +333,10 @@ mod client_side {
                             }
                             Request::Help => {
                                 lr.funti_help_request = true;
+                                lr.funti_family_proof = sig.into();
+                            }
+                            Request::Unpair => {
+                                lr.funti_family_unpair = true;
                                 lr.funti_family_proof = sig.into();
                             }
                         }
@@ -361,6 +376,17 @@ mod client_side {
         }
     }
 
+    /// Asks family member `id` to remove this computer from its family, so
+    /// that removing is mutual. Call before removing `id` here: the request
+    /// is signed only for a member.
+    pub async fn leave(id: &str) -> Result<(), String> {
+        let (res, _) = headless(id, Request::Unpair).await?;
+        match login_error(&res).as_str() {
+            LOGIN_MSG_UNPAIRED => Ok(()),
+            err => Err(err.to_owned()),
+        }
+    }
+
     /// Asks family member `id` for help. Before connecting, our service
     /// allows one login from `id` without "Accept" (the person here asked).
     pub async fn ask_help(id: &str) -> Result<(), String> {
@@ -376,7 +402,7 @@ mod client_side {
     }
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub use client_side::{ask_help, pair_with, request_code, request_sign};
+pub use client_side::{ask_help, leave, pair_with, request_code, request_sign};
 
 /// Blocking wrappers for the UI bridge.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -395,6 +421,12 @@ pub async fn pair_blocking(id: &str, code: &str) -> Result<String, String> {
 #[tokio::main(flavor = "current_thread")]
 pub async fn help_blocking(id: &str) -> Result<(), String> {
     ask_help(id).await
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn leave_blocking(id: &str) -> Result<(), String> {
+    leave(id).await
 }
 
 #[cfg(test)]

@@ -217,6 +217,7 @@ struct FuntiFamilyLogin {
     proof: Vec<u8>,
     password_empty: bool,
     help_request: bool,
+    unpair: bool,
     my_id: String,
     my_name: String,
 }
@@ -2222,6 +2223,20 @@ impl Connection {
             sleep(1.).await;
             return Some(false);
         }
+        if lr.unpair {
+            // A family member leaves: removing is mutual. Only the member
+            // itself can ask (signature with its own key).
+            if !lr.proof.is_empty()
+                && family::verify_member(family::KIND_UNPAIR, &lr.my_id, &self.hash.challenge, &lr.proof)
+            {
+                family::remove(&lr.my_id);
+                self.send_login_error(family::LOGIN_MSG_UNPAIRED).await;
+            } else {
+                self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_WRONG).await;
+            }
+            sleep(1.).await;
+            return Some(false);
+        }
         if lr.help_request {
             // A family member asks for help: notify the person here, no session.
             let delivered = !lr.proof.is_empty()
@@ -2676,6 +2691,7 @@ impl Connection {
                 proof: lr.funti_family_proof.to_vec(),
                 password_empty: lr.password.is_empty(),
                 help_request: lr.funti_help_request,
+                unpair: lr.funti_family_unpair,
                 my_id: lr.my_id.clone(),
                 my_name: lr.my_name.clone(),
             };
