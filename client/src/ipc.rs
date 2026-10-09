@@ -392,6 +392,9 @@ pub enum Data {
     // This computer asks family member `id` for help: allow its next login.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiHelpAllow(String),
+    // Remove family member `id` here; "leave" to it stays signable briefly.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyRemove(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -1005,7 +1008,8 @@ async fn handle(data: Data, stream: &mut Connection) {
                 || ((kind == family::KIND_LOGIN
                     || kind == family::KIND_HELP
                     || kind == family::KIND_UNPAIR)
-                    && family::member(&host_id).is_some());
+                    && family::member(&host_id).is_some())
+                || (kind == family::KIND_UNPAIR && family::is_leaving(&host_id));
             let reply = if allowed {
                 let msg = family::message(&kind, &challenge, &host_id, &Config::get_id());
                 let sig = family::sign_message(&msg);
@@ -1037,6 +1041,11 @@ async fn handle(data: Data, stream: &mut Connection) {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiHelpAllow(id) => {
             crate::funti_family::allow_help(&id);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyRemove(id) => {
+            crate::funti_family::remove_and_leave(&id);
+            allow_err!(stream.send(&Data::FuntiFamilyRemove(id)).await);
         }
         #[cfg(feature = "flutter")]
         #[cfg(not(any(target_os = "android", target_os = "ios")))]

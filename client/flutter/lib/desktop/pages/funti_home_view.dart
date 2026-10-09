@@ -1267,13 +1267,7 @@ class _FamilyRow extends StatelessWidget {
         showFuntiFamilyRenameDialog(member, onChanged: onChanged);
         break;
       case _FamilyAction.remove:
-        deleteConfirmDialog(() async {
-          final both = await funtiFamilyLeave(member);
-          onChanged();
-          showToast(translate(
-                  both ? 'funti-family-removed-both' : 'funti-family-removed-here')
-              .replaceAll('{}', member.title));
-        }, translate('funti-family-remove-confirm').replaceAll('{}', member.title));
+        showFuntiFamilyRemoveDialog(member, onChanged: onChanged);
         break;
     }
   }

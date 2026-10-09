@@ -44,6 +44,9 @@ lazy_static::lazy_static! {
     // Family members asked for help from this computer: their next family
     // login here is accepted without "Accept" (the person asked themselves).
     static ref HELP_ALLOWED: Mutex<std::collections::HashMap<String, Instant>> = Default::default();
+    // Members just removed here: the "leave" message to them is still signed
+    // for a short while, so removing here does not wait for the network.
+    static ref LEAVING: Mutex<std::collections::HashMap<String, Instant>> = Default::default();
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -85,6 +88,25 @@ pub fn add(id: &str, name: &str, pk: &[u8]) {
     });
     store(&list);
     log::info!("FuntiDesk family: {} ({}) added", id, name);
+}
+
+const LEAVING_TTL: Duration = Duration::from_secs(120);
+
+/// Removes the member here at once and keeps signing "leave" to it for two
+/// minutes (the notice to the other computer goes out in the background).
+pub fn remove_and_leave(id: &str) {
+    LEAVING
+        .lock()
+        .unwrap()
+        .insert(id.to_owned(), Instant::now());
+    remove(id);
+}
+
+/// True while a "leave" message to a just removed member may be signed.
+pub fn is_leaving(id: &str) -> bool {
+    let mut map = LEAVING.lock().unwrap();
+    map.retain(|_, at| at.elapsed() < LEAVING_TTL);
+    map.contains_key(id)
 }
 
 /// Removes the member with this id.
@@ -376,10 +398,15 @@ mod client_side {
         }
     }
 
-    /// Asks family member `id` to remove this computer from its family, so
-    /// that removing is mutual. Call before removing `id` here: the request
-    /// is signed only for a member.
+    /// Removes `id` from the family here (at once) and asks that computer to
+    /// remove this one too, so that removing is mutual.
     pub async fn leave(id: &str) -> Result<(), String> {
+        let mut conn = ipc::connect(1000, "").await.map_err(|e| e.to_string())?;
+        conn.send(&IpcData::FuntiFamilyRemove(id.to_owned()))
+            .await
+            .map_err(|e| e.to_string())?;
+        // Let the service apply it before the UI reads the list again.
+        conn.next_timeout(1000).await.ok();
         let (res, _) = headless(id, Request::Unpair).await?;
         match login_error(&res).as_str() {
             LOGIN_MSG_UNPAIRED => Ok(()),

@@ -78,18 +78,53 @@ Future<void> funtiFamilyRemove(String id) async {
       value: jsonEncode(rest.map((m) => m.toJson()).toList()));
 }
 
-/// Removes [member] from the family here and asks the other computer to
-/// remove this one too, so that removing is mutual. Returns true when the
-/// other side confirmed.
-Future<bool> funtiFamilyLeave(FuntiFamilyMember member) async {
-  // Signed while the member is still in the list here.
-  final res = await bind.mainFuntiFamilyLeave(id: member.id);
-  await funtiFamilyRemove(member.id);
-  try {
-    return (jsonDecode(res) as Map<String, dynamic>)['error'] == null;
-  } catch (_) {
-    return false;
-  }
+/// Asks to remove [member]: a confirmation that wraps its text, then the
+/// member is gone here at once and the other computer is told in the
+/// background; the outcome comes as a toast.
+void showFuntiFamilyRemoveDialog(FuntiFamilyMember member,
+    {VoidCallback? onChanged}) {
+  gFFI.dialogManager.show((setState, close, context) {
+    final t = FuntiTokens.of(context);
+    void remove() {
+      close();
+      // The service removes the member before the other side answers.
+      final pending = bind.mainFuntiFamilyLeave(id: member.id);
+      Future.delayed(const Duration(milliseconds: 600), () => onChanged?.call());
+      pending.then((res) {
+        bool both = false;
+        try {
+          both = (jsonDecode(res) as Map<String, dynamic>)['error'] == null;
+        } catch (_) {}
+        onChanged?.call();
+        showToast(translate(both
+                ? 'funti-family-removed-both'
+                : 'funti-family-removed-here')
+            .replaceAll('{}', member.title));
+      });
+    }
+
+    return CustomAlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.delete_outline_rounded,
+              color: Theme.of(context).colorScheme.error),
+          const SizedBox(width: 10),
+          Expanded(child: Text(translate('funti-family-remove'))),
+        ],
+      ),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 440),
+      content: Text(
+        translate('funti-family-remove-confirm').replaceAll('{}', member.title),
+        style: TextStyle(fontSize: 14, color: t.text),
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('funti-family-remove', onPressed: remove),
+      ],
+      onSubmit: remove,
+      onCancel: close,
+    );
+  });
 }
 
 /// Local name for a family member (only on this device).
