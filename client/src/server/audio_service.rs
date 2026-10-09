@@ -347,8 +347,36 @@ mod cpal_impl {
     }
 
     fn play(sp: &GenericService) -> ResultType<(Box<dyn StreamTrait>, Arc<Message>)> {
-        use cpal::SampleFormat::*;
         let (device, config) = get_device()?;
+        let first_err = match play_with(device.clone(), config.clone(), sp) {
+            Ok(res) => return Ok(res),
+            Err(e) => e,
+        };
+        // FUNTIDESK: some USB headsets (seen 2026-10-09: Logi USB Headset H340)
+        // reject the default shared-mode format with E_INVALIDARG; try the
+        // other formats the device reports before giving up.
+        log::warn!("FuntiDesk audio: default input format failed: {}", first_err);
+        if let Ok(configs) = device.supported_input_configs() {
+            for range in configs {
+                let config = range.with_max_sample_rate();
+                match play_with(device.clone(), config.clone(), sp) {
+                    Ok(res) => {
+                        log::info!("FuntiDesk audio: input format {:?}", config);
+                        return Ok(res);
+                    }
+                    Err(e) => log::debug!("FuntiDesk audio: {:?} failed: {}", config, e),
+                }
+            }
+        }
+        Err(first_err)
+    }
+
+    fn play_with(
+        device: cpal::Device,
+        config: cpal::SupportedStreamConfig,
+        sp: &GenericService,
+    ) -> ResultType<(Box<dyn StreamTrait>, Arc<Message>)> {
+        use cpal::SampleFormat::*;
         let sp = sp.clone();
         // Sample rate must be one of 8000, 12000, 16000, 24000, or 48000.
         let sample_rate_0 = config.sample_rate().0;

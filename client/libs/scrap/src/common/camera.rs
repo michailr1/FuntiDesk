@@ -159,7 +159,7 @@ impl Cameras {
 
     // FUNTIDESK: "absolute highest resolution" may pick a mode some cameras
     // never stream in. Prefer the largest mode with at least 15 fps in a
-    // common format (MJPEG, NV12, YUYV); log what the camera offers.
+    // common format (NV12, MJPEG, YUYV); log what the camera offers.
     #[cfg(target_os = "windows")]
     fn funti_pick_format(camera: &mut Camera) {
         let formats = match camera.compatible_camera_formats() {
@@ -171,8 +171,10 @@ impl Cameras {
         };
         hbb_common::log::info!("FuntiDesk camera formats: {:?}", formats);
         let rank = |f: FrameFormat| match f {
-            FrameFormat::MJPEG => 3,
-            FrameFormat::NV12 => 2,
+            // NV12 first: the camera's native format under Media Foundation;
+            // with MJPEG a laptop camera opened at 1 fps and gave no frames.
+            FrameFormat::NV12 => 3,
+            FrameFormat::MJPEG => 2,
             FrameFormat::YUYV => 1,
             _ => 0,
         };
