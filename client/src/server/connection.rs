@@ -2188,7 +2188,8 @@ impl Connection {
     // - pairing: a correct one-time code adds the guest to this computer's
     //   family and the connection ends; a wrong code counts as a failed login;
     // - a family member's signature over this connection's challenge: no
-    //   password, but the person here has to accept (any session type).
+    //   password and no "Accept" for control, files and terminal; a call
+    //   (camera session) still has to be answered here.
     // None: no family data, or the signature does not match a member — the
     // usual password path follows (fail closed).
     async fn funti_family_login(&mut self, lr: FuntiFamilyLogin) -> Option<bool> {
@@ -2265,9 +2266,16 @@ impl Connection {
             self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY).await;
             return Some(true);
         }
-        if family::take_help(&lr.my_id) {
-            // The person here asked this member for help a moment ago.
-            log::info!("FuntiDesk family: {} answers a help request", lr.my_id);
+        // Owner decision 2026-10-09: a family member connects to control,
+        // files and terminal without "Accept" (like a permanent password);
+        // only a call (camera session) has to be answered here.
+        let help_answer = family::take_help(&lr.my_id);
+        if help_answer || !self.view_camera {
+            log::info!(
+                "FuntiDesk family: {} signed in{}",
+                lr.my_id,
+                if help_answer { " (answers a help request)" } else { "" }
+            );
             self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::Click);
             if !self.send_logon_response_and_keep_alive().await {
                 return Some(false);
@@ -2275,7 +2283,7 @@ impl Connection {
             self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
             return Some(true);
         }
-        log::info!("FuntiDesk family: {} signed in, waiting for accept", lr.my_id);
+        log::info!("FuntiDesk family: {} calls, waiting for answer", lr.my_id);
         self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), false);
         self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
             .await;
