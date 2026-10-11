@@ -2461,6 +2461,8 @@ class _AboutState extends State<_About> {
               SelectionArea(
                   child: Text('${translate('Build Date')}: $buildDate')
                       .marginSymmetric(vertical: 4.0)),
+              // FUNTIDESK (ADR-007): update from the FuntiDesk release.
+              if (isWindows) const _FuntiUpdate(),
               if (!isWeb)
                 SelectionArea(
                     child: Text('${translate('Fingerprint')}: $fingerprint')
@@ -2513,6 +2515,103 @@ class _AboutState extends State<_About> {
         ]),
       );
     });
+  }
+}
+
+// FUNTIDESK (ADR-007): "Check for updates" -> "Version N is available" ->
+// "Update". Errors leave the installed copy as it is.
+class _FuntiUpdate extends StatefulWidget {
+  const _FuntiUpdate({Key? key}) : super(key: key);
+
+  @override
+  State<_FuntiUpdate> createState() => _FuntiUpdateState();
+}
+
+enum _UpdateStage { idle, checking, latest, available, updating, failed }
+
+class _FuntiUpdateState extends State<_FuntiUpdate> {
+  _UpdateStage _stage = _UpdateStage.idle;
+  String _version = '';
+  String _unsupported = '';
+  String _error = '';
+
+  Future<void> _check() async {
+    setState(() => _stage = _UpdateStage.checking);
+    final res = jsonDecode(await bind.mainFuntiUpdateCheck());
+    if (!mounted) return;
+    setState(() {
+      if (res['error'] != null) {
+        _error = translate('funti-update-check-failed')
+            .replaceAll('{}', res['error'].toString());
+        _stage = _UpdateStage.failed;
+      } else {
+        _version = res['version'].toString();
+        _unsupported = res['unsupported'].toString();
+        _stage = res['available'] == true
+            ? _UpdateStage.available
+            : _UpdateStage.latest;
+      }
+    });
+  }
+
+  Future<void> _update() async {
+    setState(() => _stage = _UpdateStage.updating);
+    final err = await bind.mainFuntiUpdateStart();
+    if (!mounted || err.isEmpty) return;
+    setState(() {
+      _error = translate('funti-update-failed')
+          .replaceAll('{}', translate(err));
+      _stage = _UpdateStage.failed;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = _stage == _UpdateStage.checking ||
+        _stage == _UpdateStage.updating;
+    final String text;
+    switch (_stage) {
+      case _UpdateStage.idle:
+        text = '';
+        break;
+      case _UpdateStage.checking:
+        text = translate('funti-update-checking');
+        break;
+      case _UpdateStage.latest:
+        text = translate('funti-update-latest');
+        break;
+      case _UpdateStage.available:
+        text = translate('funti-update-available').replaceAll('{}', _version) +
+            (_unsupported.isEmpty ? '' : '\n${translate(_unsupported)}');
+        break;
+      case _UpdateStage.updating:
+        text = translate('funti-update-progress');
+        break;
+      case _UpdateStage.failed:
+        text = _error;
+        break;
+    }
+    final canUpdate = _stage == _UpdateStage.available && _unsupported.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          OutlinedButton(
+            onPressed: busy ? null : (canUpdate ? _update : _check),
+            child: Text(translate(
+                canUpdate ? 'funti-update-now' : 'funti-update-check')),
+          ),
+          if (busy)
+            const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                .marginOnly(left: 12),
+        ]),
+        if (text.isNotEmpty)
+          SelectionArea(child: Text(text)).marginOnly(top: 6),
+      ],
+    ).marginSymmetric(vertical: 8.0);
   }
 }
 

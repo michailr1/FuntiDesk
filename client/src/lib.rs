@@ -25,6 +25,10 @@ pub mod funti_family;
 /// cbindgen:ignore
 /// FUNTIDESK (ADR-005): incoming call ring.
 pub mod funti_ring;
+/// cbindgen:ignore
+/// FUNTIDESK (ADR-007): update from the FuntiDesk release.
+#[cfg(windows)]
+pub mod funti_update;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

@@ -855,5 +855,15 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-net-offline", "Нет связи с сетью FuntiDesk"),
         ("funti-copy-id-and-password", "Скопировать ID и пароль"),
         ("funti-share-title", "FuntiDesk: подключение к компьютеру"),
+        ("funti-update-check", "Проверить обновления"),
+        ("funti-update-checking", "Проверяю…"),
+        ("funti-update-latest", "Установлена последняя версия FuntiDesk"),
+        ("funti-update-available", "Доступна версия {}"),
+        ("funti-update-now", "Обновить"),
+        ("funti-update-progress", "Скачиваю и проверяю обновление, затем FuntiDesk перезапустится…"),
+        ("funti-update-check-failed", "Не удалось проверить обновления: {}"),
+        ("funti-update-failed", "Не удалось обновить: {}. Установленная версия не изменилась."),
+        ("funti-update-unsupported-service", "Обновление кнопкой в установленном режиме (служба) пока не поддерживается."),
+        ("funti-update-unsupported-copy", "Кнопкой обновляется только FuntiDesk, установленный командой установки. Эту копию обновите командой установки заново."),
     ].iter().cloned().collect();
 }

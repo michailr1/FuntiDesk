@@ -855,5 +855,15 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-net-offline", ""),
         ("funti-copy-id-and-password", ""),
         ("funti-share-title", ""),
+        ("funti-update-check", ""),
+        ("funti-update-checking", ""),
+        ("funti-update-latest", ""),
+        ("funti-update-available", ""),
+        ("funti-update-now", ""),
+        ("funti-update-progress", ""),
+        ("funti-update-check-failed", ""),
+        ("funti-update-failed", ""),
+        ("funti-update-unsupported-service", ""),
+        ("funti-update-unsupported-copy", ""),
     ].iter().cloned().collect();
 }
