@@ -1599,7 +1599,7 @@ impl Client {
                 kcp = None;
                 typ = "Relay";
                 direct = false;
-                res = Self::secure_connection(peer_id, signed_id_pk, key, &mut conn).await;
+                res = Self::secure_connection(peer_id, signed_id_pk.clone(), key, &mut conn).await;
             }
         }
         let pk: Option<Vec<u8>> = match res {
@@ -4756,7 +4756,7 @@ pub async fn handle_hash(
             };
             send_login(lc.clone(), os_username, os_password, Vec::new(), peer).await;
             lc.write().unwrap().hash = hash;
-            return;
+            return true;
         }
     }
 

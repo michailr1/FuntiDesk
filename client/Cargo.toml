@@ -81,6 +81,8 @@ rdev = { git = "https://github.com/rustdesk-org/rdev" }
 url = { version = "2.3", features = ["serde"] }
 crossbeam-queue = "0.3"
 hex = "0.4"
+# FUNTIDESK (ADR-007): unpacking the update archive.
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 chrono = "0.4"
 cidr-utils = "0.5"
 fon = "0.6"

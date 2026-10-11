@@ -2553,6 +2553,7 @@ class _AboutState extends State<_About> {
       // FUNTIDESK: own "About" (mockup approved 2026-10-11): a quote, Funtik
       // at the monitor, version and update, source code. Attribution and the
       // license of the upstream project stay (ADR-003).
+      final myId = data['myId'].toString();
       final t = FuntiTokens.of(context);
       final muted = TextStyle(fontSize: 13, color: t.muted);
       final linkStyle = TextStyle(
@@ -2745,7 +2746,9 @@ class _FuntiUpdateState extends State<_FuntiUpdate> {
           OutlinedButton(
             onPressed: busy ? null : (canUpdate ? _update : _check),
             child: Text(translate(
-                canUpdate ? 'funti-update-now' : 'funti-update-check')),
+                canUpdate || _stage == _UpdateStage.updating
+                    ? 'funti-update-now'
+                    : 'funti-update-check')),
           ),
           if (busy)
             const SizedBox(

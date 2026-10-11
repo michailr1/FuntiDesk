@@ -456,7 +456,7 @@ pub fn has_no_active_conns_ipc() -> bool {
 
 #[cfg(target_os = "macos")]
 fn wait_for_failed_update_retry() {
-    const FAILURE_MARKER: &str = "/var/root/.rustdeskupdate_failed";
+    const FAILURE_MARKER: &str = "/var/root/.funtideskupdate_failed";
     let marker = std::path::Path::new(FAILURE_MARKER);
     if !marker.exists() {
         return;
@@ -552,7 +552,7 @@ pub fn check_update_as_root() -> ResultType<bool> {
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str.starts_with(".rustdeskupdate-root-")
+            if name_str.starts_with(".funtideskupdate-root-")
                 || name_str.starts_with(".rustdeskdownload-")
             {
                 let path = entry.path();

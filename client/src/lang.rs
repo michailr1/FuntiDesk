@@ -53,10 +53,6 @@ mod tw;
 mod uk;
 mod ur;
 mod vi;
-mod ta;
-mod ge;
-mod fi;
-mod ml;
 mod gl;
 
 pub const LANGS: &[(&str, &str)] = &[

@@ -77,7 +77,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             children: [
               if (!isOutgoingOnly) _presetPasswordWarning,
               Obx(() => buildHelpCards(stateGlobal.updateUrl.value)),
-              buildPluginEntry(),
             ],
           ),
         ),

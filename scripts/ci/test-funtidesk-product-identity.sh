@@ -35,7 +35,7 @@ r21='.github/workflows/r21-windows-clean-build.yml'
 for required_file in \
   "$cmake" "$rc" "$runner" "$windows_channel" "$dart_channel" \
   "$relative_mouse" "$config" "$auth_2fa" "$windows_runtime" \
-  "$privacy_runtime" "$plugins" "$android_gradle" "$android_manifest" \
+  "$privacy_runtime" "$android_gradle" "$android_manifest" \
   "$android_boot" "$android_floating" "$ios_info" "$ios_project" \
   "$mac_info" "$mac_project" "$mac_runtime" "$linux_cmake" "$linux_app" \
   "$linux_dbus" "$terminal_runtime" "$r21"; do
@@ -91,10 +91,10 @@ if grep -Eq 'RuntimeBroker_rustdesk\.exe|RustDeskPrivacyWindow(Class)?' "$privac
   fail 'legacy RustDesk privacy-mode runtime namespace remains'
 fi
 
-grep -Fq 'get_plugins_dir_for("FuntiDesk")' "$plugins" || fail 'plugin runtime namespace is not FuntiDesk'
-grep -Fq 'Existing legacy plugins remain untouched' "$plugins" || fail 'plugin legacy isolation contract is missing'
-if grep -Eq 'copy_plugin_tree_missing|return Ok\(legacy\)|using legacy directory for this run' "$plugins"; then
-  fail 'legacy executable plugins must not be copied or used as FuntiDesk runtime state'
+# Upstream 1.5.0 removed the executable plugin framework; it must not come back
+# unreviewed (a plugin runs foreign code with FuntiDesk's rights).
+if [[ -e "$plugins" ]]; then
+  fail 'executable plugin framework is back in the client; it needs its own review'
 fi
 
 # Android product/runtime identity (docs/ANDROID.md): own applicationId,
@@ -155,7 +155,7 @@ grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 art
 #   com.carriez.flutter_hbb until a dedicated data/update migration is designed.
 # - legacy RustDesk profile identifiers remain only where required for one-time migration.
 # - passive legacy profile data migrates only through the hardened non-overwriting copy helper.
-# - legacy executable plugins are retained on disk but are not copied/executed automatically.
+# - legacy executable plugins are retained on disk; the client has no plugin framework (upstream 1.5.0).
 # - upstream update-feed filenames (rustdesk-<version>.*) remain until FuntiDesk owns
 #   its update endpoint and artifact contract.
 # - Cargo package/crate names, rustdesk-org dependencies, upstream links and legal

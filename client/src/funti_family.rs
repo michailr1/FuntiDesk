@@ -210,8 +210,8 @@ mod client_side {
     use crate::client::{Client, Data, Interface, LoginConfigHandler};
     use crate::ipc::{self, Data as IpcData};
     use async_trait::async_trait;
+    use base::message_proto::*;
     use hbb_common::{
-        message_proto::*,
         protobuf::Message as _,
         rendezvous_proto::ConnType,
         tokio::time::{timeout, Duration as TokioDuration},
@@ -284,7 +284,10 @@ mod client_side {
         }
         fn handle_peer_info(&self, _pi: PeerInfo) {}
         fn set_multiple_windows_session(&self, _sessions: Vec<WindowsSession>) {}
-        async fn handle_hash(&self, _pass: &str, _hash: Hash, _peer: &mut Stream) {}
+        // Not used: `headless` answers the Hash itself.
+        async fn handle_hash(&self, _pass: &str, _hash: Hash, _peer: &mut Stream) -> bool {
+            false
+        }
         async fn handle_login_from_ui(
             &self,
             _os_username: String,
