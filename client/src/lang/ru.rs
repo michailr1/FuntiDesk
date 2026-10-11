@@ -836,6 +836,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-window-control", "Управление"),
         ("funti-call-title", "Звонок"),
         ("funti-call-no-camera", "У собеседника нет камеры. Звонок идёт без видео."),
+        ("funti-call-camera-unavailable", "Камера на той стороне недоступна (возможно, её блокирует антивирус или политика). Звонок идёт без видео."),
         ("funti-incoming-call", "Входящий звонок"),
         ("funti-answer-call", "Ответить"),
         ("funti-decline-call", "Отклонить"),

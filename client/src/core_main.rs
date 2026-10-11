@@ -131,7 +131,8 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     if args.len() > 0 {
         if args[0] == "--version" {
-            println!("{}", crate::VERSION);
+            // FUNTIDESK: the same version as in "About".
+            println!("{}-ft.{}", crate::VERSION, crate::FUNTI_BUILD);
             return None;
         } else if args[0] == "--build-date" {
             println!("{}", crate::BUILD_DATE);

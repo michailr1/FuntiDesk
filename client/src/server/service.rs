@@ -188,6 +188,11 @@ impl<T: Subscriber + From<ConnInner>> ServiceTmpl<T> {
         self.0.read().unwrap().has_subscribes()
     }
 
+    // FUNTIDESK (ADR-005): connections watching this service right now.
+    pub fn subscriber_ids(&self) -> Vec<i32> {
+        self.0.read().unwrap().subscribes.keys().copied().collect()
+    }
+
     pub fn snapshot<F>(&self, callback: F) -> ResultType<()>
     where
         F: FnMut(ServiceSwap<T>) -> ResultType<()>,
