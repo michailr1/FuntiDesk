@@ -17,13 +17,13 @@ use hbb_common::{
     bail,
     config::{Config, CONNECT_TIMEOUT, RELAY_PORT},
     log,
-    message_proto::*,
     protobuf::{Enum, Message as _},
     rendezvous_proto::*,
     socket_client,
     sodiumoxide::crypto::{box_, sign},
     timeout, tokio, ResultType, Stream,
 };
+use base::message_proto::*;
 use scrap::camera;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use service::ServiceTmpl;
@@ -44,6 +44,8 @@ mod clipboard_service;
 pub use clipboard_service::is_clipboard_service_ok;
 #[cfg(target_os = "linux")]
 pub(crate) mod wayland;
+#[cfg(all(target_os = "linux", feature = "drm"))]
+pub(crate) mod drm_capturer;
 #[cfg(target_os = "linux")]
 pub mod uinput;
 #[cfg(target_os = "linux")]
@@ -68,6 +70,7 @@ pub mod input_service {
 
 mod connection;
 mod login_failure_check;
+pub(crate) mod port_forward_mux;
 pub mod display_service;
 #[cfg(windows)]
 pub mod portable_service;
@@ -114,6 +117,15 @@ pub struct Server {
 
 pub type ServerPtr = Arc<RwLock<Server>>;
 pub type ServerPtrWeak = Weak<RwLock<Server>>;
+
+#[cfg(test)]
+pub fn new_for_test() -> ServerPtr {
+    Arc::new(RwLock::new(Server {
+        connections: HashMap::new(),
+        services: HashMap::new(),
+        id_count: 1000,
+    }))
+}
 
 pub fn new() -> ServerPtr {
     let mut server = Server {
@@ -170,6 +182,7 @@ async fn accept_connection_(
     socket: Stream,
     secure: bool,
     meta: ConnectionMeta,
+    slot: crate::rendezvous_mediator::PunchSlot,
 ) -> ResultType<()> {
     let local_addr = socket.local_addr();
     drop(socket);
@@ -179,6 +192,8 @@ async fn accept_connection_(
     let listener = new_listener(local_addr, true).await?;
     log::info!("Server listening on: {}", &listener.local_addr()?);
     if let Ok((stream, addr)) = timeout(CONNECT_TIMEOUT, listener.accept()).await? {
+        // The peer is in: the place goes back before the session runs, as every punch's does.
+        drop(slot);
         stream.set_nodelay(true).ok();
         let stream_addr = stream.local_addr()?;
         create_tcp_connection(
@@ -201,28 +216,76 @@ pub async fn create_tcp_connection(
     meta: ConnectionMeta,
 ) -> ResultType<()> {
     let mut stream = stream;
+    // The address the connection layer keys on, whitelist and admission alike.
+    let addr = hbb_common::try_into_v4(addr);
     let id = server.write().unwrap().get_new_id();
     // FUNTIDESK R-10: all production peer sessions require the authenticated
     // encrypted handshake. Direct-IP/LAN/relay paths are not allowed to downgrade.
     if !secure {
         bail!("Handshake failed: insecure session rejected by FuntiDesk policy");
     }
+    // Admitted before the identity handshake, so a peer that stalls in it, or after it without
+    // logging in, holds its place the whole time; an address over its share is turned away.
+    let Some(unauthorized) = admit_unauthorized(id, addr.ip()) else {
+        bail!("too many unauthenticated connections from {}", addr.ip());
+    };
+    // Before the handshake, so its read is bounded too; lifted again at authorization.
+    stream.set_max_packet_length(MAX_UNAUTHORIZED_MESSAGE);
+    tokio::select! {
+        handshake = identity_handshake(&mut stream) => handshake?,
+        _ = unauthorized.evicted() => {
+            bail!("evicted to make room for a newer unauthenticated connection");
+        }
+    }
 
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        if let Ok(task) = Command::new("/usr/bin/caffeinate")
+            .arg("-u")
+            .arg("-t 5")
+            .spawn()
+        {
+            super::CHILD_PROCESS.lock().unwrap().push(task);
+        }
+        log::info!("wake up macos");
+    }
+    Connection::start(
+        addr,
+        stream,
+        id,
+        Arc::downgrade(&server),
+        meta,
+        unauthorized,
+    )
+    .await;
+    Ok(())
+}
+
+/// Our signed identity goes out and the controller's reply keys `stream`.
+/// Separate so it can be raced against the connection's eviction.
+/// FUNTIDESK R-10: every deviation from the encrypted handshake is an error.
+async fn identity_handshake(stream: &mut Stream) -> ResultType<()> {
+    // FUNTIDESK: WebRTC (upstream 1.5.0) is off until its own ADR.
+    if stream.is_webrtc() {
+        bail!("Handshake failed: WebRTC transport is disabled by FuntiDesk policy");
+    }
     let (sk, pk) = Config::get_key_pair();
     if pk.len() != sign::PUBLICKEYBYTES || sk.len() != sign::SECRETKEYBYTES {
         bail!("Handshake failed: local device identity key pair is invalid");
     }
-
     let mut sk_ = [0u8; sign::SECRETKEYBYTES];
     sk_[..].copy_from_slice(&sk);
     let sk = sign::SecretKey(sk_);
     let mut msg_out = Message::new();
     let (our_pk_b, our_sk_b) = box_::gen_keypair();
+    let advertised = tcp::KX_VERSION_LATEST;
     msg_out.set_signed_id(SignedId {
         id: sign::sign(
             &IdPk {
                 id: Config::get_id(),
                 pk: Bytes::from(our_pk_b.0.to_vec()),
+                kx_version: advertised,
                 ..Default::default()
             }
             .write_to_bytes()
@@ -244,44 +307,52 @@ pub async fn create_tcp_connection(
         Some(message::Union::PublicKey(pk)) => pk,
         _ => bail!("Handshake failed: expected PublicKey"),
     };
+    if peer_key.asymmetric_value.is_empty() {
+        // The controller does not trust our key: register it again, refuse this session.
+        Config::set_key_confirmed(false);
+        bail!("Handshake failed: peer rejected our key");
+    }
     if peer_key.asymmetric_value.len() != box_::PUBLICKEYBYTES {
         bail!("Handshake failed: empty or invalid peer asymmetric key");
     }
     if peer_key.symmetric_value.is_empty() {
         bail!("Handshake failed: empty peer symmetric key");
     }
-
+    if peer_key.kx_version > advertised {
+        bail!(
+            "Handshake failed: key exchange version {} not offered, {} was",
+            peer_key.kx_version,
+            advertised
+        );
+    }
     let session_key = tcp::Encrypt::decode(
         &peer_key.symmetric_value,
         &peer_key.asymmetric_value,
         &our_sk_b,
     )?;
-    stream.set_key(session_key);
+    stream.set_negotiated_key(
+        session_key,
+        false,
+        &tcp::KxTranscript {
+            initiator_pk: &peer_key.asymmetric_value,
+            responder_pk: &our_pk_b.0,
+            advertised,
+            picked: peer_key.kx_version,
+        },
+    )?;
 
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        if let Ok(task) = Command::new("/usr/bin/caffeinate")
-            .arg("-u")
-            .arg("-t 5")
-            .spawn()
-        {
-            super::CHILD_PROCESS.lock().unwrap().push(task);
-        }
-        log::info!("wake up macos");
-    }
-    Connection::start(addr, stream, id, Arc::downgrade(&server), meta).await;
     Ok(())
 }
 
-pub async fn accept_connection(
+pub(crate) async fn accept_connection(
     server: ServerPtr,
     socket: Stream,
     peer_addr: SocketAddr,
     secure: bool,
     meta: ConnectionMeta,
+    slot: crate::rendezvous_mediator::PunchSlot,
 ) {
-    if let Err(err) = accept_connection_(server, socket, secure, meta).await {
+    if let Err(err) = accept_connection_(server, socket, secure, meta, slot).await {
         log::warn!("Failed to accept connection from {}: {}", peer_addr, err);
     }
 }
@@ -361,15 +432,13 @@ impl Server {
         }
     }
 
-    pub fn try_add_primay_video_service(&mut self) {
-        let primary_video_service_name = video_service::get_service_name(
-            VideoSource::Monitor,
-            *display_service::PRIMARY_DISPLAY_IDX,
-        );
-        if !self.contains(&primary_video_service_name) {
+    pub fn try_add_monitor_service(&mut self, display_idx: usize) {
+        let monitor_service_name =
+            video_service::get_service_name(VideoSource::Monitor, display_idx);
+        if !self.contains(&monitor_service_name) {
             self.add_service(Box::new(video_service::new(
                 VideoSource::Monitor,
-                *display_service::PRIMARY_DISPLAY_IDX,
+                display_idx,
             )));
         }
     }
@@ -385,14 +454,17 @@ impl Server {
         self.connections.insert(conn.id(), conn);
     }
 
-    pub fn add_connection(&mut self, conn: ConnInner, noperms: &Vec<&'static str>) {
-        let primary_video_service_name = video_service::get_service_name(
-            VideoSource::Monitor,
-            *display_service::PRIMARY_DISPLAY_IDX,
-        );
+    pub fn add_monitor_connection(
+        &mut self,
+        conn: ConnInner,
+        noperms: &Vec<&'static str>,
+        display_idx: usize,
+    ) {
+        let monitor_service_name =
+            video_service::get_service_name(VideoSource::Monitor, display_idx);
         for s in self.services.values() {
             let name = s.name();
-            if Self::is_video_service_name(&name) && name != primary_video_service_name {
+            if Self::is_video_service_name(&name) && name != monitor_service_name {
                 continue;
             }
             if !noperms.contains(&(&name as _)) {
@@ -587,7 +659,7 @@ pub async fn start_server(is_server: bool, no_server: bool) {
             log::info!("XAUTHORITY={:?}", std::env::var("XAUTHORITY"));
         }
         #[cfg(windows)]
-        hbb_common::platform::windows::start_cpu_performance_monitor();
+        base::platform::windows::start_cpu_performance_monitor();
     });
 
     if is_server {
@@ -602,6 +674,25 @@ pub async fn start_server(is_server: bool, no_server: bool) {
                 std::process::exit(-1);
             }
         });
+        // Warm the DRM availability cache before any client connects, so the first connection does
+        // not race a cold `_drm` probe and ship an empty display list ("No displays" + retry).
+        // X11 is skipped -- probing there makes the root service open DRM readers for a path this
+        // session can never take -- but that decision belongs to `warm_availability`, which already
+        // makes it, and NOT to this call site. Deciding it here is the same one-shot-at-startup
+        // mistake the pre-warm had: `is_x11()` answers "x11" whenever loginctl cannot yet name the
+        // seat0 session, which during a boot is exactly when this runs, and nothing revisits it --
+        // so a Wayland host that came up slowly skipped the warm for the life of the process and
+        // got back the cold-probe "No displays" symptom the warm exists to remove.
+        #[cfg(all(target_os = "linux", feature = "drm"))]
+        if let Err(err) = std::thread::Builder::new()
+            .name("drm-warm".into())
+            .spawn(drm_capturer::warm_availability)
+        {
+            // Same reason as the root service's startup threads: `thread::spawn` panics on EAGAIN
+            // and that would abort `start_server`. Skipping the warm costs the first session the
+            // cold probe, which is what happened before the warm existed.
+            log::warn!("drm: could not spawn the availability warm ({err}); skipping it");
+        }
         input_service::fix_key_down_timeout_loop();
         #[cfg(target_os = "linux")]
         if input_service::wayland_use_uinput() {
@@ -787,8 +878,7 @@ async fn sync_and_watch_config_dir(sync_done_tx: Option<tokio::sync::oneshot::Se
                 loop {
                     sleep(CONFIG_SYNC_INTERVAL_SECS).await;
                     let cfg = (Config::get(), Config2::get());
-                    let should_sync =
-                        cfg != cfg0 || (is_root_config_empty && !cfg.0.is_empty());
+                    let should_sync = cfg != cfg0 || (is_root_config_empty && !cfg.0.is_empty());
                     if should_sync {
                         if is_root_config_empty {
                             log::info!("root config is empty, sync our config to root");

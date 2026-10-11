@@ -122,7 +122,7 @@ if (-not (Test-Path (Join-Path $vcpkgDir '.git'))) {
 }
 Push-Location $vcpkgDir
 git fetch --all --tags --prune
-git checkout --detach 120deac3062162151622ca4860575a33844ba10b
+git checkout --detach 9e593bb18ea69cc5095e012465dcd675a822ed0d
 & .\bootstrap-vcpkg.bat -disableMetrics
 Pop-Location
 

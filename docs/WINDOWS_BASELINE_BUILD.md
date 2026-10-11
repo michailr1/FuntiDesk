@@ -16,7 +16,7 @@
 - `flutter_rust_bridge_codegen` `1.80.1`;
 - `cargo-expand` `1.0.95`;
 - LLVM/Clang `15.0.6`;
-- vcpkg commit `120deac3062162151622ca4860575a33844ba10b`;
+- vcpkg commit `9e593bb18ea69cc5095e012465dcd675a822ed0d`;
 - vcpkg triplet `x64-windows-static`;
 - build args: `--portable --flutter --skip-portable-pack --hwcodec --vram`.
 
@@ -92,7 +92,7 @@ cd <путь-к-FuntiDesk>
 - Flutter build: `3.24.5`;
 - `flutter_rust_bridge_codegen`: `1.80.1`;
 - LLVM: `15.0.6`;
-- vcpkg: `120deac3062162151622ca4860575a33844ba10b`;
+- vcpkg: `9e593bb18ea69cc5095e012465dcd675a822ed0d`;
 - Python: `3.11.15`.
 
 Исторический baseline-результат до FuntiDesk identity-refactor:

@@ -24,7 +24,7 @@ use hbb_common::{bail, log, ResultType};
 use sha2::{Digest, Sha256};
 use std::{
     path::{Path, PathBuf},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 const RELEASE_BASE: &str = "https://github.com/michailr1/FuntiDesk/releases/latest/download";
@@ -233,6 +233,12 @@ pub fn exit_for_update() {
     if let Ok(dir) = current_dir() {
         kill_copies_in(&dir, Some(std::process::id()));
     }
+    // A normal exit with the Flutter engine running took more than 30 s
+    // (2026-10-11); the new copy is waiting, so leave at once.
+    use windows::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
+    unsafe {
+        let _ = TerminateProcess(GetCurrentProcess(), 0);
+    }
     std::process::exit(0);
 }
 
@@ -249,18 +255,41 @@ fn kill_copies_in(dir: &Path, except: Option<u32>) {
     }
 }
 
+/// Waits for process `pid` to end; true when it is gone.
 fn wait_exit(pid: u32, timeout: Duration) -> bool {
-    use hbb_common::sysinfo::{Pid, System};
-    let start = Instant::now();
-    let pid = Pid::from_u32(pid);
-    while start.elapsed() < timeout {
-        let mut system = System::new();
-        if !system.refresh_process(pid) {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(300));
+    use windows::Win32::{
+        Foundation::{CloseHandle, WAIT_OBJECT_0},
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    };
+    let Ok(handle) = (unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) }) else {
+        return true;
+    };
+    let res = unsafe { WaitForSingleObject(handle, timeout.as_millis() as u32) };
+    unsafe {
+        let _ = CloseHandle(handle);
     }
-    false
+    res == WAIT_OBJECT_0
+}
+
+fn terminate(pid: u32) {
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE},
+    };
+    if let Ok(handle) = unsafe { OpenProcess(PROCESS_TERMINATE, false, pid) } {
+        unsafe {
+            let _ = TerminateProcess(handle, 1);
+            let _ = CloseHandle(handle);
+        }
+    }
+}
+
+fn running_in(dir: &Path) -> bool {
+    use hbb_common::sysinfo::System;
+    System::new_all().processes().values().any(|p| {
+        p.name().eq_ignore_ascii_case(EXE_NAME)
+            && p.exe().parent().map_or(false, |p| same_path(p, dir))
+    })
 }
 
 fn copy_dir(from: &Path, to: &Path) -> ResultType<()> {
@@ -287,6 +316,13 @@ fn launch(dir: &Path) {
 pub fn finish(args: &[String]) {
     if let Err(e) = finish_(args) {
         log::error!("update not installed: {e}");
+        // Whatever failed, FuntiDesk must be running again: the old copy
+        // (or the restored one) is still in place.
+        if let Ok(install) = install_dir() {
+            if install.join(EXE_NAME).is_file() && !running_in(&install) {
+                launch(&install);
+            }
+        }
     }
 }
 
@@ -302,8 +338,13 @@ fn finish_(args: &[String]) -> ResultType<()> {
     if !same_path(&target, &install) || !same_path(&current_dir()?, &work.join("files")) {
         bail!("refusing to update {}", target.display());
     }
-    if !wait_exit(pid, Duration::from_secs(30)) {
-        bail!("the old FuntiDesk ({pid}) did not exit");
+    if !wait_exit(pid, Duration::from_secs(20)) {
+        // It asked for this update itself; a slow exit must not block it.
+        log::warn!("the old FuntiDesk ({pid}) is still running, closing it");
+        terminate(pid);
+        if !wait_exit(pid, Duration::from_secs(10)) {
+            bail!("the old FuntiDesk ({pid}) did not exit");
+        }
     }
     kill_copies_in(&install, None);
 

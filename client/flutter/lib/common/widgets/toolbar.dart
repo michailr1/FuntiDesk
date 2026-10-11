@@ -349,12 +349,12 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               showRequestElevationDialog(sessionId, ffi.dialogManager)),
     );
   }
-  // osAccount / osPassword
+  // osPassword
   if (isDefaultConn && perms['keyboard'] != false) {
     v.add(
       TTextMenu(
         child: Row(children: [
-          Text(translate(pi.isHeadless ? 'OS Account' : 'OS Password')),
+          Text(translate('OS Password')),
         ]),
         trailingIcon: Transform.scale(
           scale: (isDesktop || isWebDesktop) ? 0.8 : 1,
@@ -363,18 +363,12 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               if (isMobile && Navigator.canPop(context)) {
                 Navigator.pop(context);
               }
-              if (pi.isHeadless) {
-                showSetOSAccount(sessionId, ffi.dialogManager);
-              } else {
-                handleOsPasswordEditIcon(sessionId, ffi.dialogManager);
-              }
+              handleOsPasswordEditIcon(sessionId, ffi.dialogManager);
             },
             icon: Icon(Icons.edit, color: isMobile ? MyTheme.accent : null),
           ),
         ),
-        onPressed: () => pi.isHeadless
-            ? showSetOSAccount(sessionId, ffi.dialogManager)
-            : handleOsPasswordAction(sessionId, ffi.dialogManager),
+        onPressed: () => handleOsPasswordAction(sessionId, ffi.dialogManager),
       ),
     );
   }
@@ -472,7 +466,9 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
     );
     v.add(
       TTextMenu(
-          child: Text(translate('View camera')),
+          // FUNTIDESK (ADR-005): a camera session is a call; from a running
+          // session it needs no new password (the session token is reused).
+          child: Text(translate('funti-call')),
           onPressed: () => connectWithToken(isViewCamera: true)),
     );
     v.add(
@@ -577,12 +573,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   // refresh
   if (pi.version.isNotEmpty) {
     v.add(TTextMenu(
-      child: Text(translate('Refresh')),
+      // FUNTIDESK: "Refresh" read as "update FuntiDesk" next to the update button.
+      child: Text(translate('funti-refresh-screen')),
       onPressed: () => sessionRefreshVideo(sessionId, pi),
     ));
   }
   // record
   if (!(isDesktop || isWeb) &&
+      bind.mainGetLocalOption(key: kOptionHideRecordingButton) != 'Y' &&
       (ffi.recordingModel.start || (perms["recording"] != false))) {
     v.add(TTextMenu(
         child: Row(

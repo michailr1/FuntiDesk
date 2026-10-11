@@ -62,6 +62,8 @@ Production-клиент не должен иметь скрытого fallback �
 
 До Family Release проводится аудит сетевых endpoint клиента. Обновления, документация, web-console и прочие upstream URL либо заменяются нашими, либо отключаются, если функция не нужна.
 
+WebRTC (upstream 1.5.0) выключен в коде: по умолчанию он обращается к публичным STUN-серверам (Google, Cloudflare и др.). Включение — только отдельным ADR со своими STUN/TURN на инфраструктуре FuntiDesk (docs/UPSTREAM.md, «Слияние RustDesk 1.5.0»).
+
 ## Критерии security acceptance Windows MVP
 
 - нет обращения к публичному rendezvous/relay upstream при рабочей и ошибочной конфигурации;
