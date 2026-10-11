@@ -324,6 +324,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-family-code", "6-digit code"),
         ("funti-family-enter-both", "Enter the 6-digit code."),
         ("funti-family-code-wrong", "The code is wrong or expired. Ask for a new one."),
+        ("funti-family-server-unreachable", "No connection to the FuntiDesk server. Check the internet and try again."),
         ("funti-family-pair-error", "Could not add:"),
         ("funti-family-pair", "Add"),
         ("funti-family-empty", "Your family will be here. Add a computer to the family to help without a password or confirmation; only a call has to be answered."),

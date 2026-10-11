@@ -427,14 +427,11 @@ void _showCodeDialog(VoidCallback? onChanged) {
 }
 
 void _enterCodeDialog(VoidCallback? onChanged) {
-  final idController = TextEditingController();
   final codeController = TextEditingController();
   final nameController = TextEditingController();
   final busy = false.obs;
   final error = ''.obs;
   final added = ''.obs;
-  // ADR-008: older FuntiDesk (or an older server) still needs the ID.
-  final manualId = false.obs;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
     Future<void> submit() async {
@@ -442,9 +439,10 @@ void _enterCodeDialog(VoidCallback? onChanged) {
         close();
         return;
       }
-      final id = manualId.value ? idController.text.replaceAll(' ', '') : '';
+      // ADR-008: the code alone; the computer is found by it on the server.
+      const id = '';
       final code = codeController.text.replaceAll(' ', '');
-      if ((manualId.value && id.isEmpty) || code.length != 6) {
+      if (code.length != 6) {
         error.value = translate('funti-family-enter-both');
         return;
       }
@@ -467,6 +465,8 @@ void _enterCodeDialog(VoidCallback? onChanged) {
             ? translate('funti-family-code-wrong')
             : e == 'funti-family-pair-declined' || e == 'funti-family-too-many'
                 ? translate(e)
+            : e.startsWith('funti-family-server-error')
+                ? translate('funti-family-server-unreachable')
             : e == 'timeout' || e == 'connection closed'
                 // An older FuntiDesk ignores the pairing request.
                 ? translate('funti-family-no-answer')
@@ -518,20 +518,6 @@ void _enterCodeDialog(VoidCallback? onChanged) {
                   helperText: translate('funti-family-name-hint')),
               onSubmitted: (_) => submit(),
             ),
-            const SizedBox(height: 8),
-            if (manualId.value)
-              TextField(
-                controller: idController,
-                enabled: !busy.value,
-                decoration: InputDecoration(
-                    labelText: translate('funti-family-their-id')),
-              )
-            else
-              TextButton(
-                onPressed: busy.value ? null : () => manualId.value = true,
-                style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                child: Text(translate('funti-family-enter-id-manually')),
-              ),
             const SizedBox(height: 8),
             if (busy.value) ...[
               Text(translate('funti-family-waiting-confirm'),
