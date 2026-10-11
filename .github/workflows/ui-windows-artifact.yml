@@ -109,14 +109,24 @@ jobs:
           # %LOCALAPPDATA%\FuntiDesk\portable. Not named *install.exe on purpose.
           $single = Join-Path $dist 'FuntiDesk-portable.exe'
           Copy-Item 'client/dist/FuntiDesk.exe' $single
-          $sums = foreach ($f in @($zip, $single)) {
+          # ADR-007: the client compares its FUNTI_BUILD with N from here.
+          # Same formula as client/build.rs; a release without N is not built.
+          $base = (Select-String -Path 'client/Cargo.toml' -Pattern '^version\s*=\s*"([^"]+)"' |
+            Select-Object -First 1).Matches[0].Groups[1].Value
+          if ((git rev-parse --is-shallow-repository) -ne 'false') { throw 'shallow checkout: build number unknown' }
+          $n = [int](git rev-list --count HEAD)
+          if (-not $base -or $n -le 0) { throw "bad version: '$base' / $n" }
+          $versionFile = Join-Path $dist 'funtidesk-version.txt'
+          [IO.File]::WriteAllText($versionFile, "$base-ft.$n`n")
+          Get-Content $versionFile
+          $sums = foreach ($f in @($zip, $single, $versionFile)) {
             "$((Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant())  $(Split-Path $f -Leaf)"
           }
           $sums | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
           Get-Content (Join-Path $dist 'SHA256SUMS.txt')
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "release $tag already exists"; exit 0 }
-          gh release create $tag $zip $single (Join-Path $dist 'SHA256SUMS.txt') `
+          gh release create $tag $zip $single $versionFile (Join-Path $dist 'SHA256SUMS.txt') `
             --target $env:GITHUB_SHA --latest `
             --title "FuntiDesk для Windows $short" `
             --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex. FuntiDesk-portable.exe — тот же клиент одним файлом."
