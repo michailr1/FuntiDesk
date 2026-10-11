@@ -1,6 +1,7 @@
-# FuntiDesk motion-lab mirror
+# FuntiDesk motion-lab artifact
 
-Source URL: https://funtidesk-motion-lab.michailr.chatgpt.site/
-Mirrored: 2026-10-11 (UTC)
+Исходный визуальный источник: https://funtidesk-motion-lab.michailr.chatgpt.site/ (снимок от 2026-10-11 UTC). Этот каталог остаётся каноническим production-дизайном страницы: hero, типографика, dark style, canvas/motion, композиция и секции сохранены.
 
-This folder preserves the publicly served static artifact as fetched, without redesign or content edits. `manifest.json` records source paths, HTTP status, content type, byte length, and SHA-256 for each captured artifact.
+Поверх исходного motion-lab выполнены точечные правки текста и встроенной демонстрации клиента, включая изолированные M3-стили и локальную концепт-иллюстрацию iPhone. Это не отдельный веб-продукт и не замена hero/landing. Реальный UI сверялся с веткой `michailr/m3-windows-ui-redesign`, commit `99f615055e5a471ad5c8a690d83ea050c04895cd`.
+
+`manifest.json` содержит фактические размеры и SHA-256 payload-файлов этого производного артефакта. Публичный деплой собирается только из содержимого `web/artifact/`; `web/` root не является источником UI.

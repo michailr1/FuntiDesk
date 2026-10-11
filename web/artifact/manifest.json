@@ -1,86 +1,33 @@
 {
   "source": "https://funtidesk-motion-lab.michailr.chatgpt.site/",
   "captured_utc": "2026-10-11",
+  "derived_from_commit": "95ad0010d105cbf810213778354831d916707f45",
+  "ui_reference": {
+    "branch": "michailr/m3-windows-ui-redesign",
+    "commit": "99f615055e5a471ad5c8a690d83ea050c04895cd"
+  },
+  "capture_status": "derived from original motion-lab capture; M3 product-demo adaptation; local smoke-tested; not deployed",
   "artifacts": [
-    {
-      "url": "/",
-      "file": "index.html",
-      "http_status": 200,
-      "content_type": "text/html",
-      "bytes": 16918,
-      "sha256": "b237b11062334f1f0cb9298b033673cb01767f319861ee17b67f78c2595d9cf5"
-    },
-    {
-      "url": "/style.css",
-      "file": "style.css",
-      "http_status": 200,
-      "content_type": "text/css",
-      "bytes": 16040,
-      "sha256": "948c3998416ae6950a2d069fae5225b50c0b12200325eb9276e052b4b32a69e5"
-    },
-    {
-      "url": "/lab.css",
-      "file": "lab.css",
-      "http_status": 200,
-      "content_type": "text/css",
-      "bytes": 11007,
-      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e"
-    },
-    {
-      "url": "/platforms.css",
-      "file": "platforms.css",
-      "http_status": 200,
-      "content_type": "text/css",
-      "bytes": 24843,
-      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9"
-    },
-    {
-      "url": "/family.css",
-      "file": "family.css",
-      "http_status": 200,
-      "content_type": "text/css",
-      "bytes": 9957,
-      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b"
-    },
-    {
-      "url": "/app.js",
-      "file": "app.js",
-      "http_status": 200,
-      "content_type": "text/javascript",
-      "bytes": 10940,
-      "sha256": "65d0bf20fb7d510c639751c8512bd51e58c91ca6160cc97dcaefca556559e5ae"
-    },
-    {
-      "url": "/lab.js",
-      "file": "lab.js",
-      "http_status": 200,
-      "content_type": "text/javascript",
-      "bytes": 22519,
-      "sha256": "2f7cecb927bc8efc730448a32b90534e83661b1e6f06702768f5186b205065c1"
-    },
-    {
-      "url": "/platforms.js",
-      "file": "platforms.js",
-      "http_status": 200,
-      "content_type": "text/javascript",
-      "bytes": 34732,
-      "sha256": "8c5b91d428ca605ff83ad347f44417aad0aa5adc13c7701c6dc5e6333c9a90a0"
-    },
-    {
-      "url": "/family.js",
-      "file": "family.js",
-      "http_status": 200,
-      "content_type": "text/javascript",
-      "bytes": 27255,
-      "sha256": "295913393580a8a234493ddf683228bcd2adecd2295a3b1b8796fa970446a6ad"
-    },
-    {
-      "url": "/mark.svg",
-      "file": "mark.svg",
-      "http_status": 200,
-      "content_type": "image/svg+xml",
-      "bytes": 1402,
-      "sha256": "48ddbfc154c1b762a99d62c063cb2ebfbf92af3d7a62a87b81d19e71e0b9f814"
-    }
+    {"url":"/","file":"index.html","content_type":"text/html","bytes":21157,"sha256":"3ecbd249864d06d527c2c6a5dbf0775c48c9731d96a4364b2a758225ed9e784f","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/style.css","file":"style.css","content_type":"text/css","bytes":16040,"sha256":"948c3998416ae6950a2d069fae5225b50c0b12200325eb9276e052b4b32a69e5","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/lab.css","file":"lab.css","content_type":"text/css","bytes":11007,"sha256":"932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/platforms.css","file":"platforms.css","content_type":"text/css","bytes":24849,"sha256":"9eb23df95469ca83ea3f5cc7a5f8bb5930e2c1e882592f3adb6047f99147430b","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/client-ui.css","file":"client-ui.css","content_type":"text/css","bytes":12810,"sha256":"eab1d24866eeba69494ce106194e44a9b731d66f07f05f830ae90ef21c77432c","source_http_status":null,"local_smoke_http_status":200},
+    {"url":"/family.css","file":"family.css","content_type":"text/css","bytes":9957,"sha256":"21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/app.js","file":"app.js","content_type":"text/javascript","bytes":11434,"sha256":"a1cf0f0726cd18b7ccca184046cdc7ef4f11e474caa5307f5ec3c39904e4e8be","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/lab.js","file":"lab.js","content_type":"text/javascript","bytes":21937,"sha256":"64226e56a1cb7b657d8a9fe2927fe6657810e7d68485be8fce75682afbe197cf","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/platforms.js","file":"platforms.js","content_type":"text/javascript","bytes":34461,"sha256":"261eaa986a3611f6705f7a9575b2f8736ddee2afd0e3a92f74e86ecae8855f2b","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/family.js","file":"family.js","content_type":"text/javascript","bytes":27458,"sha256":"6d16ca161961489b5f32b85fd1c680fa93bc3ac51eba5a1f66a4f23de6fd7e96","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/mark.svg","file":"mark.svg","content_type":"image/svg+xml","bytes":2104,"sha256":"63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3","source_http_status":200,"local_smoke_http_status":200},
+    {"url":"/assets/iphone-home.svg","file":"assets/iphone-home.svg","content_type":"image/svg+xml","bytes":2378,"sha256":"47fd8f7b1c4ca1ab078049b5444ae6f3d98ab2d51f6742c9a32982e1ed1d2bb1","source_http_status":null,"local_smoke_http_status":200}
+  ],
+  "modifications": [
+    "preserved the motion-lab hero, typography, dark landing design, section composition, canvas and existing motion effects",
+    "aligned the embedded client demo to M3 client-first device/contact/session entities and Auto/Relay connection preference",
+    "placed the negotiated P2P/Relay state as a compact chip in the active-session toolbar; removed latency and diagnostic claims",
+    "marked family access, help and calling as next-slice concepts",
+    "replaced the missing iPhone PNG reference with a local view-only concept SVG",
+    "removed the missing Windows wallpaper URL and kept the demo screen self-contained with a CSS gradient",
+    "replaced mark.svg with the canonical approved C mark"
   ]
 }
