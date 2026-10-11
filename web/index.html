@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0d6efd" />
+  <meta name="description" content="FuntiDesk — удалённый доступ, который остаётся вашим. Windows-клиент, P2P, Relay, семейный доступ, звонки и тестовый Android APK." />
+  <title>FuntiDesk · Живые соединения</title>
+  <link rel="icon" href="./assets/funtidesk-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="FuntiDesk — на главную">
+      <img src="./assets/funtidesk-mark.svg" alt="" width="34" height="34" />
+      <span>FuntiDesk</span>
+    </a>
+    <nav class="nav" aria-label="Основная навигация">
+      <a href="#features">Возможности</a>
+      <a href="#demo">Демо</a>
+      <a href="#download">Скачать</a>
+    </nav>
+    <a class="button button-small" href="#demo">Попробовать ↗</a>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="eyebrow-row">
+        <span>ВАШИ УСТРОЙСТВА. ВАША СВЯЗЬ.</span>
+        <span>FUNTIDESK / MOTION LAB — 01</span>
+      </div>
+
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="kicker">Удалённый доступ, который остаётся вашим</p>
+          <h1>FuntiDesk — связь между вашими устройствами, которую видно и понятно.</h1>
+          <p class="lead">Свои устройства. Своя инфраструктура. Понятное соединение. Прямой P2P, когда возможно, и Relay через ваш сервер, когда нужен запасной маршрут.</p>
+          <div class="hero-actions">
+            <button class="button" id="animate-link">Оживить соединение ↗</button>
+            <a class="button button-ghost" href="https://github.com/michailr1/FuntiDesk/releases/latest" target="_blank" rel="noreferrer">Клиент для Windows ↓</a>
+          </div>
+        </div>
+
+        <div class="device-stage" aria-label="Схема устройств FuntiDesk">
+          <div class="device-card pc">
+            <span class="status-dot online"></span>
+            <strong>Домашний ПК</strong>
+            <small>Windows · полный доступ</small>
+          </div>
+          <div class="device-card laptop">
+            <span class="status-dot online"></span>
+            <strong>Ваш ноутбук</strong>
+            <small>Windows · помощник</small>
+          </div>
+          <div class="device-card phone">
+            <span class="status-dot muted"></span>
+            <strong>iPhone</strong>
+            <small>Только просмотр · концепт</small>
+          </div>
+          <svg class="connection-map" viewBox="0 0 600 330" aria-hidden="true">
+            <path class="link-path link-a" d="M105 128 C205 40, 352 46, 490 135" />
+            <path class="link-path link-b" d="M115 145 C205 250, 353 267, 500 196" />
+            <circle class="packet p1" cx="105" cy="128" r="5" />
+            <circle class="packet p2" cx="115" cy="145" r="5" />
+          </svg>
+          <div class="route-badge route-p2p">P2P · напрямую</div>
+          <div class="route-badge route-relay">RELAY · запасной путь</div>
+        </div>
+      </div>
+
+      <div class="manifesto">
+        <p class="section-number">СВЯЗЬ НАЧИНАЕТСЯ С ВАС</p>
+        <h2>Расстояние есть.<br />Границ для связи — меньше.</h2>
+        <p>Удалённый доступ, который остаётся вашим. Свои устройства. Своя инфраструктура. Понятное соединение.</p>
+      </div>
+
+      <div class="motion-lab" id="motion-lab">
+        <div class="motion-label">Буквы → точки → соединение</div>
+        <div class="letter-cloud" aria-hidden="true">
+          <span>F</span><span>U</span><span>N</span><span>T</span><span>I</span><span>D</span><span>E</span><span>S</span><span>K</span>
+        </div>
+        <div class="motion-caption">Наведите курсор · нажмите на сцену</div>
+        <button class="text-button" id="replay-motion">↻ Повторить превращение</button>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-head">
+        <div>
+          <p class="section-number">01 / ПОНЯТНАЯ СВЯЗЬ</p>
+          <h2>Видеть не только экран.<br />Видеть, как вы связаны.</h2>
+        </div>
+        <p>Маршрут соединения — часть интерфейса, а не скрытая техническая деталь.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-index">01</span>
+          <div class="icon-orbit"><span class="orbit-dot"></span></div>
+          <h3>Напрямую, когда возможно</h3>
+          <p>P2P соединяет устройства напрямую. В активной сессии маршрут показывается явно.</p>
+          <span class="chip chip-green">P2P · прямое соединение</span>
+        </article>
+        <article class="feature-card">
+          <span class="feature-index">02</span>
+          <div class="icon-relay">◇</div>
+          <h3>С запасным маршрутом</h3>
+          <p>Если прямое соединение недоступно, Relay даёт резервный путь через сервер FuntiDesk.</p>
+          <span class="chip chip-amber">RELAY · через сервер</span>
+        </article>
+        <article class="feature-card">
+          <span class="feature-index">03</span>
+          <div class="icon-cursor">↖</div>
+          <h3>Управление или просмотр</h3>
+          <p>Мышь, клавиатура, файлы и терминал — когда разрешено. Для iOS закладываем режим просмотра без обещания полного управления.</p>
+          <div class="segmented"><span class="active">Управлять</span><span>Смотреть</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section demo-section" id="demo">
+      <div class="section-head">
+        <div>
+          <p class="section-number">02 / ИНТЕРАКТИВНАЯ СРЕДА</p>
+          <h2>Помочь. Позвонить.<br />Быть рядом.</h2>
+        </div>
+        <p>Семейный доступ, запрос помощи и звонок уже есть в клиенте. Здесь показана локальная симуляция пользовательского сценария.</p>
+      </div>
+
+      <div class="demo-tabs" role="tablist" aria-label="Сценарии семейного доступа">
+        <button class="demo-tab active" data-scene="help" role="tab">Попросить помощи</button>
+        <button class="demo-tab" data-scene="family" role="tab">Семейный доступ</button>
+        <button class="demo-tab" data-scene="call" role="tab">Позвонить домой</button>
+        <button class="text-button reset-demo" id="reset-family">Начать заново ↻</button>
+      </div>
+
+      <div class="family-demo">
+        <article class="family-side family-left">
+          <div class="window-title"><span>FuntiDesk · компьютер близкого</span><span class="tag">ДЕМО</span></div>
+          <div class="person-row"><div class="avatar">М</div><div><strong>Мама</strong><small>В семье · в сети</small></div></div>
+          <div class="family-devices">
+            <button class="family-device selected"><strong>Мама · компьютер</strong><span>Устройство в сети</span></button>
+            <button class="family-device"><strong>Папа · ноутбук</strong><span>Устройство в сети</span></button>
+          </div>
+          <div class="scene-panel" id="scene-panel-left">
+            <h3>Нужна помощь с компьютером?</h3>
+            <label>Кому отправить
+              <select id="helper-select"><option>Вы · помощник</option></select>
+            </label>
+            <button class="button full" id="ask-help">Попросить помощи ↗</button>
+          </div>
+        </article>
+
+        <div class="family-link" aria-hidden="true"><span></span></div>
+
+        <article class="family-side family-right">
+          <div class="window-title"><span>FuntiDesk · ваш ноутбук</span><span class="tag">ДЕМО</span></div>
+          <div class="person-row"><div class="avatar avatar-blue">В</div><div><strong>Вы</strong><small>Помощник · в сети</small></div></div>
+          <div class="request-card" id="request-card">
+            <p id="request-copy">Запросов помощи пока нет</p>
+            <small id="request-note">Нажмите «Попросить помощи» на компьютере слева.</small>
+          </div>
+          <div class="quick-actions">
+            <button data-action="Управление">↖ Управление</button>
+            <button data-action="Файлы">⇄ Файлы</button>
+            <button data-action="Терминал">›_ Терминал</button>
+          </div>
+          <div class="event-log" id="family-log"><span>Демо готово. Мама уже добавлена в семью; папу можно добавить по коду.</span></div>
+        </article>
+      </div>
+
+      <p class="demo-disclaimer">Семья — доверенные устройства: доступные по выбранным разрешениям действия выполняются без подтверждения, в том числе когда за компьютером никого нет. На звонок нужно ответить. Все действия здесь — локальная симуляция.</p>
+
+      <div class="web-prototype">
+        <div class="prototype-topline">
+          <div><strong>FuntiDesk — Web</strong><span class="tag">Прототип</span></div>
+          <div class="prototype-controls"><button id="toggle-prototype">Свернуть прототип —</button><button aria-label="Закрыть демо">×</button></div>
+        </div>
+        <div class="prototype-body" id="prototype-body">
+          <aside class="prototype-sidebar">
+            <div class="mini-brand"><img src="./assets/funtidesk-mark.svg" alt="" />FuntiDesk</div>
+            <button class="active">Мои устройства</button>
+            <button>Передача файлов</button>
+          </aside>
+          <div class="prototype-main">
+            <div class="prototype-heading"><div><small>Ваши устройства</small><h3>Выберите, куда подключиться</h3></div><span>4 устройства</span></div>
+            <div class="prototype-devices">
+              <button class="prototype-device selected" data-device="Домашний ПК"><strong>Домашний ПК</strong><small>Windows · Полный доступ</small></button>
+              <button class="prototype-device" data-device="Ноутбук"><strong>Ноутбук</strong><small>Windows · Полный доступ</small></button>
+              <button class="prototype-device" data-device="iPhone"><strong>iPhone</strong><small>iOS · Только просмотр · Концепт</small></button>
+              <button class="prototype-device" data-device="Android"><strong>Android</strong><small>Тестовая сборка · разрешения</small></button>
+            </div>
+            <div class="session-card">
+              <div class="session-header"><div><small id="session-device-os">Windows</small><h3 id="session-device-name">Домашний ПК</h3></div><span class="chip chip-green" id="route-chip">P2P</span></div>
+              <div class="session-screen"><div class="screen-glow"></div><span id="screen-copy">Ожидает подключения</span></div>
+              <details class="diagnostics"><summary>Диагностика соединения · симулятор сети</summary><p>Сценарий меняется локально: P2P, Relay или смена сети. Реальный транспорт браузер здесь не устанавливает.</p></details>
+              <div class="session-actions">
+                <button class="button" id="connect-demo">Подключиться ↗</button>
+                <div class="scenario-switch"><button class="scenario active" data-route="P2P">P2P</button><button class="scenario" data-route="Relay">Relay</button><button class="scenario" data-route="Смена сети">Смена сети</button></div>
+              </div>
+              <div class="session-toolbar"><button>⛶ Экран</button><button>☎ Позвонить</button><button>⇄ Передать файл</button><span>Режим: управление · Полный доступ</span></div>
+              <div class="session-events"><strong>СОБЫТИЯ СЕССИИ</strong><span id="session-log">Демо готово. Выберите сценарий соединения.</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="prototype-note">Это интерактивный прототип интерфейса, а не работающий web-клиент удалённого доступа.</p>
+      </div>
+    </section>
+
+    <section class="section download-section" id="download">
+      <div class="download-panel">
+        <div>
+          <p class="section-number">03 / НАЧАТЬ С WINDOWS</p>
+          <h2>Ваш следующий экран.<br />Ближе, чем кажется.</h2>
+          <p>Windows-клиент уже доступен. Android — тестовая сборка. iOS — в планах. Веб-интерфейс на этой странице — интерактивный прототип.</p>
+          <div class="hero-actions">
+            <a class="button" href="https://github.com/michailr1/FuntiDesk/releases/latest" target="_blank" rel="noreferrer">Сборка для Windows ↗</a>
+            <a class="button button-ghost" href="https://github.com/michailr1/FuntiDesk/releases/latest" target="_blank" rel="noreferrer">Тестовый Android APK ↗</a>
+          </div>
+          <small>Ссылки ведут в GitHub Releases. Android APK предназначен для тестирования.</small>
+        </div>
+        <div class="platform-grid">
+          <div><span>▣</span><strong>Windows</strong><small>EXE и ZIP доступны</small></div>
+          <div><span>▯</span><strong>iOS</strong><small>План · входящий просмотр</small></div>
+          <div><span>▯</span><strong>Android</strong><small>Тестовый APK</small></div>
+          <div><span>◎</span><strong>Web</strong><small>Концепт интерфейса</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq-section">
+      <div class="section-head">
+        <div><p class="section-number">04 / ДЕТАЛИ</p><h2>Коротко о главном.</h2></div>
+      </div>
+      <div class="faq-list">
+        <details><summary>Что даёт семейный доступ?</summary><p>После разового сопряжения по шестизначному коду доверенные устройства семьи могут использовать разрешённые действия без диктовки ID и пароля. На звонок по-прежнему нужно ответить.</p></details>
+        <details><summary>Это работающий веб-клиент удалённого доступа?</summary><p>Нет. Веб-блок на этой странице — интерактивный прототип интерфейса и локальная симуляция. Реальные удалённые сессии выполняют клиенты FuntiDesk.</p></details>
+        <details><summary>Что означает P2P и Relay?</summary><p>P2P — прямое соединение между устройствами. Relay — резервный путь через сервер FuntiDesk, когда прямой маршрут недоступен.</p></details>
+        <details><summary>Можно ли управлять iPhone?</summary><p>Обычное iOS-приложение может передавать экран в сценарии просмотра, но полноценное удалённое управление касаниями iPhone стандартными средствами iOS не предоставляется. Поэтому мы не обещаем полный контроль iPhone.</p></details>
+        <details><summary>Где код и документация проекта?</summary><p><a href="https://github.com/michailr1/FuntiDesk" target="_blank" rel="noreferrer">GitHub: michailr1/FuntiDesk ↗</a></p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="brand footer-brand"><img src="./assets/funtidesk-mark.svg" alt="" /><span>FuntiDesk</span></div>
+    <p>Удалённый доступ, который остаётся вашим.</p>
+    <div><a href="https://github.com/michailr1/FuntiDesk" target="_blank" rel="noreferrer">GitHub ↗</a><a href="#top">Наверх ↑</a></div>
+  </footer>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
