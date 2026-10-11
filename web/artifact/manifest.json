@@ -7,8 +7,8 @@
   "artifacts": [
     {
       "file": "app.js",
-      "bytes": 11008,
-      "sha256": "9026541be2589c5035da233a59f0fa187ddb229d7634f4e992d54af9a4ff904c"
+      "bytes": 18893,
+      "sha256": "f5fd26d476436646c07ce3e24c1d738eeebb883a7596b709840c69b290facc33"
     },
     {
       "file": "client-ui.css",
