@@ -346,6 +346,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-window-control", "Remote control"),
         ("funti-call-title", "Call"),
         ("funti-call-no-camera", "The other side has no camera. The call goes on without video."),
+        ("funti-call-camera-unavailable", "The camera on the other side gives no image (it may be blocked by an antivirus or a policy). The call goes on without video."),
         ("funti-incoming-call", "Incoming call"),
         ("funti-answer-call", "Answer"),
         ("funti-decline-call", "Decline"),

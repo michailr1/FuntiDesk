@@ -78,6 +78,9 @@ lazy_static::lazy_static! {
     pub static ref IS_UAC_RUNNING: Arc<Mutex<bool>> = Default::default();
     pub static ref IS_FOREGROUND_WINDOW_ELEVATED: Arc<Mutex<bool>> = Default::default();
     static ref SCREENSHOTS: Mutex<HashMap<(VideoSource, usize), Screenshot>> = Default::default();
+    // FUNTIDESK (ADR-005): service name -> conn ids already told that the
+    // camera gives no image; cleared once the camera delivers a frame.
+    static ref FUNTI_CAMERA_UNAVAILABLE_SENT: Mutex<HashMap<String, HashSet<i32>>> = Default::default();
 }
 
 struct Screenshot {
@@ -649,6 +652,7 @@ fn run(vs: VideoService) -> ResultType<()> {
     let mut yuv = Vec::new();
     let mut mid_data = Vec::new();
     let mut repeat_encode_counter = 0;
+    let mut funti_camera_working = false;
     let repeat_encode_max = 10;
     let mut encode_fail_counter = 0;
     let mut first_frame = true;
@@ -724,6 +728,13 @@ fn run(vs: VideoService) -> ResultType<()> {
         let res = match c.frame(spf) {
             Ok(frame) => {
                 repeat_encode_counter = 0;
+                if vs.source.is_camera() && !funti_camera_working {
+                    funti_camera_working = true;
+                    FUNTI_CAMERA_UNAVAILABLE_SENT
+                        .lock()
+                        .unwrap()
+                        .remove(&sp.name());
+                }
                 if frame.valid() {
                     let screenshot_key = (vs.source, display_idx);
                     let screenshot = SCREENSHOTS.lock().unwrap().remove(&screenshot_key);
@@ -854,6 +865,9 @@ fn run(vs: VideoService) -> ResultType<()> {
                 // The previous check in `sp.is_option_true(OPTION_REFRESH)` block may be enough.
                 if vs.source.is_monitor() {
                     try_broadcast_display_changed(&sp, display_idx, &c, true)?;
+                }
+                if vs.source.is_camera() {
+                    funti_tell_camera_unavailable(&sp);
                 }
 
                 #[cfg(windows)]
@@ -1131,6 +1145,30 @@ fn check_privacy_mode_changed(
         bail!("SWITCH");
     }
     Ok(())
+}
+
+// FUNTIDESK (ADR-005): the camera gives no image (blocked by an antivirus or a
+// policy, busy, unsupported mode). Without this the caller waits for an image
+// forever while the service restarts quietly. Each connection is told once,
+// until the camera delivers a frame; the call goes on with voice.
+fn funti_tell_camera_unavailable(sp: &GenericService) {
+    let mut sent = FUNTI_CAMERA_UNAVAILABLE_SENT.lock().unwrap();
+    let sent = sent.entry(sp.name()).or_default();
+    let ids = sp.subscriber_ids();
+    sent.retain(|id| ids.contains(id));
+    for id in ids {
+        if sent.insert(id) {
+            let mut msg = Message::new();
+            msg.set_message_box(MessageBox {
+                msgtype: "custom-nocancel-info".to_owned(),
+                title: "funti-call-title".to_owned(),
+                text: "funti-call-camera-unavailable".to_owned(),
+                link: "".to_owned(),
+                ..Default::default()
+            });
+            sp.send_to(msg, id);
+        }
+    }
 }
 
 #[inline]
