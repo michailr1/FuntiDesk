@@ -937,6 +937,42 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
+/// FUNTIDESK: `%APPDATA%\Microsoft` -> `C:\Users\...\AppData\Roaming\Microsoft`
+/// for the file transfer address bar and quick folders. Expanded on the side
+/// that owns the files, as its logged-in user. Unknown variables stay as
+/// they are, so the folder is simply not found.
+pub fn funti_expand_env(path: &str) -> String {
+    if !cfg!(windows) || !path.contains('%') {
+        return path.to_owned();
+    }
+    let mut out = String::with_capacity(path.len());
+    let mut rest = path;
+    while let Some(start) = rest.find('%') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        match after.find('%') {
+            Some(end) if end > 0 => {
+                let name = &after[..end];
+                match std::env::var(name) {
+                    Ok(value) => out.push_str(&value),
+                    Err(_) => {
+                        out.push('%');
+                        out.push_str(name);
+                        out.push('%');
+                    }
+                }
+                rest = &after[end + 1..];
+            }
+            _ => {
+                out.push('%');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 pub fn check_software_update() {
     // FUNTIDESK R-14: upstream background update checks are disabled.
 }

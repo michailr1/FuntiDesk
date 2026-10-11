@@ -198,6 +198,8 @@ pub fn core_main() -> Option<Vec<String>> {
         #[cfg(windows)]
         {
             crate::platform::try_remove_temp_update_files();
+            // FUNTIDESK (ADR-007): leftovers of the previous update.
+            crate::funti_update::cleanup();
             hbb_common::config::PeerConfig::preload_peers();
         }
         std::thread::spawn(move || crate::start_server(false, no_server));
@@ -250,6 +252,10 @@ pub fn core_main() -> Option<Vec<String>> {
                     .duration(Duration::Short)
                     .show()
                     .ok();
+                return None;
+            } else if args[0] == crate::funti_update::FINISH_ARG {
+                // FUNTIDESK (ADR-007): the old copy hands over to this one.
+                crate::funti_update::finish(&args);
                 return None;
             } else if args[0] == "--after-install" {
                 if let Err(err) = platform::run_after_install() {

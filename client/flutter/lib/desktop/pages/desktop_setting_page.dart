@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show Random;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,9 @@ import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
     show funtiHomeBannerHidden, setFuntiHomeBannerHidden;
+import 'package:flutter_hbb/common/funti_quotes.dart';
+import 'package:flutter_hbb/common/funti_theme.dart';
+import 'package:flutter_hbb/desktop/widgets/funti_home_scene.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
@@ -2444,7 +2448,13 @@ class _AboutState extends State<_About> {
       final version = data['version'].toString();
       final buildDate = data['buildDate'].toString();
       final fingerprint = data['fingerprint'].toString();
-      const linkStyle = TextStyle(decoration: TextDecoration.underline);
+      // FUNTIDESK: own "About" (mockup approved 2026-10-11): a quote, Funtik
+      // at the monitor, version and update, source code. Attribution and the
+      // license of the upstream project stay (ADR-003).
+      final t = FuntiTokens.of(context);
+      final muted = TextStyle(fontSize: 13, color: t.muted);
+      final linkStyle = TextStyle(
+          fontSize: 13, color: t.link, decoration: TextDecoration.underline);
       final scrollController = ScrollController();
       return SingleChildScrollView(
         controller: scrollController,
@@ -2452,67 +2462,197 @@ class _AboutState extends State<_About> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(
-                height: 8.0,
-              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Expanded(child: _FuntiQuoteView()),
+                  const SizedBox(width: 16),
+                  const SizedBox(
+                      width: 200,
+                      height: 128,
+                      child: FuntiHomeScene(homeOnly: true)),
+                ],
+              ).marginOnly(top: 8, bottom: 12),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Build Date')}: $buildDate')
                       .marginSymmetric(vertical: 4.0)),
+              // FUNTIDESK (ADR-007): update from the FuntiDesk release.
+              if (isWindows) const _FuntiUpdate(),
               if (!isWeb)
                 SelectionArea(
-                    child: Text('${translate('Fingerprint')}: $fingerprint')
+                    child: Text('${translate('Fingerprint')}: $fingerprint',
+                            style: muted)
                         .marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
+                    launchUrlString('https://github.com/michailr1/FuntiDesk');
                   },
                   child: Text(
-                    translate('Privacy Statement'),
+                    translate('funti-about-source'),
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com');
-                  },
+              SelectionArea(
                   child: Text(
-                    translate('Website'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              Container(
-                decoration: const BoxDecoration(color: Color(0xFF2c8cff)),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-                child: SelectionArea(
-                    child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Copyright © ${DateTime.now().toString().substring(0, 4)} Purslane Tech Pte. Ltd.\n$license',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            translate('Slogan_tip'),
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                )),
-              ).marginSymmetric(vertical: 4.0)
+                // translate() turns "RustDesk" into the app name: add it after.
+                '${translate('funti-about-upstream').replaceAll('{}', 'Rust' 'Desk')}\n'
+                'Copyright © ${DateTime.now().toString().substring(0, 4)} Purslane Tech Pte. Ltd.'
+                '${license.isEmpty ? '' : '\n$license'}',
+                style: muted,
+              )).marginOnly(top: 8, bottom: 4),
             ],
           ).marginOnly(left: _kContentHMargin)
         ]),
       );
     });
+  }
+}
+
+// FUNTIDESK: a different quote each time "About" opens, and on request.
+class _FuntiQuoteView extends StatefulWidget {
+  const _FuntiQuoteView({Key? key}) : super(key: key);
+
+  @override
+  State<_FuntiQuoteView> createState() => _FuntiQuoteViewState();
+}
+
+class _FuntiQuoteViewState extends State<_FuntiQuoteView> {
+  final _random = Random();
+  late int _index = _random.nextInt(kFuntiQuotes.length);
+
+  void _next() {
+    var i = _index;
+    while (kFuntiQuotes.length > 1 && i == _index) {
+      i = _random.nextInt(kFuntiQuotes.length);
+    }
+    setState(() => _index = i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    final q = kFuntiQuotes[_index];
+    final ru = translate('funti-quote-lang') == 'ru';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectionArea(
+          child: Text('«${ru ? q.ru : q.en}»',
+              style: TextStyle(
+                  fontSize: 17,
+                  height: 1.45,
+                  fontWeight: FontWeight.w500,
+                  color: t.text)),
+        ),
+        Text(ru ? q.authorRu : q.authorEn,
+                style: TextStyle(fontSize: 13, color: t.muted))
+            .marginOnly(top: 6),
+        TextButton(
+          onPressed: _next,
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          child: Text(translate('funti-about-next-quote')),
+        ).marginOnly(top: 4),
+      ],
+    );
+  }
+}
+
+// FUNTIDESK (ADR-007): "Check for updates" -> "Version N is available" ->
+// "Update". Errors leave the installed copy as it is.
+class _FuntiUpdate extends StatefulWidget {
+  const _FuntiUpdate({Key? key}) : super(key: key);
+
+  @override
+  State<_FuntiUpdate> createState() => _FuntiUpdateState();
+}
+
+enum _UpdateStage { idle, checking, latest, available, updating, failed }
+
+class _FuntiUpdateState extends State<_FuntiUpdate> {
+  _UpdateStage _stage = _UpdateStage.idle;
+  String _version = '';
+  String _unsupported = '';
+  String _error = '';
+
+  Future<void> _check() async {
+    setState(() => _stage = _UpdateStage.checking);
+    final res = jsonDecode(await bind.mainFuntiUpdateCheck());
+    if (!mounted) return;
+    setState(() {
+      if (res['error'] != null) {
+        _error = translate('funti-update-check-failed')
+            .replaceAll('{}', res['error'].toString());
+        _stage = _UpdateStage.failed;
+      } else {
+        _version = res['version'].toString();
+        _unsupported = res['unsupported'].toString();
+        _stage = res['available'] == true
+            ? _UpdateStage.available
+            : _UpdateStage.latest;
+      }
+    });
+  }
+
+  Future<void> _update() async {
+    setState(() => _stage = _UpdateStage.updating);
+    final err = await bind.mainFuntiUpdateStart();
+    if (!mounted || err.isEmpty) return;
+    setState(() {
+      _error = translate('funti-update-failed')
+          .replaceAll('{}', translate(err));
+      _stage = _UpdateStage.failed;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = _stage == _UpdateStage.checking ||
+        _stage == _UpdateStage.updating;
+    final String text;
+    switch (_stage) {
+      case _UpdateStage.idle:
+        text = '';
+        break;
+      case _UpdateStage.checking:
+        text = translate('funti-update-checking');
+        break;
+      case _UpdateStage.latest:
+        text = translate('funti-update-latest');
+        break;
+      case _UpdateStage.available:
+        text = translate('funti-update-available').replaceAll('{}', _version) +
+            (_unsupported.isEmpty ? '' : '\n${translate(_unsupported)}');
+        break;
+      case _UpdateStage.updating:
+        text = translate('funti-update-progress');
+        break;
+      case _UpdateStage.failed:
+        text = _error;
+        break;
+    }
+    final canUpdate = _stage == _UpdateStage.available && _unsupported.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          OutlinedButton(
+            onPressed: busy ? null : (canUpdate ? _update : _check),
+            child: Text(translate(
+                canUpdate ? 'funti-update-now' : 'funti-update-check')),
+          ),
+          if (busy)
+            const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                .marginOnly(left: 12),
+        ]),
+        if (text.isNotEmpty)
+          SelectionArea(child: Text(text)).marginOnly(top: 6),
+      ],
+    ).marginSymmetric(vertical: 8.0);
   }
 }
 

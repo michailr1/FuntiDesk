@@ -810,6 +810,8 @@ pub fn session_read_local_dir_sync(
     path: String,
     show_hidden: bool,
 ) -> String {
+    // FUNTIDESK: %APPDATA% and other variables in the address bar.
+    let path = crate::common::funti_expand_env(&path);
     if let Ok(fd) = fs::read_dir(&fs::get_path(&path), show_hidden) {
         return make_fd_to_json(fd.id, path, &fd.entries);
     }
@@ -1154,6 +1156,43 @@ pub fn main_get_license() -> String {
 
 pub fn main_get_version() -> String {
     get_version()
+}
+
+/// FUNTIDESK (ADR-007): JSON `{version, available, unsupported}` or
+/// `{error}`. `unsupported` is a translation key, empty if this copy can
+/// update itself.
+pub fn main_funti_update_check() -> String {
+    #[cfg(windows)]
+    let res = match crate::funti_update::check() {
+        Ok(latest) => serde_json::json!({
+            "version": latest.version,
+            "available": crate::funti_update::is_newer(latest.build),
+            "unsupported": crate::funti_update::unsupported_reason().unwrap_or_default(),
+        }),
+        Err(e) => serde_json::json!({ "error": e.to_string() }),
+    };
+    #[cfg(not(windows))]
+    let res = serde_json::json!({ "error": "not supported" });
+    res.to_string()
+}
+
+/// FUNTIDESK (ADR-007): download, check and stage the update; on success
+/// the process exits and the new copy starts. Returns the error otherwise.
+pub fn main_funti_update_start() -> String {
+    #[cfg(windows)]
+    match crate::funti_update::start() {
+        Ok(_) => {
+            std::thread::spawn(|| {
+                // Let the UI show the "restarting" state.
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                crate::funti_update::exit_for_update();
+            });
+            String::new()
+        }
+        Err(e) => e.to_string(),
+    }
+    #[cfg(not(windows))]
+    "not supported".to_owned()
 }
 
 pub fn main_get_fav() -> Vec<String> {

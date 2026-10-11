@@ -29,6 +29,7 @@ import '../../models/state_model.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_home_scene.dart';
 import 'desktop_home_page.dart' show setPasswordDialog;
+import 'desktop_setting_page.dart' show DesktopSettingPage, SettingsTabKey;
 
 const String _kOptionHideBanner = 'funti-home-banner-hidden';
 
@@ -142,6 +143,24 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
                           key: _topKey,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // FUNTIDESK: a visible way into the settings
+                            // (owner's note 2026-10-11): the menu icon in
+                            // the title bar was not found.
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () =>
+                                    DesktopSettingPage.switch2page(
+                                        SettingsTabKey.general),
+                                icon: Icon(Icons.settings_outlined,
+                                    size: 18, color: t.link),
+                                label: Text(translate('Settings'),
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: t.link)),
+                              ),
+                            ).marginOnly(bottom: 6),
                             if (!_bannerHidden) ...[
                               _Banner(onClose: _hideBanner),
                               const SizedBox(height: 16),

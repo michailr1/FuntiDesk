@@ -451,6 +451,7 @@ class _FileManagerViewState extends State<FileManagerView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           headTools(),
+          _quickFolders(),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,7 +462,9 @@ class _FileManagerViewState extends State<FileManagerView> {
                     widget._mouseFocusScope.value = isLocal
                         ? MouseFocusScope.local
                         : MouseFocusScope.remote;
-                    _keyboardNode.requestFocus();
+                    // FUNTIDESK: moving the mouse over the list must not
+                    // take the focus from the address bar being typed in.
+                    if (!_isTyping()) _keyboardNode.requestFocus();
                   },
                   onExit: (evt) =>
                       widget._mouseFocusScope.value = MouseFocusScope.none,
@@ -494,6 +497,55 @@ class _FileManagerViewState extends State<FileManagerView> {
       _modifiedColWidth.value *= difference;
       _sizeColWidth.value *= difference;
     }
+  }
+
+  bool _isTyping() {
+    final focus = FocusManager.instance.primaryFocus;
+    return focus?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+            null ||
+        focus?.context?.widget is EditableText;
+  }
+
+  Future<void> _openTyped(String path) async {
+    path = path.trim();
+    if (path.isEmpty) return;
+    selectedItems.clear();
+    if (!await controller.openDirectory(path)) {
+      showToast(translate('funti-ft-open-failed').replaceAll('{}', path));
+    }
+  }
+
+  // FUNTIDESK: quick folders as in "This PC" (owner's decision 2026-10-08).
+  // Variables are expanded on the side that owns the files.
+  Widget _quickFolders() {
+    // The platform as in the panel header: options.isWindows is filled in
+    // later without notifying, so the row stayed hidden after reconnecting.
+    return FutureBuilder<String>(
+        future: bind.sessionGetPlatform(
+            sessionId: _ffi.sessionId, isRemote: !isLocal),
+        builder: (context, snapshot) {
+      if (snapshot.data != kPeerPlatformWindows) {
+        return const SizedBox.shrink();
+      }
+      final items = <(String, String)>[
+        ('funti-ft-desktop', r'%USERPROFILE%\Desktop'),
+        ('funti-ft-documents', r'%USERPROFILE%\Documents'),
+        ('funti-ft-downloads', r'%USERPROFILE%\Downloads'),
+        ('funti-ft-home', r'%USERPROFILE%'),
+        ('funti-ft-this-pc', '/'),
+      ];
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: items
+            .map((e) => ActionChip(
+                  label: Text(translate(e.$1)),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _openTyped(e.$2),
+                ))
+            .toList(),
+      ).marginOnly(top: 8);
+    });
   }
 
   void onLocationFocusChanged() {
@@ -1667,9 +1719,9 @@ class _FileManagerViewState extends State<FileManagerView> {
               ),
             ),
             controller: textController,
-            onSubmitted: (path) {
-              controller.openDirectory(path);
-            },
+            onSubmitted: _locationStatus.value == LocationStatus.pathLocation
+                ? _openTyped
+                : null,
             onChanged: _locationStatus.value == LocationStatus.fileSearchBar
                 ? (searchText) => onSearchText(searchText, isLocal)
                 : null,

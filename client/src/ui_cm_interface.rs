@@ -1534,7 +1534,8 @@ async fn read_dir(dir: &str, include_hidden: bool, tx: &UnboundedSender<Data>) {
         if dir.is_empty() {
             Config::get_home()
         } else {
-            fs::get_path(dir)
+            // FUNTIDESK: %USERPROFILE%\Desktop and other variables.
+            fs::get_path(&crate::common::funti_expand_env(dir))
         }
     };
     if let Ok(Ok(fd)) = spawn_blocking(move || fs::read_dir(&path, include_hidden)).await {

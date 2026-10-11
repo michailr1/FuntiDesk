@@ -1037,6 +1037,8 @@ async fn handle(data: Data, stream: &mut Connection) {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiFamilyAdd(id, name, pk) => {
             crate::funti_family::add(&id, &name, &pk);
+            // The UI waits for this: closing the pipe at once lost the member.
+            allow_err!(stream.send(&Data::FuntiFamilyAdd(id, name, Vec::new())).await);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiHelpAllow(id) => {
