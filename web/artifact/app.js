@@ -30,3 +30,47 @@ $('#copy-id').onclick=()=>{navigator.clipboard?.writeText('684 205 173');toast('
 $('#hero-form').onclick=()=>{forcedMorph=0;$('#hero-form').classList.add('active');$('#hero-network').classList.remove('active');};
 $('#hero-network').onclick=()=>{forcedMorph=1;$('#hero-network').classList.add('active');$('#hero-form').classList.remove('active');};
 scene.addEventListener('pointerdown',e=>{if(e.target.closest('button')||paused)return;const r=scene.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;particles.forEach(p=>{const dx=p.x-px,dy=p.y-py,d=Math.hypot(dx,dy);if(d<180&&d>0){p.bx=dx/d*(180-d)*.75;p.by=dy/d*(180-d)*.75;}});});
+
+// Compatibility for the optional legacy session lab loaded after app.js.
+// Current main does not expose transport selection on the home screen.
+let mode='auto';
+function route(which,on){
+  const direct=$('#direct-route'),relay=$('#relay-route'),node=$('#relay-node');
+  if(direct&&relay){direct.style.display=which==='relay'?'none':'block';relay.style.display=which==='relay'?'block':'none';}
+  if(node)node.style.display=which==='relay'?'block':'none';
+}
+
+// Recompose the embedded demo around the current main FuntiHomeView structure.
+(() => {
+  const demo=$('#client-demo'), body=demo?.querySelector('.app-body'), family=$('#family-demo');
+  if(!demo||!body)return;
+  family?.after(demo);
+  demo.querySelector('.client-preview').textContent='CURRENT MAIN · браузерная демонстрация';
+  const personal=demo.querySelector('.this-computer h4'); if(personal) personal.textContent='Домашний ПК';
+  const oldRail=demo.querySelector('.client-rail'); if(oldRail) oldRail.hidden=true;
+  const layout=demo.querySelector('.app-layout'); if(layout) layout.style.gridTemplateColumns='1fr';
+  const header=demo.querySelector('.connection-header');
+  if(header){
+    const settings=document.createElement('button');settings.className='main-settings-link';settings.textContent='⚙ Настройки';settings.onclick=()=>toast('В текущем main это действие открывает настройки клиента.');header.before(settings);
+    const banner=document.createElement('section');banner.className='main-home-banner';banner.innerHTML='<button aria-label="Скрыть баннер">×</button><div><span>FUNTIDESK</span><h3>Удалённый доступ — для своих.</h3><p>Ваш компьютер, ваши близкие и ваши устройства в одном понятном окне.</p></div><div class="main-home-nodes"><i>Домашний ПК</i><i>Ноутбук</i><i>Семья</i></div>';banner.querySelector('button').onclick=()=>banner.remove();header.before(banner);header.remove();
+  }
+  const thisComputer=demo.querySelector('.this-computer'), connectCard=demo.querySelector('.connection-card'), peers=demo.querySelector('.peer-section');
+  if(thisComputer&&connectCard&&peers){
+    const grid=document.createElement('div');grid.className='main-home-grid';
+    const right=document.createElement('div');right.className='main-home-right';
+    thisComputer.before(grid);grid.append(thisComputer,right);right.append(connectCard,peers);
+    const status=demo.querySelector('#service-status');if(status){const kicker=thisComputer.querySelector('.connection-kicker');kicker?.after(status);}
+    const help=document.createElement('button');help.className='main-help-button';help.textContent='Попросить помощи';help.onclick=()=>{document.querySelector('[data-journey="help"]')?.click();family?.scrollIntoView({behavior:paused?'auto':'smooth',block:'start'});};thisComputer.append(help);
+    const quick=document.createElement('div');quick.className='main-connect-actions';quick.innerHTML='<button data-main-action="files">▰ Только файлы</button><button data-main-action="call">☎ Позвонить</button><button data-main-action="terminal">›_ Терминал</button>';connectCard.append(quick);
+    quick.querySelector('[data-main-action="files"]').onclick=()=>toast('Передача файлов показана в дополнительной симуляции сеанса ниже.');
+    quick.querySelector('[data-main-action="terminal"]').onclick=()=>toast('Терминал показан в дополнительной симуляции сеанса ниже.');
+    quick.querySelector('[data-main-action="call"]').onclick=()=>{document.querySelector('[data-journey="call"]')?.click();family?.scrollIntoView({behavior:paused?'auto':'smooth',block:'start'});};
+    const ph=peers.querySelector('.peer-section-heading h4');if(ph)ph.textContent='Мои устройства';
+  }
+  const session=demo.querySelector('.session'), eventlog=demo.querySelector('.eventlog');
+  if(session){const details=document.createElement('details');details.className='main-session-lab';details.innerHTML='<summary>Дополнительная симуляция активной сессии</summary><p>Это отдельный браузерный lab, а не главное окно текущего main.</p>';session.before(details);details.append(session);if(eventlog)details.append(eventlog);const note=session.querySelector('.session-heading-note');if(note)note.textContent='дополнительная симуляция';}
+  const style=document.createElement('style');style.textContent=`
+  #client-demo .app-layout{grid-template-columns:1fr!important}#client-demo .app-body{padding:22px 26px 26px}.main-settings-link{display:block;margin:0 0 10px auto;border:0;background:transparent;color:#75a7ff;font-size:11px;cursor:pointer}.main-home-banner{position:relative;display:grid;grid-template-columns:minmax(250px,340px) 1fr;min-height:170px;margin-bottom:18px;border:1px solid #ffffff14;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#242936,#171e27)}.main-home-banner>button{position:absolute;right:10px;top:10px;width:28px;height:28px;border:0;border-radius:50%;background:#ffffff0e;color:#aeb4bf;cursor:pointer}.main-home-banner>div:first-of-type{padding:28px}.main-home-banner span{font-size:9px;letter-spacing:1px;color:#7e8ea5}.main-home-banner h3{margin:8px 0 10px!important;font-size:22px!important}.main-home-banner p{margin:0;max-width:300px;font-size:11px!important;line-height:1.6}.main-home-nodes{position:relative;background:radial-gradient(circle at 55% 50%,#3b82f62c,transparent 45%)}.main-home-nodes i{position:absolute;padding:8px 10px;border:1px solid #ffffff18;border-radius:8px;background:#242a34;color:#ccd3de;font-style:normal;font-size:9px}.main-home-nodes i:nth-child(1){left:12%;top:30%}.main-home-nodes i:nth-child(2){right:15%;top:24%}.main-home-nodes i:nth-child(3){left:44%;bottom:18%}.main-home-grid{display:grid;grid-template-columns:minmax(300px,370px) minmax(0,1fr);gap:18px}.main-home-right{display:flex;flex-direction:column;gap:16px}.main-home-grid .this-computer,.main-home-grid .connection-card,.main-home-grid .peer-section{margin:0!important;border:1px solid #ffffff14;border-radius:11px;background:#242430;padding:17px}.main-home-grid .this-computer{display:flex;flex-direction:column}.main-home-grid .client-status-pill{align-self:flex-start;margin:8px 0 10px}.main-home-grid .peer-section{flex:1}.main-home-grid .peer-section-heading{margin-bottom:8px}.main-help-button{margin-top:14px;min-height:38px;border:0;border-radius:7px;background:#3b82f6;color:white;font-size:11px;cursor:pointer}.main-connect-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}.main-connect-actions button{border:0;background:transparent;color:#75a7ff;font-size:10px;padding:4px 0;cursor:pointer}.main-session-lab{margin-top:18px;border:1px solid #ffffff12;border-radius:10px;background:#191b20}.main-session-lab>summary{padding:12px 14px;color:#aeb4bf;font-size:10px;cursor:pointer}.main-session-lab>p{margin:0;padding:0 14px 12px;font-size:9px;color:#808796}.main-session-lab .session{border-left:0!important;border-right:0!important;border-radius:0!important}.main-session-lab .eventlog{margin:0!important}.family-concept-badge{display:none!important}@media(max-width:820px){.main-home-grid{grid-template-columns:1fr}.main-home-banner{grid-template-columns:1fr}.main-home-nodes{display:none}}
+  `;document.head.append(style);
+  window.addEventListener('load',()=>{const p=family?.querySelector('.family-heading p');if(p)p.textContent='Локальная интерактивная симуляция функций семьи, запроса помощи и звонка из текущего направления main.';});
+})();
