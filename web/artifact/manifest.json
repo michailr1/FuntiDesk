@@ -5,65 +5,17 @@
     "commit": "7370e0c9d0c16dab652c9e6d56210b51f2543cf1"
   },
   "artifacts": [
-    {
-      "file": "app.js",
-      "bytes": 18892,
-      "sha256": "e12fc265a0370bac18a009c8fa59a73bd9a4a47851f36410f51097f7d7c6341a"
-    },
-    {
-      "file": "client-ui.css",
-      "bytes": 13099,
-      "sha256": "db613f141d3cbba191f2220697ed998aeebc2f69715aec8164bd5dc0a6452bc5"
-    },
-    {
-      "file": "family.css",
-      "bytes": 9960,
-      "sha256": "38d2c25ba47e76e84ad0e730b6e7f17b22a7fa655db79c7f4c5ab5780c9349bb"
-    },
-    {
-      "file": "family.js",
-      "bytes": 27558,
-      "sha256": "f24b52ad40e5e7f814f708bd9c05761defab469b5a2d851cec865e4cae6b166d"
-    },
-    {
-      "file": "index.html",
-      "bytes": 19648,
-      "sha256": "eb82ad1955ee8e7f181dbafaba8f2125945b3f7a012beed3973aafa7e7b3f863"
-    },
-    {
-      "file": "lab.css",
-      "bytes": 11013,
-      "sha256": "f50065d2173d82fb5a28fc20acfdb91e20bd00cdc3a2811b67c7204cfed71808"
-    },
-    {
-      "file": "lab.js",
-      "bytes": 22004,
-      "sha256": "9a211b8bdc4bc03f17b1091ccb983438dbd423ccda48bb9841f7fd95855132dc"
-    },
-    {
-      "file": "mark.svg",
-      "bytes": 2129,
-      "sha256": "43b995e5b0bf300c4c33c826f48ee3704592f940f8e5aa057e6a6918768a7d04"
-    },
-    {
-      "file": "platforms.css",
-      "bytes": 24858,
-      "sha256": "b23ba7c255e0c776f670837ea6674ce01c905ae442abdf80bb921939366247ae"
-    },
-    {
-      "file": "platforms.js",
-      "bytes": 34573,
-      "sha256": "efd55090e17f10953c306febd21807d994e10a13c55b5f399b1343425c3a2caa"
-    },
-    {
-      "file": "style.css",
-      "bytes": 16046,
-      "sha256": "17ce84c65663f62e57aa1b3e6621f3bbfd25b2a5fdba3d69f34aef458fa6920e"
-    },
-    {
-      "file": "assets/iphone-home.svg",
-      "bytes": 2378,
-      "sha256": "47fd8f7b1c4ca1ab078049b5444ae6f3d98ab2d51f6742c9a32982e1ed1d2bb1"
-    }
+    {"file":"index.html","bytes":19648,"sha256":"eb82ad1955ee8e7f181dbafaba8f2125945b3f7a012beed3973aafa7e7b3f863"},
+    {"file":"style.css","bytes":16040,"sha256":"948c3998416ae6950a2d069fae5225b50c0b12200325eb9276e052b4b32a69e5"},
+    {"file":"lab.css","bytes":11007,"sha256":"932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e"},
+    {"file":"platforms.css","bytes":24849,"sha256":"9eb23df95469ca83ea3f5cc7a5f8bb5930e2c1e882592f3adb6047f99147430b"},
+    {"file":"client-ui.css","bytes":12810,"sha256":"eab1d24866eeba69494ce106194e44a9b731d66f07f05f830ae90ef21c77432c"},
+    {"file":"family.css","bytes":9957,"sha256":"21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b"},
+    {"file":"app.js","bytes":18892,"sha256":"e12fc265a0370bac18a009c8fa59a73bd9a4a47851f36410f51097f7d7c6341a"},
+    {"file":"lab.js","bytes":21937,"sha256":"64226e56a1cb7b657d8a9fe2927fe6657810e7d68485be8fce75682afbe197cf"},
+    {"file":"platforms.js","bytes":34461,"sha256":"261eaa986a3611f6705f7a9575b2f8736ddee2afd0e3a92f74e86ecae8855f2b"},
+    {"file":"family.js","bytes":27458,"sha256":"6d16ca161961489b5f32b85fd1c680fa93bc3ac51eba5a1f66a4f23de6fd7e96"},
+    {"file":"mark.svg","bytes":2104,"sha256":"63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3"},
+    {"file":"assets/iphone-home.svg","bytes":2378,"sha256":"47fd8f7b1c4ca1ab078049b5444ae6f3d98ab2d51f6742c9a32982e1ed1d2bb1"}
   ]
 }
