@@ -77,8 +77,50 @@ fn install_android_deps() {
     println!("cargo:rustc-link-lib=OpenSLES");
 }
 
+// FUNTIDESK: FuntiDesk build number, the count of commits up to the built one
+// (`git rev-list --count HEAD`): the same on every platform and reproducible
+// from the repository. 0 means unknown (no git, or a shallow clone, where the
+// count would be wrong), so CI checks out the full history.
+fn gen_funti_build() {
+    use std::io::Write;
+    let git = |args: &[&str]| -> Option<String> {
+        let out = std::process::Command::new("git").args(args).output().ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&out.stdout).trim().to_owned())
+    };
+    let shallow = git(&["rev-parse", "--is-shallow-repository"]).as_deref() != Some("false");
+    let build: u32 = if shallow {
+        0
+    } else {
+        git(&["rev-list", "--count", "HEAD"])
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(0)
+    };
+    if let Some(dir) = git(&["rev-parse", "--absolute-git-dir"]) {
+        let mut watch = vec!["HEAD".to_owned(), "packed-refs".to_owned()];
+        if let Some(r) = git(&["symbolic-ref", "-q", "HEAD"]) {
+            watch.push(r);
+        }
+        for f in watch {
+            // A missing file would rerun this script, and rebuild, every time.
+            let path = std::path::Path::new(&dir).join(f);
+            if path.exists() {
+                println!("cargo:rerun-if-changed={}", path.display());
+            }
+        }
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open("src/version.rs")
+        .unwrap();
+    writeln!(file, "pub const FUNTI_BUILD: u32 = {build};").unwrap();
+}
+
 fn main() {
     hbb_common::gen_version();
+    gen_funti_build();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]
     build_manifest();

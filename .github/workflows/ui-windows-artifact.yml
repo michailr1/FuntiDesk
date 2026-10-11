@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # FUNTIDESK: the build number is the commit count (client/build.rs).
+          fetch-depth: 0
 
       - name: Guard FuntiDesk product identity
         shell: bash

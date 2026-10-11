@@ -756,9 +756,11 @@ pub fn get_new_version() -> String {
     .to_string()
 }
 
+// FUNTIDESK: the version people see: upstream base plus the FuntiDesk build
+// number. `crate::VERSION` stays the upstream one, peers check features by it.
 #[inline]
 pub fn get_version() -> String {
-    crate::VERSION.to_owned()
+    format!("{}-ft.{}", crate::VERSION, crate::FUNTI_BUILD)
 }
 
 #[cfg(any(target_os = "android", target_os = "ios", feature = "flutter"))]
