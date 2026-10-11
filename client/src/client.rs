@@ -1211,7 +1211,7 @@ impl Client {
                                     &peer,
                                     relay_server_rr,
                                     &rendezvous_server,
-                                    !signed_id_pk.is_empty(),
+                                    true, // FUNTIDESK R-10: relay is always secure
                                     &key,
                                     &token,
                                     conn_type,
@@ -1614,7 +1614,7 @@ impl Client {
                     peer_id,
                     relay_server.to_owned(),
                     rendezvous_server,
-                    !signed_id_pk.is_empty(),
+                    true, // FUNTIDESK R-10: relay is always secure
                     key,
                     token,
                     conn_type,
