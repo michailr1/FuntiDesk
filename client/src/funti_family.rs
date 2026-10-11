@@ -35,8 +35,13 @@ pub const LOGIN_MSG_PAIR_FAILED: &str = "funti-family-pair-failed";
 pub const LOGIN_MSG_HELP_DELIVERED: &str = "funti-help-delivered";
 pub const LOGIN_MSG_HELP_REFUSED: &str = "funti-help-refused";
 pub const LOGIN_MSG_UNPAIRED: &str = "funti-family-unpaired";
+/// ADR-008: the person at the computer showing the code said no (or did not answer).
+pub const LOGIN_MSG_PAIR_DECLINED: &str = "funti-family-pair-declined";
 
-const PAIR_CODE_TTL: Duration = Duration::from_secs(600);
+// ADR-008 (owner decision 2026-10-11): a code lives 5 minutes.
+const PAIR_CODE_TTL: Duration = Duration::from_secs(300);
+/// How long the computer showing the code waits for its person to confirm.
+pub const PAIR_CONFIRM_TIMEOUT: Duration = Duration::from_secs(90);
 const HELP_TTL: Duration = Duration::from_secs(600);
 
 lazy_static::lazy_static! {
@@ -47,6 +52,52 @@ lazy_static::lazy_static! {
     // Members just removed here: the "leave" message to them is still signed
     // for a short while, so removing here does not wait for the network.
     static ref LEAVING: Mutex<std::collections::HashMap<String, Instant>> = Default::default();
+    // ADR-008: a computer that entered our code, waiting for "Add" here.
+    static ref PENDING_PAIR: Mutex<Option<PendingPair>> = Default::default();
+}
+
+struct PendingPair {
+    id: String,
+    name: String,
+    answer: Option<std::sync::mpsc::Sender<bool>>,
+}
+
+/// ADR-008: asks the person here to confirm the computer that entered our
+/// code. Blocks up to PAIR_CONFIRM_TIMEOUT; no answer means no.
+pub fn ask_pair_confirm(id: &str, name: &str) -> bool {
+    let (tx, rx) = std::sync::mpsc::channel();
+    *PENDING_PAIR.lock().unwrap() = Some(PendingPair {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        answer: Some(tx),
+    });
+    let ok = rx.recv_timeout(PAIR_CONFIRM_TIMEOUT).unwrap_or(false);
+    *PENDING_PAIR.lock().unwrap() = None;
+    ok
+}
+
+/// The computer waiting for confirmation, for the code window: (id, name).
+pub fn pending_pair() -> Option<(String, String)> {
+    PENDING_PAIR
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| (p.id.clone(), p.name.clone()))
+}
+
+/// The person's answer in the code window.
+pub fn confirm_pair(accept: bool) {
+    if let Some(p) = PENDING_PAIR.lock().unwrap().as_mut() {
+        if let Some(tx) = p.answer.take() {
+            tx.send(accept).ok();
+        }
+    }
+}
+
+/// ADR-008: what a device signs to offer its pairing code to the server.
+/// Must match server/src/funti_pair.rs.
+pub fn offer_message(id: &str, code: &str, time: i64) -> Vec<u8> {
+    format!("funtidesk-pair-offer-v1\n{id}\n{code}\n{time}").into_bytes()
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -177,6 +228,17 @@ pub fn take_help(id: &str) -> bool {
 pub fn new_pair_code() -> String {
     let code = format!("{:06}", rand::thread_rng().gen_range(0..1_000_000u32));
     *PAIR_CODE.lock().unwrap() = Some((code.clone(), Instant::now()));
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        // ADR-008: so that the other computer needs only the code. Without
+        // the server (old server, offline) the code still works with the ID.
+        let code = code.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = offer_code_blocking(&code) {
+                log::warn!("FuntiDesk family: pairing code not registered on the server: {e}");
+            }
+        });
+    }
     code
 }
 
@@ -246,6 +308,27 @@ mod client_side {
         match conn.next_timeout(2000).await {
             Ok(Some(IpcData::FuntiFamilyCode(_, Some(code)))) => Some(code),
             _ => None,
+        }
+    }
+
+    /// ADR-008: the computer waiting for "Add" here, from the service.
+    pub async fn request_pending() -> Option<(String, String)> {
+        let mut conn = ipc::connect(1000, "").await.ok()?;
+        conn.send(&IpcData::FuntiFamilyPending(None)).await.ok()?;
+        match conn.next_timeout(2000).await {
+            Ok(Some(IpcData::FuntiFamilyPending(Some((id, name))))) if !id.is_empty() => {
+                Some((id, name))
+            }
+            _ => None,
+        }
+    }
+
+    /// ADR-008: the person's answer, to the service.
+    pub async fn request_confirm(accept: bool) {
+        if let Ok(mut conn) = ipc::connect(1000, "").await {
+            conn.send(&IpcData::FuntiFamilyConfirm(accept)).await.ok();
+            // Let the service read it before the pipe closes.
+            conn.next_timeout(300).await.ok();
         }
     }
 
@@ -329,7 +412,12 @@ mod client_side {
             return Err("no verified key of the other computer".to_owned());
         };
         loop {
-            let bytes = match timeout(TokioDuration::from_secs(30), peer.next()).await {
+            // ADR-008: pairing waits for "Add" on the other computer.
+            let wait = match request {
+                Request::Pair(_) => PAIR_CONFIRM_TIMEOUT + Duration::from_secs(15),
+                _ => Duration::from_secs(30),
+            };
+            let bytes = match timeout(TokioDuration::from_secs(wait.as_secs()), peer.next()).await {
                 Ok(Some(Ok(bytes))) => bytes,
                 Ok(Some(Err(e))) => return Err(e.to_string()),
                 Ok(None) => return Err("connection closed".to_owned()),
@@ -390,10 +478,90 @@ mod client_side {
         }
     }
 
-    /// Pairs this device with computer `id` using the code shown there.
+    /// ADR-008: one request to the FuntiDesk server over the encrypted
+    /// channel; the answer is FuntiPairResponse.
+    async fn pair_server_request(
+        msg: hbb_common::rendezvous_proto::RendezvousMessage,
+    ) -> hbb_common::ResultType<hbb_common::rendezvous_proto::FuntiPairResponse> {
+        use hbb_common::{
+            config::{CONNECT_TIMEOUT, RENDEZVOUS_PORT},
+            rendezvous_proto::rendezvous_message,
+            socket_client::{check_port, connect_tcp},
+        };
+        let (server, _, _) = crate::get_rendezvous_server(1_000).await;
+        let mut conn = connect_tcp(check_port(server, RENDEZVOUS_PORT), CONNECT_TIMEOUT).await?;
+        // The code is a secret: never in the clear (fail closed).
+        crate::secure_tcp_required(&mut conn, "").await?;
+        conn.send(&msg).await?;
+        for _ in 0..3 {
+            match crate::get_next_nonkeyexchange_msg(&mut conn, Some(5_000)).await {
+                Some(m) => {
+                    if let Some(rendezvous_message::Union::FuntiPairResponse(r)) = m.union {
+                        return Ok(r);
+                    }
+                }
+                None => break,
+            }
+        }
+        hbb_common::bail!("no answer from the FuntiDesk server")
+    }
+
+    /// ADR-008: registers our pairing code on the server, signed with our key.
+    pub async fn offer_code(code: &str) -> hbb_common::ResultType<()> {
+        use hbb_common::rendezvous_proto::{funti_pair_response, FuntiPairOffer, RendezvousMessage};
+        let id = Config::get_id();
+        let time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs() as i64;
+        let signature = sign_message(&offer_message(&id, code, time));
+        if signature.is_empty() {
+            hbb_common::bail!("no device key");
+        }
+        let mut msg = RendezvousMessage::new();
+        msg.set_funti_pair_offer(FuntiPairOffer {
+            id,
+            code: code.to_owned(),
+            time,
+            signature: signature.into(),
+            ..Default::default()
+        });
+        let res = pair_server_request(msg).await?;
+        if res.result.enum_value() != Ok(funti_pair_response::Result::OK) {
+            hbb_common::bail!("server answered {:?}", res.result);
+        }
+        Ok(())
+    }
+
+    /// ADR-008: the ID of the computer showing `code`.
+    async fn lookup_code(code: &str) -> Result<String, String> {
+        use hbb_common::rendezvous_proto::{funti_pair_response, FuntiPairLookup, RendezvousMessage};
+        let mut msg = RendezvousMessage::new();
+        msg.set_funti_pair_lookup(FuntiPairLookup {
+            code: code.to_owned(),
+            ..Default::default()
+        });
+        let res = pair_server_request(msg)
+            .await
+            .map_err(|e| format!("funti-family-server-error: {e}"))?;
+        match res.result.enum_value() {
+            Ok(funti_pair_response::Result::OK) if !res.id.is_empty() => Ok(res.id),
+            Ok(funti_pair_response::Result::TOO_MANY_ATTEMPTS) => {
+                Err("funti-family-too-many".to_owned())
+            }
+            _ => Err(LOGIN_MSG_PAIR_FAILED.to_owned()),
+        }
+    }
+
+    /// Pairs this device with computer `id` using the code shown there; with
+    /// an empty `id` the computer is found by the code (ADR-008).
     /// Ok(name of that computer) once both sides keep each other's key.
-    pub async fn pair_with(id: &str, code: &str) -> Result<String, String> {
-        let id = id.replace(' ', "");
+    pub async fn pair_with(id: &str, code: &str) -> Result<(String, String), String> {
+        let code = code.replace(' ', "");
+        let id = if id.trim().is_empty() {
+            lookup_code(&code).await?
+        } else {
+            id.replace(' ', "")
+        };
         let (res, peer_pk) = headless(&id, Request::Pair(code.trim().to_owned())).await?;
         if login_error(&res) != LOGIN_MSG_PAIRED {
             return Err(login_error(&res));
@@ -404,7 +572,7 @@ mod client_side {
             res.funti_family_paired.clone()
         };
         if add_via_service(&id, &name, &peer_pk).await {
-            Ok(name)
+            Ok((id, name))
         } else {
             Err("FuntiDesk service is not running".to_owned())
         }
@@ -441,7 +609,28 @@ mod client_side {
     }
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub use client_side::{ask_help, leave, pair_with, request_code, request_sign};
+pub use client_side::{
+    ask_help, leave, offer_code, pair_with, request_code, request_confirm, request_pending,
+    request_sign,
+};
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn pending_blocking() -> Option<(String, String)> {
+    request_pending().await
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn confirm_blocking(accept: bool) {
+    request_confirm(accept).await
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+async fn offer_code_blocking(code: &str) -> hbb_common::ResultType<()> {
+    offer_code(code).await
+}
 
 /// Blocking wrappers for the UI bridge.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -452,7 +641,7 @@ pub async fn code_blocking(start: bool) -> String {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tokio::main(flavor = "current_thread")]
-pub async fn pair_blocking(id: &str, code: &str) -> Result<String, String> {
+pub async fn pair_blocking(id: &str, code: &str) -> Result<(String, String), String> {
     pair_with(id, code).await
 }
 

@@ -1008,12 +1008,28 @@ pub fn main_funti_family_code(start: bool) -> String {
     String::new()
 }
 
+// FUNTIDESK (ADR-008): the computer that entered our code and waits for
+// "Add" here. JSON {"id": "...", "name": "..."} or "" when none.
+pub fn main_funti_family_pending() -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some((id, name)) = crate::funti_family::pending_blocking() {
+        return serde_json::json!({ "id": id, "name": name }).to_string();
+    }
+    String::new()
+}
+
+// FUNTIDESK (ADR-008): the answer to the pending pairing.
+pub fn main_funti_family_confirm(accept: bool) {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    crate::funti_family::confirm_blocking(accept);
+}
+
 // FUNTIDESK (ADR-006): pair with computer `id` by the code shown there.
 // JSON: {"name": "..."} on success, {"error": "..."} otherwise.
 pub fn main_funti_family_pair(id: String, code: String) -> String {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return match crate::funti_family::pair_blocking(&id, &code) {
-        Ok(name) => serde_json::json!({ "name": name }).to_string(),
+        Ok((id, name)) => serde_json::json!({ "id": id, "name": name }).to_string(),
         Err(error) => serde_json::json!({ "error": error }).to_string(),
     };
     #[allow(unreachable_code)]

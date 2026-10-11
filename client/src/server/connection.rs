@@ -2467,6 +2467,20 @@ impl Connection {
                 && family::verify(&pair.pk, &msg, &pair.signature)
             {
                 self.update_failure(failure, true, 0);
+                // ADR-008: the person at this computer confirms who is added;
+                // a code found or guessed through the server is not enough.
+                let (guest_id, guest_name) = (lr.my_id.clone(), lr.my_name.clone());
+                let confirmed = hbb_common::tokio::task::spawn_blocking(move || {
+                    family::ask_pair_confirm(&guest_id, &guest_name)
+                })
+                .await
+                .unwrap_or(false);
+                if !confirmed {
+                    log::info!("FuntiDesk family: pairing from {} not confirmed here", lr.my_id);
+                    self.send_login_error(family::LOGIN_MSG_PAIR_DECLINED).await;
+                    sleep(1.).await;
+                    return Some(false);
+                }
                 family::add(&lr.my_id, &lr.my_name, &pair.pk);
                 let mut res = LoginResponse::new();
                 res.set_error(family::LOGIN_MSG_PAIRED.to_owned());

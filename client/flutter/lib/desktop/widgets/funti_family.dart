@@ -248,21 +248,36 @@ void _showCodeDialog(VoidCallback? onChanged) {
   final code = bind.mainFuntiFamilyCode(start: true);
   final before = funtiFamilyMembers().map((m) => m.id).toSet();
   final added = Rxn<FuntiFamilyMember>();
+  // ADR-008: the computer that entered this code, waiting for "Add" here.
+  final asking = Rxn<Map<String, dynamic>>();
   final nameController = TextEditingController();
   Timer? timer;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
-    timer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+    timer ??= Timer.periodic(const Duration(seconds: 1), (_) async {
       final now = funtiFamilyMembers();
       final fresh = now.where((m) => !before.contains(m.id));
       if (fresh.isNotEmpty && added.value == null) {
         nameController.text = fresh.first.title;
         added.value = fresh.first;
+        asking.value = null;
         onChanged?.call();
+        return;
+      }
+      if (added.value == null && asking.value == null) {
+        final pending = await bind.mainFuntiFamilyPending();
+        if (pending.isNotEmpty) {
+          asking.value = jsonDecode(pending) as Map<String, dynamic>;
+        }
       }
     });
+    void answer(bool accept) {
+      bind.mainFuntiFamilyConfirm(accept: accept);
+      asking.value = null;
+    }
     Future<void> done() async {
       timer?.cancel();
+      if (asking.value != null) answer(false);
       final member = added.value;
       if (member == null) {
         bind.mainFuntiFamilyCode(start: false);
@@ -283,6 +298,40 @@ void _showCodeDialog(VoidCallback? onChanged) {
           final value = snap.data ?? '';
           return Obx(() {
             final member = added.value;
+            final ask = asking.value;
+            if (member == null && ask != null) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(translate('funti-family-confirm-title'),
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: t.text)),
+                  const SizedBox(height: 10),
+                  Text(
+                    translate('funti-family-confirm-text')
+                        .replaceAll('{name}', ask['name'].toString())
+                        .replaceAll('{id}', formatFuntiId(ask['id'].toString())),
+                    style: TextStyle(fontSize: 14, color: t.text),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                          onPressed: () => answer(false),
+                          child: Text(translate('Cancel'))),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                          onPressed: () => answer(true),
+                          child: Text(translate('funti-family-confirm-add'))),
+                    ],
+                  ),
+                ],
+              );
+            }
             if (member != null) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -384,6 +433,8 @@ void _enterCodeDialog(VoidCallback? onChanged) {
   final busy = false.obs;
   final error = ''.obs;
   final added = ''.obs;
+  // ADR-008: older FuntiDesk (or an older server) still needs the ID.
+  final manualId = false.obs;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
     Future<void> submit() async {
@@ -391,9 +442,9 @@ void _enterCodeDialog(VoidCallback? onChanged) {
         close();
         return;
       }
-      final id = idController.text.replaceAll(' ', '');
+      final id = manualId.value ? idController.text.replaceAll(' ', '') : '';
       final code = codeController.text.replaceAll(' ', '');
-      if (id.isEmpty || code.length != 6) {
+      if ((manualId.value && id.isEmpty) || code.length != 6) {
         error.value = translate('funti-family-enter-both');
         return;
       }
@@ -404,13 +455,18 @@ void _enterCodeDialog(VoidCallback? onChanged) {
       busy.value = false;
       if (res['name'] != null) {
         final name = nameController.text.trim();
-        if (name.isNotEmpty) await funtiFamilyRename(id, name);
+        final pairedId = (res['id'] ?? id).toString();
+        if (name.isNotEmpty && pairedId.isNotEmpty) {
+          await funtiFamilyRename(pairedId, name);
+        }
         added.value = name.isNotEmpty ? name : res['name'].toString();
         onChanged?.call();
       } else {
         final e = (res['error'] ?? '').toString();
         error.value = e == 'funti-family-pair-failed'
             ? translate('funti-family-code-wrong')
+            : e == 'funti-family-pair-declined' || e == 'funti-family-too-many'
+                ? translate(e)
             : e == 'timeout' || e == 'connection closed'
                 // An older FuntiDesk ignores the pairing request.
                 ? translate('funti-family-no-answer')
@@ -445,15 +501,8 @@ void _enterCodeDialog(VoidCallback? onChanged) {
                 style: TextStyle(fontSize: 13, color: t.muted)),
             const SizedBox(height: 14),
             TextField(
-              controller: idController,
-              autofocus: true,
-              enabled: !busy.value,
-              decoration: InputDecoration(
-                  labelText: translate('funti-family-their-id')),
-            ),
-            const SizedBox(height: 10),
-            TextField(
               controller: codeController,
+              autofocus: true,
               enabled: !busy.value,
               maxLength: 7,
               decoration: InputDecoration(
@@ -470,7 +519,26 @@ void _enterCodeDialog(VoidCallback? onChanged) {
               onSubmitted: (_) => submit(),
             ),
             const SizedBox(height: 8),
-            if (busy.value) const LinearProgressIndicator(),
+            if (manualId.value)
+              TextField(
+                controller: idController,
+                enabled: !busy.value,
+                decoration: InputDecoration(
+                    labelText: translate('funti-family-their-id')),
+              )
+            else
+              TextButton(
+                onPressed: busy.value ? null : () => manualId.value = true,
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                child: Text(translate('funti-family-enter-id-manually')),
+              ),
+            const SizedBox(height: 8),
+            if (busy.value) ...[
+              Text(translate('funti-family-waiting-confirm'),
+                  style: TextStyle(fontSize: 13, color: t.muted)),
+              const SizedBox(height: 6),
+              const LinearProgressIndicator(),
+            ],
             if (error.value.isNotEmpty)
               Text(error.value,
                   style: TextStyle(

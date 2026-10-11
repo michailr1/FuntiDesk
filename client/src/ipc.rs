@@ -421,6 +421,13 @@ pub enum Data {
     // Remove family member `id` here; "leave" to it stays signable briefly.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiFamilyRemove(String),
+    // ADR-008: the computer that entered our code and waits for "Add" here:
+    // request None -> answer Some((id, name)), or Some(("", "")) for none.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyPending(Option<(String, String)>),
+    // ADR-008: the person's answer to the pending pairing.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyConfirm(bool),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -1155,6 +1162,15 @@ async fn handle(data: Data, stream: &mut Connection) {
             crate::funti_family::add(&id, &name, &pk);
             // The UI waits for this: closing the pipe at once lost the member.
             allow_err!(stream.send(&Data::FuntiFamilyAdd(id, name, Vec::new())).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyPending(None) => {
+            let pending = crate::funti_family::pending_pair().unwrap_or_default();
+            allow_err!(stream.send(&Data::FuntiFamilyPending(Some(pending))).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyConfirm(accept) => {
+            crate::funti_family::confirm_pair(accept);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiHelpAllow(id) => {

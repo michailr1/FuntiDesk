@@ -95,6 +95,8 @@ pub struct RendezvousServer {
     tcp_punch: Arc<Mutex<HashMap<SocketAddr, Sink>>>,
     // FUNTIDESK ADR-004: devices registered over TCP, by their TCP address.
     tcp_peers: Arc<Mutex<HashMap<SocketAddr, mpsc::UnboundedSender<Bytes>>>>,
+    // FUNTIDESK (ADR-008): pairing codes, in memory only.
+    funti_pair: Arc<Mutex<crate::funti_pair::PairCodes>>,
     pm: PeerMap,
     tx: Sender,
     relay_servers: Arc<RelayServers>,
@@ -143,6 +145,7 @@ impl RendezvousServer {
         let mut rs = Self {
             tcp_punch: Arc::new(Mutex::new(HashMap::new())),
             tcp_peers: Arc::new(Mutex::new(HashMap::new())),
+            funti_pair: Default::default(),
             pm,
             tx: tx.clone(),
             relay_servers: Default::default(),
@@ -495,6 +498,26 @@ impl RendezvousServer {
             self.pm.update_pk(id, peer, addr, rk.uuid, rk.pk, ip).await;
         }
         Some(register_pk_response::Result::OK)
+    }
+
+    // FUNTIDESK (ADR-008): a pairing code offered by a registered device,
+    // signed with the key it registered for its ID.
+    async fn funti_pair_offer(&mut self, offer: FuntiPairOffer) -> funti_pair_response::Result {
+        let Some(peer) = self.pm.get(&offer.id).await else {
+            return funti_pair_response::Result::BAD_REQUEST;
+        };
+        let pk = peer.read().await.pk.clone();
+        if !crate::funti_pair::verify_offer(&pk, &offer) {
+            log::warn!("FuntiDesk pair offer for {}: bad signature or code", offer.id);
+            return funti_pair_response::Result::BAD_REQUEST;
+        }
+        if self.funti_pair.lock().await.offer(&offer.id, &offer.code) {
+            log::info!("FuntiDesk pair offer from {}", offer.id);
+            funti_pair_response::Result::OK
+        } else {
+            // The same code is held by another computer right now.
+            funti_pair_response::Result::BAD_REQUEST
+        }
     }
 
     #[inline]
@@ -1235,6 +1258,8 @@ impl RendezvousServer {
         let mut sink = Some(Sink::Chan(tx.clone()));
         let mut pending = stream.next_timeout(TCP_KEY_EXCHANGE_WAIT_MS).await;
         let mut our_sk_b = None;
+        // FUNTIDESK (ADR-008): pairing messages only over the encrypted channel.
+        let mut secured = false;
         if pending.is_none() {
             if let Some(sk) = self.inner.sk.as_ref() {
                 let (our_pk_b, sk_b) = box_::gen_keypair();
@@ -1308,7 +1333,10 @@ impl RendezvousServer {
                         break;
                     }
                     match Encrypt::decode(&ex.keys[1], &ex.keys[0], &sk_b) {
-                        Ok(k) => stream.set_key(k),
+                        Ok(k) => {
+                            stream.set_key(k);
+                            secured = true;
+                        }
                         Err(err) => {
                             log::warn!("TCP signaling key exchange from {}: {}", addr, err);
                             break;
@@ -1337,6 +1365,49 @@ impl RendezvousServer {
                         self.touch_tcp_peer(&id, addr).await;
                         log::info!("TCP signaling: {} registered from {}", id, addr);
                         registered = Some(id);
+                    }
+                }
+                Some(rendezvous_message::Union::FuntiPairOffer(offer)) => {
+                    let result = if secured {
+                        self.funti_pair_offer(offer).await
+                    } else {
+                        funti_pair_response::Result::BAD_REQUEST
+                    };
+                    let mut msg_out = RendezvousMessage::new();
+                    msg_out.set_funti_pair_response(FuntiPairResponse {
+                        result: result.into(),
+                        ..Default::default()
+                    });
+                    if stream.send(&msg_out).await.is_err() {
+                        break;
+                    }
+                }
+                Some(rendezvous_message::Union::FuntiPairLookup(lookup)) => {
+                    let res = if secured {
+                        self.funti_pair
+                            .lock()
+                            .await
+                            .lookup(try_into_v4(addr).ip(), &lookup.code)
+                    } else {
+                        Err(funti_pair_response::Result::BAD_REQUEST)
+                    };
+                    let mut msg_out = RendezvousMessage::new();
+                    msg_out.set_funti_pair_response(match res {
+                        Ok(id) => FuntiPairResponse {
+                            result: funti_pair_response::Result::OK.into(),
+                            id,
+                            ..Default::default()
+                        },
+                        Err(result) => {
+                            log::info!("FuntiDesk pair lookup from {}: {:?}", addr, result);
+                            FuntiPairResponse {
+                                result: result.into(),
+                                ..Default::default()
+                            }
+                        }
+                    });
+                    if stream.send(&msg_out).await.is_err() {
+                        break;
                     }
                 }
                 _ => {
