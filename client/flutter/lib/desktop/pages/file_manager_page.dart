@@ -518,8 +518,15 @@ class _FileManagerViewState extends State<FileManagerView> {
   // FUNTIDESK: quick folders as in "This PC" (owner's decision 2026-10-08).
   // Variables are expanded on the side that owns the files.
   Widget _quickFolders() {
-    return Obx(() {
-      if (!controller.options.value.isWindows) return const SizedBox.shrink();
+    // The platform as in the panel header: options.isWindows is filled in
+    // later without notifying, so the row stayed hidden after reconnecting.
+    return FutureBuilder<String>(
+        future: bind.sessionGetPlatform(
+            sessionId: _ffi.sessionId, isRemote: !isLocal),
+        builder: (context, snapshot) {
+      if (snapshot.data != kPeerPlatformWindows) {
+        return const SizedBox.shrink();
+      }
       final items = <(String, String)>[
         ('funti-ft-desktop', r'%USERPROFILE%\Desktop'),
         ('funti-ft-documents', r'%USERPROFILE%\Documents'),

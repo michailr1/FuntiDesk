@@ -253,9 +253,18 @@ mod client_side {
         let Ok(mut conn) = ipc::connect(1000, "").await else {
             return false;
         };
-        conn.send(&IpcData::FuntiFamilyAdd(id.to_owned(), name.to_owned(), pk.to_vec()))
+        if conn
+            .send(&IpcData::FuntiFamilyAdd(id.to_owned(), name.to_owned(), pk.to_vec()))
             .await
-            .is_ok()
+            .is_err()
+        {
+            return false;
+        }
+        // Wait until the service has stored it: "added" only when it is.
+        matches!(
+            conn.next_timeout(3000).await,
+            Ok(Some(IpcData::FuntiFamilyAdd(..)))
+        )
     }
 
     /// Minimal client interface for the pairing connection: no UI, no session.
