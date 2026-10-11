@@ -26,7 +26,7 @@ use std::{
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 const FUNTI_NO_FRAME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-use hbb_common::message_proto::{DisplayInfo, Resolution};
+use base::message_proto::{DisplayInfo, Resolution};
 
 #[cfg(feature = "vram")]
 use crate::AdapterDevice;

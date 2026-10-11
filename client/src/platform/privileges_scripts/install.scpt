@@ -11,7 +11,7 @@ on run {daemon_file, agent_file, user}
 
   set sh4 to "test ! -f " & quoted form of (user_config_dir & "/FuntiDesk2.toml") & " || cp -f " & quoted form of (user_config_dir & "/FuntiDesk2.toml") & " " & quoted form of (root_config_dir & "/FuntiDesk2.toml") & ";"
 
-  set sh5 to "launchctl load -w /Library/LaunchDaemons/cc.funti.funtidesk.service.plist;"
+  set sh5 to "launchctl bootout system/cc.funti.funtidesk.service 2>/dev/null || launchctl unload -w /Library/LaunchDaemons/cc.funti.funtidesk.service.plist 2>/dev/null || true; launchctl bootstrap system /Library/LaunchDaemons/cc.funti.funtidesk.service.plist 2>/dev/null || launchctl load -w /Library/LaunchDaemons/cc.funti.funtidesk.service.plist;"
 
   set sh to sh1 & sh2 & sh3 & sh4 & sh5
 
