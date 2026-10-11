@@ -1,0 +1,86 @@
+{
+  "source": "https://funtidesk-motion-lab.michailr.chatgpt.site/",
+  "captured_utc": "2026-10-11",
+  "artifacts": [
+    {
+      "url": "/",
+      "file": "index.html",
+      "http_status": 200,
+      "content_type": "text/html",
+      "bytes": 16918,
+      "sha256": "b237b11062334f1f0cb9298b033673cb01767f319861ee17b67f78c2595d9cf5"
+    },
+    {
+      "url": "/style.css",
+      "file": "style.css",
+      "http_status": 200,
+      "content_type": "text/css",
+      "bytes": 16040,
+      "sha256": "948c3998416ae6950a2d069fae5225b50c0b12200325eb9276e052b4b32a69e5"
+    },
+    {
+      "url": "/lab.css",
+      "file": "lab.css",
+      "http_status": 200,
+      "content_type": "text/css",
+      "bytes": 11007,
+      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e"
+    },
+    {
+      "url": "/platforms.css",
+      "file": "platforms.css",
+      "http_status": 200,
+      "content_type": "text/css",
+      "bytes": 24843,
+      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9"
+    },
+    {
+      "url": "/family.css",
+      "file": "family.css",
+      "http_status": 200,
+      "content_type": "text/css",
+      "bytes": 9957,
+      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b"
+    },
+    {
+      "url": "/app.js",
+      "file": "app.js",
+      "http_status": 200,
+      "content_type": "text/javascript",
+      "bytes": 10940,
+      "sha256": "65d0bf20fb7d510c639751c8512bd51e58c91ca6160cc97dcaefca556559e5ae"
+    },
+    {
+      "url": "/lab.js",
+      "file": "lab.js",
+      "http_status": 200,
+      "content_type": "text/javascript",
+      "bytes": 22519,
+      "sha256": "2f7cecb927bc8efc730448a32b90534e83661b1e6f06702768f5186b205065c1"
+    },
+    {
+      "url": "/platforms.js",
+      "file": "platforms.js",
+      "http_status": 200,
+      "content_type": "text/javascript",
+      "bytes": 34732,
+      "sha256": "8c5b91d428ca605ff83ad347f44417aad0aa5adc13c7701c6dc5e6333c9a90a0"
+    },
+    {
+      "url": "/family.js",
+      "file": "family.js",
+      "http_status": 200,
+      "content_type": "text/javascript",
+      "bytes": 27255,
+      "sha256": "295913393580a8a234493ddf683228bcd2adecd2295a3b1b8796fa970446a6ad"
+    },
+    {
+      "url": "/mark.svg",
+      "file": "mark.svg",
+      "http_status": 200,
+      "content_type": "image/svg+xml",
+      "bytes": 1402,
+      "sha256": "48ddbfc154c1b762a99d62c063cb2ebfbf92af3d7a62a87b81d19e71e0b9f814"
+    }
+  ]
+}

@@ -24,3 +24,8 @@ python3 -m http.server 8080 -d web
 Рекомендуемая схема: версионные директории `/opt/funtidesk-web/releases/<git-sha>/` + симлинк `/opt/funtidesk-web/current`. Caddy обслуживает только `/opt/funtidesk-web/current`; `hbbs/hbbr` и порты `21115–21117` не изменяются.
 
 Перед переключением версии сохранять текущий Caddyfile и предыдущий target симлинка. После `caddy validate` выполнять только reload. Проверять HTTPS и доступность FuntiDesk server ports. Rollback — вернуть симлинк на предыдущую версию и reload Caddy.
+
+
+## Legacy version status
+
+`web/` files at the repository root are the previous production version and are retained for rollback/history. They are obsolete for the motion-lab mirror; the exact mirrored source-of-truth artifact is in `web/artifact/`.
