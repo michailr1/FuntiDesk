@@ -1,60 +1,50 @@
-# desk.funti.cc — состояние деплоя
+# desk.funti.cc — production web
 
-Дата деплоя: 2026-10-11
+Дата деплоя: 2026-10-11 21:29:33 UTC
 
 ## Production
 
 - URL: `https://desk.funti.cc`
 - Branch: `michailr/funtidesk-web`
-- Deployed source commit: `1ccf6d4b0e881a3b018ebd5e87c44bc6d4c4c306`
-- Release: `/opt/funtidesk-web/releases/1ccf6d4b0e881a3b018ebd5e87c44bc6d4c4c306/`
+- Deployed source commit: `3dcfec732cd43fe4584bc7a0548fc0785161dfa2`
+- Release: `/opt/funtidesk-web/releases/3dcfec732cd43fe4584bc7a0548fc0785161dfa2-artifact/`
 - Active symlink: `/opt/funtidesk-web/current`
 - Caddy Compose project/file/service: `caddy`, `/opt/remnawave/caddy/docker-compose.yml`, `caddy`
-- Caddyfile: `/opt/remnawave/caddy/Caddyfile` (unchanged)
-- Caddy root: `/usr/share/caddy`, mounted read-only from `/opt/funtidesk-web/current`
+- Caddy root: `/usr/share/caddy`, read-only mount from `/opt/funtidesk-web/current`
+- Caddyfile and canonical Compose file were not modified; the existing mount was retained.
 
-## Changes
+The release contains only the 12 public payload files listed in `web/artifact/manifest.json` at the deployed commit. `README.md` and `manifest.json` are repository metadata and were not copied into the public webroot. The release files are mode `0444`; directories are mode `0555`.
 
-В canonical Compose добавлен единственный mount:
+After the atomic `current` symlink switch, only the Caddy service was recreated to refresh the bind mount sourced through the symlink:
 
-`/opt/funtidesk-web/current:/usr/share/caddy:ro`
+`cd /opt/remnawave/caddy && docker compose -p caddy -f docker-compose.yml up -d --no-deps --force-recreate caddy`
 
-Caddy был пересоздан отдельно командой Compose с `--no-deps --force-recreate caddy` и исходным project name `caddy`. В Compose project определён только service `caddy`; другие Compose services не запускались и не пересоздавались. Caddyfile/routing, DNS, firewall, hbbs/hbbr и server identity не изменялись.
+No hbbs/hbbr, DNS, firewall, server identity, or Remnawave routing changes were made.
 
-## Backup и rollback
+## Rollback
 
-Полный backup, снятый из фактически обслуживавшего контейнера перед изменением:
+The immediately previous release, retained unchanged as rollback authority, is:
 
-`/opt/funtidesk-web/backups/deploy-20261011T1755Z/`
+`/opt/funtidesk-web/releases/95ad0010d105cbf810213778354831d916707f45-artifact/`
 
-Содержит:
+Before deployment, the live Caddy webroot and this release had identical paths and SHA-256 hashes (10 files). No duplicate webroot backup was needed; the immediately previous immutable release is the rollback authority.
 
-- `live-webroot/` — все 10 файлов прежнего `/usr/share/caddy`;
-- `live-webroot.sha256`, `live-webroot-files.txt` — сверенные перечни и хеши;
-- `docker-compose.yml`, `Caddyfile`, `current-symlink` — исходные конфиги и target;
-- `pre-recreate-baseline.txt` — состояния контейнеров и listeners;
-- `release-payload.SHA256SUMS`, `release-payload.hashes`, `container-payload.hashes` — контрольные хеши;
-- `docker-compose.candidate.yml` и `compose-candidate.resolved.json` — проверенная конфигурация кандидата.
+To roll back the site, atomically point `current` to the previous release, then recreate only Caddy:
 
-Rollback содержимого сайта: переключить `/opt/funtidesk-web/current` на проверенный полный снимок прежнего live root `/opt/funtidesk-web/releases/rollback-live-webroot-20261011T1755Z` и пересоздать только сервис Caddy: `ln -sfn /opt/funtidesk-web/releases/rollback-live-webroot-20261011T1755Z /opt/funtidesk-web/current.next && mv -Tf /opt/funtidesk-web/current.next /opt/funtidesk-web/current && cd /opt/remnawave/caddy && docker compose -p caddy up -d --no-deps --force-recreate caddy`. Хеши rollback release сверены с backup `live-webroot/`. Чтобы откатить только приложение на задокументированный release, можно направить symlink на `ea4528fa653a8f2a8af93ff3a35e07870a67b660` тем же способом. Compose rollback: восстановить `/opt/funtidesk-web/backups/deploy-20261011T1755Z/docker-compose.yml` в `/opt/remnawave/caddy/docker-compose.yml`, затем выполнить `cd /opt/remnawave/caddy && docker compose -p caddy up -d --no-deps --force-recreate caddy`. Caddyfile не менялся.
+`ln -s /opt/funtidesk-web/releases/95ad0010d105cbf810213778354831d916707f45-artifact /opt/funtidesk-web/current.rollback-next && mv -Tf /opt/funtidesk-web/current.rollback-next /opt/funtidesk-web/current && cd /opt/remnawave/caddy && docker compose -p caddy -f docker-compose.yml up -d --no-deps --force-recreate caddy`
 
 ## Acceptance
 
-- Exact remote branch HEAD до деплоя: `1ccf6d4b0e881a3b018ebd5e87c44bc6d4c4c306`.
-- Payload `index.html`, `styles.css`, `app.js`, `assets/funtidesk-mark.svg` проверен по SHA-256 внутри release и через Caddy mount.
-- Caddy config validation: PASS (`caddy validate`); Compose candidate: один service `caddy`, mount read-only.
-- HTTP: `308` → `https://desk.funti.cc/`.
-- HTTPS page: `200`; literal title: `FuntiDesk · Удалённый доступ для своих`.
-- `/styles.css`: `200`; `/app.js`: `200`; `/assets/funtidesk-mark.svg`: `200`.
-- Caddy container после targeted recreate: running, restart count `0`.
-- hbbs/hbbr: те же container IDs до/после, running, restart count `0`.
-- TCP `21115`, `21116`, `21117` и UDP `21116`: слушают до/после; процессы docker-proxy для этих портов не менялись.
-- DNS, firewall, server identity и Caddyfile не менялись.
-
-## Source checks
-
-Для deployed HEAD выполнены `git diff --check`, HTML parser parse, проверка title/assets-ссылок и скан публичной страницы на личное имя (совпадений нет). JavaScript `app.js` успешно разобран браузерным JavaScript engine через `new Function`; страница также загрузила CSS, JS и logo без ошибок HTTP.
-
-Acceptance marker:
+- Exact source branch commit before deployment: `3dcfec732cd43fe4584bc7a0548fc0785161dfa2`; manifest sizes and SHA-256 values were verified against the commit blobs before switching.
+- HTTP: `308` to `https://desk.funti.cc/`.
+- HTTPS `/`: `200`; literal HTML title: `FuntiDesk — живые соединения`.
+- HTTPS `/index.html`: `200`; SHA-256 `3ecbd249864d06d527c2c6a5dbf0775c48c9731d96a4364b2a758225ed9e784f`.
+- All 12 manifest payload URLs returned `200`; response byte sizes and SHA-256 values matched the release: `/`, `/style.css`, `/lab.css`, `/platforms.css`, `/client-ui.css`, `/family.css`, `/app.js`, `/lab.js`, `/platforms.js`, `/family.js`, `/mark.svg`, `/assets/iphone-home.svg`.
+- Static reference audit: 38 local HTML/CSS/JS resource references; missing files `0`.
+- Browser smoke on the live site: all CSS/JS/mark/iPhone SVG requests returned `200`; all four JavaScript files parsed; P2P and Relay fallback chips worked in the session toolbar; no duplicate DOM IDs, RustDesk identity, or personal names were visible.
+- Caddy config validation: `Valid configuration`. Caddy is running with restart count `0`; active mount is `/opt/funtidesk-web/current:/usr/share/caddy:ro`.
+- hbbs remained container `16bc3c42555c0dba69b9549b1bc3770a0600b1720c9adeddfea1fd28d0a1c862`, running, restart count `0`.
+- hbbr remained container `8d55bbc7ae0994900112a6675a3a3f4474a34df8f60cee6e16e2a6a6ec4fae77`, running, restart count `0`.
+- TCP `21115`, `21116`, `21117` and UDP `21116` remained listening and unchanged before/after deployment. All other container IDs remained unchanged; only Caddy was recreated.
 
 `FUNTIDESK_WEB_DEPLOY_OK=true`
