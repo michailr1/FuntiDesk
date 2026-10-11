@@ -1,13 +1,32 @@
 # FuntiDesk Web
 
-Статический публичный сайт `desk.funti.cc`, основанный на утверждённом концепте «FuntiDesk · Живые соединения».
+Статический публичный сайт FuntiDesk.
+
+## Главный принцип
+
+Сайт следует подходу **client-first**: готовый интерфейс на лендинге не должен становиться отдельной фантазией о продукте. Если экран или элемент выдаётся за существующий FuntiDesk UI, он сверяется с текущим Windows-клиентом.
+
+Текущий источник визуальной правды для Windows-среза — ветка `michailr/m3-windows-ui-redesign`, прежде всего:
+
+- `client/flutter/lib/desktop/widgets/funti_design.dart` — палитра, навигация, карточки, статус и транспорт;
+- `client/flutter/lib/desktop/pages/connection_page.dart` — главный экран подключения;
+- `client/flutter/lib/desktop/widgets/remote_toolbar.dart` — панель удалённой сессии и индикатор P2P/Relay;
+- `docs/PRODUCT.md` — продуктовые правила и идентичность.
+
+Из этого следуют правила сайта:
+
+1. Главное окно демонстрирует реальные сущности клиента: Подключение, ID, одноразовый пароль, Auto/Relay и статус сервиса.
+2. В активной сессии P2P/Relay показывается как компактный runtime-индикатор в панели сессии. Сайт не выдумывает latency или скрытые диагностические данные.
+3. `Auto` означает попытку прямого соединения с fallback на Relay. Отдельный фиктивный `P2P only` не рекламируется.
+4. Семейный доступ, запрос помощи и звонок могут демонстрироваться как продуктовые сценарии, но помечаются как концепт до появления соответствующего UI в клиенте.
+5. Web на сайте — интерактивная демонстрация, а не обещание браузерного remote-desktop клиента.
 
 ## Состав
 
-- `index.html` — лендинг и интерактивные прототипы.
-- `styles.css` — адаптивная светлая визуальная система и motion.
-- `app.js` — локальные интерактивные сценарии семьи, P2P/Relay и Web-прототипа.
-- `assets/funtidesk-mark.svg` — копия канонического бренд-знака C из `design/brand/funtidesk-mark.svg`.
+- `index.html` — лендинг и client-first демонстрации.
+- `styles.css` — базовая адаптивная визуальная система сайта.
+- `app.js` — локальные интерактивные состояния демо; реальное сетевое соединение не устанавливает.
+- `assets/funtidesk-mark.svg` — канонический знак FuntiDesk, вариант C.
 
 Сайт не содержит backend, аналитики, cookies, внешних шрифтов или CDN-зависимостей. Его можно отдавать обычным Caddy `file_server` прямо из каталога `web/`.
 
@@ -19,13 +38,19 @@ python3 -m http.server 8080 -d web
 
 Открыть `http://127.0.0.1:8080`.
 
+Перед публикацией проверять:
+
+- desktop и mobile layout;
+- отсутствие личных имён/ID в публичных скриншотах и текстах, кроме явно фиктивных демонстрационных значений;
+- соответствие готовых UI-элементов текущей ветке Windows-клиента;
+- явную маркировку концептуальных функций.
+
 ## Production
 
 Рекомендуемая схема: версионные директории `/opt/funtidesk-web/releases/<git-sha>/` + симлинк `/opt/funtidesk-web/current`. Caddy обслуживает только `/opt/funtidesk-web/current`; `hbbs/hbbr` и порты `21115–21117` не изменяются.
 
-Перед переключением версии сохранять текущий Caddyfile и предыдущий target симлинка. После `caddy validate` выполнять только reload. Проверять HTTPS и доступность FuntiDesk server ports. Rollback — вернуть симлинк на предыдущую версию и reload Caddy.
+Перед переключением версии сохранять текущий Caddyfile и предыдущий target симлинка. После `caddy validate` выполнять только reload. Rollback — вернуть симлинк на предыдущую версию и reload Caddy.
 
+## Artifact
 
-## Legacy version status
-
-`web/` files at the repository root are the previous production version and are retained for rollback/history. They are obsolete for the motion-lab mirror; the exact mirrored source-of-truth artifact is in `web/artifact/`.
+Каталог `web/artifact/` может содержать более ранний зеркальный дизайн/эксперимент. Он не является источником правды для текущего client-first лендинга, пока явно не синхронизирован с `web/`.
