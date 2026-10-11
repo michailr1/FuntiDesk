@@ -3196,6 +3196,14 @@ impl Connection {
                 }
                 return true;
             } else if self.is_recent_session(false) {
+                if self.funti_call_needs_answer() {
+                    // FUNTIDESK (ADR-005): "Call" from a running session reuses its
+                    // password, but the camera still turns on only after "Accept".
+                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
+                        .await;
+                    return true;
+                }
                 if !self.send_logon_response_and_keep_alive().await {
                     return false;
                 }

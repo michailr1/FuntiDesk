@@ -466,7 +466,9 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
     );
     v.add(
       TTextMenu(
-          child: Text(translate('View camera')),
+          // FUNTIDESK (ADR-005): a camera session is a call; from a running
+          // session it needs no new password (the session token is reused).
+          child: Text(translate('funti-call')),
           onPressed: () => connectWithToken(isViewCamera: true)),
     );
     v.add(
@@ -571,7 +573,8 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   // refresh
   if (pi.version.isNotEmpty) {
     v.add(TTextMenu(
-      child: Text(translate('Refresh')),
+      // FUNTIDESK: "Refresh" read as "update FuntiDesk" next to the update button.
+      child: Text(translate('funti-refresh-screen')),
       onPressed: () => sessionRefreshVideo(sessionId, pi),
     ));
   }

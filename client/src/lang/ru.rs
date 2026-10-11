@@ -839,6 +839,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-net-offline", "Нет связи с сетью FuntiDesk"),
         ("funti-copy-id-and-password", "Скопировать ID и пароль"),
         ("funti-share-title", "FuntiDesk: подключение к компьютеру"),
+        ("funti-refresh-screen", "Обновить экран"),
         ("funti-ft-desktop", "Рабочий стол"),
         ("funti-ft-documents", "Документы"),
         ("funti-ft-downloads", "Загрузки"),
