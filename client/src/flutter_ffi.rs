@@ -810,6 +810,8 @@ pub fn session_read_local_dir_sync(
     path: String,
     show_hidden: bool,
 ) -> String {
+    // FUNTIDESK: %APPDATA% and other variables in the address bar.
+    let path = crate::common::funti_expand_env(&path);
     if let Ok(fd) = fs::read_dir(&fs::get_path(&path), show_hidden) {
         return make_fd_to_json(fd.id, path, &fd.entries);
     }

@@ -135,7 +135,10 @@ const Offset _leftEye = Offset(652 + 0.52 * 60, 70 + 0.52 * 70);
 const Offset _rightEye = Offset(652 + 0.52 * 100, 70 + 0.52 * 70);
 
 class FuntiHomeScene extends StatefulWidget {
-  const FuntiHomeScene({Key? key}) : super(key: key);
+  const FuntiHomeScene({Key? key, this.homeOnly = false}) : super(key: key);
+
+  /// Only the home part: the desk, the monitor and Funtik ("About").
+  final bool homeOnly;
 
   @override
   State<FuntiHomeScene> createState() => _FuntiHomeSceneState();
@@ -216,10 +219,8 @@ class _FuntiHomeSceneState extends State<FuntiHomeScene>
         child: FittedBox(
           fit: BoxFit.contain,
           alignment: Alignment.bottomRight,
-          child: SizedBox(
-            width: _kSceneWidth,
-            height: _kSceneHeight,
-            child: ClipRect(
+          child: _crop(
+            ClipRect(
               child: Stack(children: [
                 _layer(_homeLayer(t, s)),
                 CustomPaint(
@@ -250,6 +251,26 @@ class _FuntiHomeSceneState extends State<FuntiHomeScene>
           ),
         ),
       ),
+    );
+  }
+
+  static const double _kHomeLeft = 430;
+
+  Widget _crop(Widget scene) {
+    final full =
+        SizedBox(width: _kSceneWidth, height: _kSceneHeight, child: scene);
+    if (!widget.homeOnly) return full;
+    return SizedBox(
+      width: _kSceneWidth - _kHomeLeft,
+      height: _kSceneHeight,
+      child: Stack(clipBehavior: Clip.hardEdge, children: [
+        Positioned(
+            left: -_kHomeLeft,
+            top: 0,
+            width: _kSceneWidth,
+            height: _kSceneHeight,
+            child: full),
+      ]),
     );
   }
 }

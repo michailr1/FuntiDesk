@@ -126,10 +126,20 @@ jobs:
           Get-Content (Join-Path $dist 'SHA256SUMS.txt')
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "release $tag already exists"; exit 0 }
+          # ADR-003: every binary release points to its own source and license.
+          $repo = "https://github.com/$env:GITHUB_REPOSITORY"
+          $notes = @"
+          FuntiDesk $(Get-Content $versionFile -Raw | ForEach-Object Trim) для Windows x64.
+
+          Установка и обновление: ``irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex`` или «О программе» → «Проверить обновления». FuntiDesk-portable.exe — тот же клиент одним файлом.
+
+          Исходный код этой сборки: $repo/tree/$env:GITHUB_SHA (коммит $env:GITHUB_SHA; архивы «Source code» ниже).
+          Лицензия: GNU AGPL-3.0, $repo/blob/$env:GITHUB_SHA/client/LICENCE. FuntiDesk основан на RustDesk (© Purslane Tech Pte. Ltd.).
+          "@
           gh release create $tag $zip $single $versionFile (Join-Path $dist 'SHA256SUMS.txt') `
             --target $env:GITHUB_SHA --latest `
             --title "FuntiDesk для Windows $short" `
-            --notes "Портативная сборка Windows x64 из коммита $env:GITHUB_SHA. Установка: irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex. FuntiDesk-portable.exe — тот же клиент одним файлом."
+            --notes ($notes -replace '(?m)^ {10}', '')
 
       - name: Upload build logs
         if: always()

@@ -1458,7 +1458,16 @@ class FileFetcher {
         // result for normal read dir
         // final jobs = isLocal?localJobs:remoteJobs; // maybe we will use read local dir async later
         tasks = remoteTasks; // bypass now
-        final completer = tasks.remove(fd.path);
+        var completer = tasks.remove(fd.path);
+        // FUNTIDESK: the other side expands %USERPROFILE% and friends, so
+        // the answer comes with the real path, not the requested one.
+        if (completer == null) {
+          final pending = tasks.keys
+              .whereType<String>()
+              .where((p) => p.contains('%'))
+              .toList();
+          if (pending.length == 1) completer = tasks.remove(pending.first);
+        }
         completer?.complete(fd);
       }
     } catch (e) {
