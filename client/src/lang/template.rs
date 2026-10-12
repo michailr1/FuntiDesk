@@ -890,6 +890,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-update-failed", ""),
         ("funti-update-unsupported-service", ""),
         ("funti-update-unsupported-copy", ""),
+        ("funti-update-unsupported-portable-old", ""),
         ("ID whitelisting", ""),
         ("Use ID whitelisting", ""),
         ("id_whitelist_tip", ""),
