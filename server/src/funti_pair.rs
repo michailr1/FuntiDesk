@@ -4,9 +4,9 @@
 // with its device key (the key it registered for that ID). The computer that
 // enters the code looks the ID up. Codes live 5 minutes, in memory only, and
 // are dropped after the first successful lookup. Lookups are limited per
-// address. The code itself is still checked by the computer that showed it,
-// and the person there confirms the new family member (ADR-008), so a lookup
-// alone grants nothing.
+// address, and wrong codes for the whole server: at most WRONG_PER_MINUTE,
+// so even a botnet checks at most ~500 of a million codes while one lives
+// (owner decision 2026-10-12, instead of a confirmation on the computer).
 
 use hbb_common::rendezvous_proto::{funti_pair_response, FuntiPairOffer};
 use sodiumoxide::crypto::sign;
@@ -20,6 +20,8 @@ pub const CODE_TTL: Duration = Duration::from_secs(300);
 const OFFER_MAX_SKEW_SECS: i64 = 300;
 const LOOKUPS_PER_MINUTE: usize = 5;
 const LOOKUPS_PER_HOUR: usize = 30;
+/// Wrong codes from all addresses together.
+const WRONG_PER_MINUTE: usize = 100;
 
 /// What the offering device signs. Must match the client (funti_family.rs).
 pub fn offer_message(id: &str, code: &str, time: i64) -> Vec<u8> {
@@ -53,6 +55,7 @@ pub struct PairCodes {
     codes: HashMap<String, (String, Instant)>,
     by_id: HashMap<String, String>,
     lookups: HashMap<IpAddr, Vec<Instant>>,
+    wrong: Vec<Instant>,
 }
 
 impl PairCodes {
@@ -69,6 +72,7 @@ impl PairCodes {
             times.retain(|t| t.elapsed() < Duration::from_secs(3600));
             !times.is_empty()
         });
+        self.wrong.retain(|t| t.elapsed() < Duration::from_secs(60));
     }
 
     /// Registers a verified offer; a new code from the same ID replaces the
@@ -94,19 +98,22 @@ impl PairCodes {
             .iter()
             .filter(|t| t.elapsed() < Duration::from_secs(60))
             .count();
-        if last_minute >= LOOKUPS_PER_MINUTE || times.len() >= LOOKUPS_PER_HOUR {
+        if last_minute >= LOOKUPS_PER_MINUTE
+            || times.len() >= LOOKUPS_PER_HOUR
+            || self.wrong.len() >= WRONG_PER_MINUTE
+        {
             return Err(funti_pair_response::Result::TOO_MANY_ATTEMPTS);
         }
         times.push(Instant::now());
-        if !is_code(code) {
-            return Err(funti_pair_response::Result::NOT_FOUND);
-        }
-        match self.codes.remove(code) {
+        match self.codes.remove(code).filter(|_| is_code(code)) {
             Some((id, _)) => {
                 self.by_id.remove(&id);
                 Ok(id)
             }
-            None => Err(funti_pair_response::Result::NOT_FOUND),
+            None => {
+                self.wrong.push(Instant::now());
+                Err(funti_pair_response::Result::NOT_FOUND)
+            }
         }
     }
 }
@@ -141,6 +148,21 @@ mod tests {
         );
         let other: IpAddr = "5.6.7.8".parse().unwrap();
         assert_eq!(p.lookup(other, "123456"), Ok("111".to_owned()));
+    }
+
+    #[test]
+    fn wrong_codes_are_limited_for_the_whole_server() {
+        let mut p = PairCodes::default();
+        for i in 0..WRONG_PER_MINUTE {
+            let ip: IpAddr = format!("10.0.{}.{}", i / 250, i % 250).parse().unwrap();
+            assert_eq!(p.lookup(ip, "000000"), Err(funti_pair_response::Result::NOT_FOUND));
+        }
+        assert!(p.offer("111", "123456"));
+        let fresh: IpAddr = "9.9.9.9".parse().unwrap();
+        assert_eq!(
+            p.lookup(fresh, "123456"),
+            Err(funti_pair_response::Result::TOO_MANY_ATTEMPTS)
+        );
     }
 
     #[test]

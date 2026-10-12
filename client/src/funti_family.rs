@@ -35,13 +35,10 @@ pub const LOGIN_MSG_PAIR_FAILED: &str = "funti-family-pair-failed";
 pub const LOGIN_MSG_HELP_DELIVERED: &str = "funti-help-delivered";
 pub const LOGIN_MSG_HELP_REFUSED: &str = "funti-help-refused";
 pub const LOGIN_MSG_UNPAIRED: &str = "funti-family-unpaired";
-/// ADR-008: the person at the computer showing the code said no (or did not answer).
-pub const LOGIN_MSG_PAIR_DECLINED: &str = "funti-family-pair-declined";
 
 // ADR-008 (owner decision 2026-10-11): a code lives 5 minutes.
 const PAIR_CODE_TTL: Duration = Duration::from_secs(300);
-/// How long the computer showing the code waits for its person to confirm.
-pub const PAIR_CONFIRM_TIMEOUT: Duration = Duration::from_secs(90);
+
 const HELP_TTL: Duration = Duration::from_secs(600);
 
 lazy_static::lazy_static! {
@@ -52,46 +49,37 @@ lazy_static::lazy_static! {
     // Members just removed here: the "leave" message to them is still signed
     // for a short while, so removing here does not wait for the network.
     static ref LEAVING: Mutex<std::collections::HashMap<String, Instant>> = Default::default();
-    // ADR-008: a computer that entered our code, waiting for "Add" here.
-    static ref PENDING_PAIR: Mutex<Option<PendingPair>> = Default::default();
 }
 
-struct PendingPair {
-    id: String,
-    name: String,
-    answer: Option<std::sync::mpsc::Sender<bool>>,
-}
-
-/// ADR-008: asks the person here to confirm the computer that entered our
-/// code. Blocks up to PAIR_CONFIRM_TIMEOUT; no answer means no.
-pub fn ask_pair_confirm(id: &str, name: &str) -> bool {
-    let (tx, rx) = std::sync::mpsc::channel();
-    *PENDING_PAIR.lock().unwrap() = Some(PendingPair {
-        id: id.to_owned(),
-        name: name.to_owned(),
-        answer: Some(tx),
-    });
-    let ok = rx.recv_timeout(PAIR_CONFIRM_TIMEOUT).unwrap_or(false);
-    *PENDING_PAIR.lock().unwrap() = None;
-    ok
-}
-
-/// The computer waiting for confirmation, for the code window: (id, name).
-pub fn pending_pair() -> Option<(String, String)> {
-    PENDING_PAIR
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map(|p| (p.id.clone(), p.name.clone()))
-}
-
-/// The person's answer in the code window.
-pub fn confirm_pair(accept: bool) {
-    if let Some(p) = PENDING_PAIR.lock().unwrap().as_mut() {
-        if let Some(tx) = p.answer.take() {
-            tx.send(accept).ok();
-        }
+/// The family list belongs to the service: an option map written from the
+/// UI (its cache, possibly older than a pairing) keeps the current list.
+pub fn keep_family(
+    mut options: std::collections::HashMap<String, String>,
+) -> std::collections::HashMap<String, String> {
+    let family = Config::get_option(OPTION_FAMILY);
+    if family.is_empty() {
+        options.remove(OPTION_FAMILY);
+    } else {
+        options.insert(OPTION_FAMILY.to_owned(), family);
     }
+    options
+}
+/// Renames family member `id` (the name is local to this device).
+pub fn rename(id: &str, name: &str) {
+    let name = name.trim();
+    if name.is_empty() {
+        return;
+    }
+    let list: Vec<Member> = members()
+        .into_iter()
+        .map(|mut m| {
+            if m.id == id {
+                m.name = name.to_owned();
+            }
+            m
+        })
+        .collect();
+    store(&list);
 }
 
 /// ADR-008: what a device signs to offer its pairing code to the server.
@@ -311,25 +299,22 @@ mod client_side {
         }
     }
 
-    /// ADR-008: the computer waiting for "Add" here, from the service.
-    pub async fn request_pending() -> Option<(String, String)> {
-        let mut conn = ipc::connect(1000, "").await.ok()?;
-        conn.send(&IpcData::FuntiFamilyPending(None)).await.ok()?;
-        match conn.next_timeout(2000).await {
-            Ok(Some(IpcData::FuntiFamilyPending(Some((id, name))))) if !id.is_empty() => {
-                Some((id, name))
-            }
-            _ => None,
+    /// Renames a family member in the service, which owns the list.
+    pub async fn request_rename(id: &str, name: &str) -> bool {
+        let Ok(mut conn) = ipc::connect(1000, "").await else {
+            return false;
+        };
+        if conn
+            .send(&IpcData::FuntiFamilyRename(id.to_owned(), name.to_owned()))
+            .await
+            .is_err()
+        {
+            return false;
         }
-    }
-
-    /// ADR-008: the person's answer, to the service.
-    pub async fn request_confirm(accept: bool) {
-        if let Ok(mut conn) = ipc::connect(1000, "").await {
-            conn.send(&IpcData::FuntiFamilyConfirm(accept)).await.ok();
-            // Let the service read it before the pipe closes.
-            conn.next_timeout(300).await.ok();
-        }
+        matches!(
+            conn.next_timeout(2000).await,
+            Ok(Some(IpcData::FuntiFamilyRename(..)))
+        )
     }
 
     async fn add_via_service(id: &str, name: &str, pk: &[u8]) -> bool {
@@ -412,12 +397,7 @@ mod client_side {
             return Err("no verified key of the other computer".to_owned());
         };
         loop {
-            // ADR-008: pairing waits for "Add" on the other computer.
-            let wait = match request {
-                Request::Pair(_) => PAIR_CONFIRM_TIMEOUT + Duration::from_secs(15),
-                _ => Duration::from_secs(30),
-            };
-            let bytes = match timeout(TokioDuration::from_secs(wait.as_secs()), peer.next()).await {
+            let bytes = match timeout(TokioDuration::from_secs(30), peer.next()).await {
                 Ok(Some(Ok(bytes))) => bytes,
                 Ok(Some(Err(e))) => return Err(e.to_string()),
                 Ok(None) => return Err("connection closed".to_owned()),
@@ -610,20 +590,13 @@ mod client_side {
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use client_side::{
-    ask_help, leave, offer_code, pair_with, request_code, request_confirm, request_pending,
-    request_sign,
+    ask_help, leave, offer_code, pair_with, request_code, request_rename, request_sign,
 };
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tokio::main(flavor = "current_thread")]
-pub async fn pending_blocking() -> Option<(String, String)> {
-    request_pending().await
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-#[tokio::main(flavor = "current_thread")]
-pub async fn confirm_blocking(accept: bool) {
-    request_confirm(accept).await
+pub async fn rename_blocking(id: &str, name: &str) -> bool {
+    request_rename(id, name).await
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

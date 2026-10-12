@@ -1008,20 +1008,13 @@ pub fn main_funti_family_code(start: bool) -> String {
     String::new()
 }
 
-// FUNTIDESK (ADR-008): the computer that entered our code and waits for
-// "Add" here. JSON {"id": "...", "name": "..."} or "" when none.
-pub fn main_funti_family_pending() -> String {
+// FUNTIDESK (ADR-006): rename a family member in the service, which owns
+// the list (writing the option from the UI raced with pairing).
+pub fn main_funti_family_rename(id: String, name: String) -> bool {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    if let Some((id, name)) = crate::funti_family::pending_blocking() {
-        return serde_json::json!({ "id": id, "name": name }).to_string();
-    }
-    String::new()
-}
-
-// FUNTIDESK (ADR-008): the answer to the pending pairing.
-pub fn main_funti_family_confirm(accept: bool) {
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    crate::funti_family::confirm_blocking(accept);
+    return crate::funti_family::rename_blocking(&id, &name);
+    #[allow(unreachable_code)]
+    false
 }
 
 // FUNTIDESK (ADR-006): pair with computer `id` by the code shown there.

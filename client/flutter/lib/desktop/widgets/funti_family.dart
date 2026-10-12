@@ -71,12 +71,6 @@ List<FuntiFamilyMember> funtiFamilyMembers() {
   }
 }
 
-Future<void> funtiFamilyRemove(String id) async {
-  final rest = funtiFamilyMembers().where((m) => m.id != id).toList();
-  await bind.mainSetOption(
-      key: kFuntiOptionFamily,
-      value: jsonEncode(rest.map((m) => m.toJson()).toList()));
-}
 
 /// Asks to remove [member]: a confirmation that wraps its text, then the
 /// member is gone here at once and the other computer is told in the
@@ -128,15 +122,10 @@ void showFuntiFamilyRemoveDialog(FuntiFamilyMember member,
 }
 
 /// Local name for a family member (only on this device).
+// The service owns the family list: the UI's option cache may be older than
+// a pairing that just happened, so it is never written from here.
 Future<void> funtiFamilyRename(String id, String name) async {
-  final list = funtiFamilyMembers()
-      .map((m) => m.id == id
-          ? FuntiFamilyMember(id: m.id, name: name.trim(), pk: m.pk)
-          : m)
-      .toList();
-  await bind.mainSetOption(
-      key: kFuntiOptionFamily,
-      value: jsonEncode(list.map((m) => m.toJson()).toList()));
+  await bind.mainFuntiFamilyRename(id: id, name: name.trim());
 }
 
 /// Rename dialog for a family member.
@@ -248,36 +237,21 @@ void _showCodeDialog(VoidCallback? onChanged) {
   final code = bind.mainFuntiFamilyCode(start: true);
   final before = funtiFamilyMembers().map((m) => m.id).toSet();
   final added = Rxn<FuntiFamilyMember>();
-  // ADR-008: the computer that entered this code, waiting for "Add" here.
-  final asking = Rxn<Map<String, dynamic>>();
   final nameController = TextEditingController();
   Timer? timer;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
-    timer ??= Timer.periodic(const Duration(seconds: 1), (_) async {
+    timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
       final now = funtiFamilyMembers();
       final fresh = now.where((m) => !before.contains(m.id));
       if (fresh.isNotEmpty && added.value == null) {
         nameController.text = fresh.first.title;
         added.value = fresh.first;
-        asking.value = null;
         onChanged?.call();
-        return;
-      }
-      if (added.value == null && asking.value == null) {
-        final pending = await bind.mainFuntiFamilyPending();
-        if (pending.isNotEmpty) {
-          asking.value = jsonDecode(pending) as Map<String, dynamic>;
-        }
       }
     });
-    void answer(bool accept) {
-      bind.mainFuntiFamilyConfirm(accept: accept);
-      asking.value = null;
-    }
     Future<void> done() async {
       timer?.cancel();
-      if (asking.value != null) answer(false);
       final member = added.value;
       if (member == null) {
         bind.mainFuntiFamilyCode(start: false);
@@ -298,40 +272,6 @@ void _showCodeDialog(VoidCallback? onChanged) {
           final value = snap.data ?? '';
           return Obx(() {
             final member = added.value;
-            final ask = asking.value;
-            if (member == null && ask != null) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(translate('funti-family-confirm-title'),
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: t.text)),
-                  const SizedBox(height: 10),
-                  Text(
-                    translate('funti-family-confirm-text')
-                        .replaceAll('{name}', ask['name'].toString())
-                        .replaceAll('{id}', formatFuntiId(ask['id'].toString())),
-                    style: TextStyle(fontSize: 14, color: t.text),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                          onPressed: () => answer(false),
-                          child: Text(translate('Cancel'))),
-                      const SizedBox(width: 10),
-                      ElevatedButton(
-                          onPressed: () => answer(true),
-                          child: Text(translate('funti-family-confirm-add'))),
-                    ],
-                  ),
-                ],
-              );
-            }
             if (member != null) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -388,27 +328,20 @@ void _showCodeDialog(VoidCallback? onChanged) {
                               style: TextStyle(
                                   color: Theme.of(context).colorScheme.error)),
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  '${translate('funti-family-this-id')}: '
-                  '${formatFuntiId(gFFI.serverModel.serverId.text)}',
-                  style: TextStyle(fontSize: 13, color: t.muted),
-                ),
                 if (value.length == 6) ...[
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {
-                      final id = formatFuntiId(gFFI.serverModel.serverId.text);
+                      // ADR-008: the code alone is enough.
                       final code =
                           '${value.substring(0, 3)} ${value.substring(3)}';
                       Clipboard.setData(ClipboardData(
-                          text: translate('funti-family-share')
-                              .replaceAll('{id}', id)
+                          text: translate('funti-family-share-code')
                               .replaceAll('{code}', code)));
                       showToast(translate('Copied'));
                     },
                     icon: const Icon(Icons.ios_share_rounded, size: 18),
-                    label: Text(translate('funti-family-copy-code')),
+                    label: Text(translate('funti-family-copy-code-only')),
                   ),
                 ],
               ],
@@ -463,7 +396,7 @@ void _enterCodeDialog(VoidCallback? onChanged) {
         final e = (res['error'] ?? '').toString();
         error.value = e == 'funti-family-pair-failed'
             ? translate('funti-family-code-wrong')
-            : e == 'funti-family-pair-declined' || e == 'funti-family-too-many'
+            : e == 'funti-family-too-many'
                 ? translate(e)
             : e.startsWith('funti-family-server-error')
                 ? translate('funti-family-server-unreachable')
@@ -519,12 +452,7 @@ void _enterCodeDialog(VoidCallback? onChanged) {
               onSubmitted: (_) => submit(),
             ),
             const SizedBox(height: 8),
-            if (busy.value) ...[
-              Text(translate('funti-family-waiting-confirm'),
-                  style: TextStyle(fontSize: 13, color: t.muted)),
-              const SizedBox(height: 6),
-              const LinearProgressIndicator(),
-            ],
+            if (busy.value) const LinearProgressIndicator(),
             if (error.value.isNotEmpty)
               Text(error.value,
                   style: TextStyle(

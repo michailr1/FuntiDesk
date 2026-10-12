@@ -421,13 +421,9 @@ pub enum Data {
     // Remove family member `id` here; "leave" to it stays signable briefly.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiFamilyRemove(String),
-    // ADR-008: the computer that entered our code and waits for "Add" here:
-    // request None -> answer Some((id, name)), or Some(("", "")) for none.
+    // Rename family member `id` here (local name).
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    FuntiFamilyPending(Option<(String, String)>),
-    // ADR-008: the person's answer to the pending pairing.
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    FuntiFamilyConfirm(bool),
+    FuntiFamilyRename(String, String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -1071,6 +1067,12 @@ async fn handle(data: Data, stream: &mut Connection) {
                 if let Some(v) = value.get("privacy-mode-impl-key") {
                     crate::privacy_mode::switch(v);
                 }
+                // FUNTIDESK (ADR-006): the family list belongs to the service.
+                // The UI sends its whole cached option map here; a cache taken
+                // before a pairing wiped the new member (found 2026-10-11/12).
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                let value = crate::funti_family::keep_family(value);
+
                 Config::set_options(value);
                 allow_err!(stream.send(&Data::Options(None)).await);
             }
@@ -1164,13 +1166,9 @@ async fn handle(data: Data, stream: &mut Connection) {
             allow_err!(stream.send(&Data::FuntiFamilyAdd(id, name, Vec::new())).await);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        Data::FuntiFamilyPending(None) => {
-            let pending = crate::funti_family::pending_pair().unwrap_or_default();
-            allow_err!(stream.send(&Data::FuntiFamilyPending(Some(pending))).await);
-        }
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        Data::FuntiFamilyConfirm(accept) => {
-            crate::funti_family::confirm_pair(accept);
+        Data::FuntiFamilyRename(id, name) => {
+            crate::funti_family::rename(&id, &name);
+            allow_err!(stream.send(&Data::FuntiFamilyRename(id, name)).await);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiHelpAllow(id) => {
@@ -2019,6 +2017,9 @@ pub async fn set_options(value: HashMap<String, String>) -> ResultType<()> {
         // do not put below before connect, because we need to check should_exit
         c.next_timeout(1000).await.ok();
     }
+    // FUNTIDESK (ADR-006): in the portable client this process is the service too.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let value = crate::funti_family::keep_family(value);
     Config::set_options(value);
     Ok(())
 }

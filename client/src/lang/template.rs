@@ -808,6 +808,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-family-code", ""),
         ("funti-family-enter-both", ""),
         ("funti-family-code-wrong", ""),
+        ("funti-family-share-code", ""),
+        ("funti-family-copy-code-only", ""),
         ("funti-family-server-unreachable", ""),
         ("funti-family-pair-error", ""),
         ("funti-family-pair", ""),
