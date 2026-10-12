@@ -76,3 +76,16 @@ FuntiDesk использует собственную версию продук�
 - Удалены вслед за upstream: Linux headless, система плагинов (проверка идентичности требует, чтобы её не было).
 - vcpkg закреплён на `9e593bb18ea69cc5095e012465dcd675a822ed0d`, как в upstream 1.5.0; Rust 1.75, Flutter 3.24.5, NDK r28c не менялись.
 - Версия для людей — `1.5.0-ft.<N>`.
+
+## Как сливать новый RustDesk (памятка по опыту 1.5.0)
+
+1. Новая ветка от `main`. Получить тег: `git fetch --no-tags https://github.com/rustdesk/rustdesk.git refs/tags/<тег>:refs/tags/upstream-client-<тег>`; узнать коммит `hbb_common` в теге (`git ls-tree upstream-client-<тег> libs/hbb_common`) и получить его.
+2. До слияния — `scripts/upstream/funtidesk-patches.sh` (что у нас изменено) и `docs/FUNTIDESK_PATCHES.md` (зачем).
+3. `git merge --no-ff -X subtree=client upstream-client-<тег>`; конфликт `libs/hbb_common` (gitlink против папки) — удалить заглушку; затем `git merge -X subtree=client/libs/hbb_common <коммит>`.
+4. Разрешать конфликты так: берётся код upstream, наши правки накладываются заново с меткой `FUNTIDESK`. Особое внимание: рукопожатия (`client.rs`, `server.rs`, `common.rs`) — без нешифрованных путей и только встроенный ключ; вход (`server/connection.rs`) — порядок: проверки upstream, затем семья, звонок только звонит.
+5. Проверить, не переехали ли файлы (в 1.5.0 `message.proto`, ключи настроек и `fs` ушли в `libs/base`) — наши поля протокола переносятся с теми же номерами.
+6. Новые функции upstream, которые ходят наружу (в 1.5.0 — WebRTC с публичными STUN), выключить до отдельного ADR; новые запросы relay — только `secure = true`.
+7. Закрепления инструментов: сравнить `VCPKG_COMMIT_ID`, `RUST_VERSION`, `FLUTTER_VERSION`, `NDK_VERSION` в `.github/workflows/flutter-build.yml` upstream с `scripts/windows/bootstrap.ps1` и `.github/workflows/android-apk.yml`.
+8. Сборка (`build-baseline.ps1`), все `scripts/ci/test-*.sh`, `funtidesk-patches.sh` после слияния — каждая правка из `FUNTIDESK_PATCHES.md` на месте.
+9. Приёмка на двух компьютерах: новая ↔ старая версия и новая ↔ новая (управление, файлы, терминал, звонок, семья, обновление кнопкой); отчёт — `docs/reviews/`.
+10. Обновить этот файл (теги и коммиты) и `FUNTIDESK_PATCHES.md`.
