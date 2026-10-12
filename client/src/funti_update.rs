@@ -228,6 +228,7 @@ pub fn start() -> ResultType<String> {
             bail!("{EXE_NAME} is missing from the archive");
         }
         std::process::Command::new(files.join(EXE_NAME))
+            .current_dir(&work)
             .arg(FINISH_ARG)
             .arg(std::process::id().to_string())
             .arg(&install)
@@ -353,6 +354,10 @@ fn finish_(args: &[String]) -> ResultType<()> {
     if !same_path(&target, &install) || !same_path(&current_dir()?, &work.join("files")) {
         bail!("refusing to update {}", target.display());
     }
+    // The old copy may have started us with its working directory, the
+    // install dir (a Start menu shortcut sets it): a working directory
+    // inside it keeps Windows from renaming it (2026-10-12).
+    std::env::set_current_dir(&work)?;
     if !wait_exit(pid, Duration::from_secs(20)) {
         // It asked for this update itself; a slow exit must not block it.
         log::warn!("the old FuntiDesk ({pid}) is still running, closing it");
