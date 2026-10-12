@@ -1,79 +1,96 @@
 {
-  "source": "FuntiDesk motion-lab artifact; see README.md",
-  "ui_reference": {
-    "branch": "origin/main",
-    "commit": "7370e0c9d0c16dab652c9e6d56210b51f2543cf1"
-  },
+  "source": "https://funtidesk-sites-v1.michailr.chatgpt.site/",
+  "migration_date": "2026-10-12",
   "artifacts": [
     {
       "file": "index.html",
-      "bytes": 19648,
-      "sha256": "eb82ad1955ee8e7f181dbafaba8f2125945b3f7a012beed3973aafa7e7b3f863"
+      "bytes": 27453,
+      "sha256": "fcc668824da51c0db58e9189619c5e9997a3a147d4ddff1ca655baacef52fc06",
+      "content_type": "text/html"
     },
     {
       "file": "style.css",
-      "bytes": 16040,
-      "sha256": "948c3998416ae6950a2d069fae5225b50c0b12200325eb9276e052b4b32a69e5"
+      "bytes": 15937,
+      "sha256": "8ea3742d1827374302709ca7442216083e480d5fd4c1a777a04c00990795f115",
+      "content_type": "text/css"
     },
     {
       "file": "lab.css",
       "bytes": 11007,
-      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e"
+      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e",
+      "content_type": "text/css"
     },
     {
       "file": "platforms.css",
-      "bytes": 24849,
-      "sha256": "9eb23df95469ca83ea3f5cc7a5f8bb5930e2c1e882592f3adb6047f99147430b"
-    },
-    {
-      "file": "client-ui.css",
-      "bytes": 12810,
-      "sha256": "eab1d24866eeba69494ce106194e44a9b731d66f07f05f830ae90ef21c77432c"
+      "bytes": 24843,
+      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9",
+      "content_type": "text/css"
     },
     {
       "file": "family.css",
-      "bytes": 72,
-      "sha256": "e0a747fbbde10cb82e1d7af4c89a5a37927f5135478e17b23a15a1c38da1dff6"
-    },
-    {
-      "file": "family-base.css",
       "bytes": 9957,
-      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b"
+      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
+      "content_type": "text/css"
     },
     {
-      "file": "windows-coherence.css",
-      "bytes": 25270,
-      "sha256": "b483ecf86c7139b61bda096de4cc0a6c5507a8d98f4767df5691f51404f7ffa9"
+      "file": "prototype.css",
+      "bytes": 28061,
+      "sha256": "ac76c719e140dc918466004e9a0f10337a8bbc74b5d23aced43ea72aebd9a9a9",
+      "content_type": "text/css"
+    },
+    {
+      "file": "theme.css",
+      "bytes": 3330,
+      "sha256": "d4300b883c67445967af46da533eb8d24e7cb3ef2db26a86fdbaec48a8f33438",
+      "content_type": "text/css"
     },
     {
       "file": "app.js",
-      "bytes": 18892,
-      "sha256": "e12fc265a0370bac18a009c8fa59a73bd9a4a47851f36410f51097f7d7c6341a"
+      "bytes": 11149,
+      "sha256": "f3a4446826068eeba1fe8193c58fbafe7f0927a0e761ef5dd20703cea3130130",
+      "content_type": "application/javascript"
     },
     {
       "file": "lab.js",
-      "bytes": 21937,
-      "sha256": "64226e56a1cb7b657d8a9fe2927fe6657810e7d68485be8fce75682afbe197cf"
+      "bytes": 22519,
+      "sha256": "1eb85cd64ed01ceca003cb439f61b43d9eb92335b9a5dc7ce4aacdf6fdcd7c0e",
+      "content_type": "application/javascript"
     },
     {
       "file": "platforms.js",
-      "bytes": 34461,
-      "sha256": "261eaa986a3611f6705f7a9575b2f8736ddee2afd0e3a92f74e86ecae8855f2b"
+      "bytes": 34767,
+      "sha256": "6acb099329699516415f059caea4d03d57809b04d57e7cc0cbe03c26e5e1564c",
+      "content_type": "application/javascript"
     },
     {
       "file": "family.js",
-      "bytes": 27458,
-      "sha256": "6d16ca161961489b5f32b85fd1c680fa93bc3ac51eba5a1f66a4f23de6fd7e96"
+      "bytes": 27137,
+      "sha256": "7a3484f4b7bc21ebd7a76193b6f592811e6596689b4134f94526aa6910ef6ce5",
+      "content_type": "application/javascript"
+    },
+    {
+      "file": "prototype.js",
+      "bytes": 18528,
+      "sha256": "cab0225c25e023c9b89b28436f0b20e281de9ae568af4e43a81dede3eae2c3da",
+      "content_type": "application/javascript"
+    },
+    {
+      "file": "theme.js",
+      "bytes": 1715,
+      "sha256": "921ed8b8c15201b9033c579b663e231929f633ab3a37834dd5eb89e1f7959fdf",
+      "content_type": "application/javascript"
     },
     {
       "file": "mark.svg",
       "bytes": 2104,
-      "sha256": "63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3"
+      "sha256": "63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3",
+      "content_type": "image/svg+xml"
     },
     {
-      "file": "assets/iphone-home.svg",
-      "bytes": 2378,
-      "sha256": "47fd8f7b1c4ca1ab078049b5444ae6f3d98ab2d51f6742c9a32982e1ed1d2bb1"
+      "file": "assets/windows-bloom.jpg",
+      "bytes": 47734,
+      "sha256": "f5fbc4b41a9797db658e61cab4b7466a9c46153ec6900b9474f47cabefd20dfa",
+      "content_type": "image/jpeg"
     }
   ]
 }

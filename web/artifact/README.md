@@ -1,4 +1,9 @@
-# FuntiDesk motion-lab artifact
+# FuntiDesk production web source
+
+Source: https://funtidesk-sites-v1.michailr.chatgpt.site/
+Migration date: 2026-10-12.
+
+This `web/artifact/` directory is the production source for the published Sites v1 web artifact.
 
 Канонический motion-lab сохранён: hero, типографика, тёмная композиция, canvas/motion и исходное начертание mark. Обновлён только встроенный клиентский концепт, чтобы приблизить его к desktop UI.
 
