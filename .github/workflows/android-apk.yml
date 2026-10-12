@@ -31,7 +31,11 @@ env:
   ANDROID_FLUTTER_VERSION: "3.24.5"
   NDK_VERSION: "r28c"
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  # FUNTIDESK: x-gha stopped working with the GitHub cache API v2, so every
+  # run built all C/C++ dependencies from source and aom from
+  # aomedia.googlesource.com (503 on 2026-10-12). A files cache kept by
+  # actions/cache instead.
+  VCPKG_BINARY_SOURCES: "clear;files,/opt/artifacts/vcpkg-bincache,readwrite"
 
 jobs:
   bridge:
@@ -160,11 +164,19 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /opt/artifacts/vcpkg-bincache
+          key: vcpkg-bin-android-arm64-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('client/vcpkg.json', 'client/flutter/build_android_deps.sh') }}
+          restore-keys: vcpkg-bin-android-arm64-${{ env.VCPKG_COMMIT_ID }}-
+
       - name: Install vcpkg dependencies
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/ci-log.txt") 2>&1
+          mkdir -p /opt/artifacts/vcpkg-bincache
           if ! ./flutter/build_android_deps.sh arm64-v8a; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "$f:"; cat "$f"; done
             exit 1
