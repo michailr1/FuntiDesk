@@ -31,6 +31,8 @@ const RELEASE_BASE: &str = "https://github.com/michailr1/FuntiDesk/releases/late
 const ZIP_NAME: &str = "FuntiDesk-windows-x64.zip";
 const SUMS_NAME: &str = "SHA256SUMS.txt";
 const VERSION_NAME: &str = "funtidesk-version.txt";
+const WHATS_NEW_NAME: &str = "funtidesk-whats-new.txt";
+const WHATS_NEW_MAX: usize = 16 * 1024;
 const EXE_NAME: &str = "FuntiDesk.exe";
 pub const FINISH_ARG: &str = "--funti-finish-update";
 
@@ -97,6 +99,19 @@ pub fn check() -> ResultType<Latest> {
         bail!("unexpected version in the release: {version:?}");
     };
     Ok(Latest { version, build })
+}
+
+/// "What's new" of the latest release, for the notice on the main screen.
+/// Checked against SHA256SUMS.txt like the other files of the release.
+pub fn whats_new() -> ResultType<String> {
+    let client = http()?;
+    let text = download(&client, WHATS_NEW_NAME)?;
+    let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
+    verify(&sums, WHATS_NEW_NAME, &text)?;
+    if text.len() > WHATS_NEW_MAX {
+        bail!("{WHATS_NEW_NAME} is too large");
+    }
+    Ok(String::from_utf8(text)?.trim().to_owned())
 }
 
 fn expected_hash<'a>(sums: &'a str, name: &str) -> Option<&'a str> {
