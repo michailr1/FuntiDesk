@@ -4,8 +4,8 @@
   "artifacts": [
     {
       "file": "index.html",
-      "bytes": 26515,
-      "sha256": "872b47ada090ce3f3db0ad6c9183174e0e151c2b2543da8508cf97fb22ef7cc1",
+      "bytes": 26512,
+      "sha256": "aca84cfded8a9ba41ae17dc3d83416f5c529fa37e973ffcf2928965cce97c31e",
       "content_type": "text/html"
     },
     {
