@@ -869,6 +869,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-ft-downloads", ""),
         ("funti-ft-home", ""),
         ("funti-ft-this-pc", ""),
+        ("funti-ft-quick", ""),
         ("funti-ft-open-failed", ""),
         ("funti-install-tip", ""),
         ("funti-quote-lang", ""),

@@ -25,6 +25,7 @@ import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../common.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
+import '../widgets/funti_folder_tree.dart';
 import '../widgets/popup_menu.dart';
 
 /// status of location bar
@@ -483,9 +484,8 @@ class _FileManagerViewState extends State<FileManagerView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           headTools(),
-          _quickFolders(),
           Expanded(
-            child: Row(
+            child: _withFolderTree(Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
@@ -503,7 +503,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   child: _buildFileList(context, _fileListScrollController),
                 ))
               ],
-            ),
+            )),
           ),
         ],
       ),
@@ -547,35 +547,27 @@ class _FileManagerViewState extends State<FileManagerView> {
     }
   }
 
-  // FUNTIDESK: quick folders as in "This PC" (owner's decision 2026-10-08).
+  // FUNTIDESK: folder tree on the left as in Explorer for Windows sides
+  // (quick folders and "This PC"; owner's decisions 2026-10-08, 2026-10-11).
   // Variables are expanded on the side that owns the files.
-  Widget _quickFolders() {
+  Widget _withFolderTree(Widget list) {
     // The platform as in the panel header: options.isWindows is filled in
-    // later without notifying, so the row stayed hidden after reconnecting.
+    // later without notifying, so the tree stayed hidden after reconnecting.
     return FutureBuilder<String>(
         future: bind.sessionGetPlatform(
             sessionId: _ffi.sessionId, isRemote: !isLocal),
         builder: (context, snapshot) {
-      if (snapshot.data != kPeerPlatformWindows) {
-        return const SizedBox.shrink();
-      }
-      final items = <(String, String)>[
-        ('funti-ft-desktop', r'%USERPROFILE%\Desktop'),
-        ('funti-ft-documents', r'%USERPROFILE%\Documents'),
-        ('funti-ft-downloads', r'%USERPROFILE%\Downloads'),
-        ('funti-ft-home', r'%USERPROFILE%'),
-        ('funti-ft-this-pc', '/'),
-      ];
-      return Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: items
-            .map((e) => ActionChip(
-                  label: Text(translate(e.$1)),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _openTyped(e.$2),
-                ))
-            .toList(),
+      if (snapshot.data != kPeerPlatformWindows) return list;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 200,
+            child: FuntiFolderTree(controller: controller, onOpen: _openTyped),
+          ),
+          const VerticalDivider(width: 9),
+          Expanded(child: list),
+        ],
       ).marginOnly(top: 8);
     });
   }

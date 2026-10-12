@@ -384,6 +384,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-ft-downloads", "Downloads"),
         ("funti-ft-home", "Home folder"),
         ("funti-ft-this-pc", "This PC"),
+        ("funti-ft-quick", "Quick access"),
         ("funti-ft-open-failed", "Could not open the folder: {}"),
         ("funti-install-tip", "To let a helper click in administrator windows and on the sign-in screen, install FuntiDesk on this computer."),
         ("funti-quote-lang", "en"),
