@@ -62,7 +62,11 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
     // A remote tree may ask before the file transfer session is ready: ask
     // again once the panel has opened a folder.
     _dirSub = _c.directory.listen((_) {
-      if (_drives == null && !_drivesLoading) _loadDrives();
+      if (_drives == null) {
+        if (!_drivesLoading) _loadDrives();
+      } else {
+        _reveal();
+      }
     });
   }
 
@@ -96,6 +100,7 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
           _drives = drives;
           _drivesFailed = false;
         });
+        _reveal();
       }
     } catch (_) {
       if (mounted) setState(() => _drivesFailed = true);
@@ -108,6 +113,36 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
       setState(() => node.expanded = false);
       return;
     }
+    await _expand(node);
+  }
+
+  int _revealGeneration = 0;
+
+  /// Opens the tree down to the folder shown in the panel, as Explorer does.
+  /// Folders the user opened stay open; only the current path is added.
+  Future<void> _reveal() async {
+    final target = _norm(_c.directory.value.path);
+    if (target.length < 2 || target[1] != ':') return;
+    final generation = ++_revealGeneration;
+    var nodes = _drives;
+    while (nodes != null) {
+      _Node? next;
+      for (final n in nodes) {
+        final p = _norm(n.path);
+        if (p == target) return;
+        if (target.startsWith(p.endsWith(r'\') ? p : '$p\\')) {
+          next = n;
+          break;
+        }
+      }
+      if (next == null) return;
+      if (!next.expanded) await _expand(next);
+      if (!mounted || generation != _revealGeneration) return;
+      nodes = next.children;
+    }
+  }
+
+  Future<void> _expand(_Node node) async {
     setState(() {
       node.expanded = true;
       node.failed = false;
