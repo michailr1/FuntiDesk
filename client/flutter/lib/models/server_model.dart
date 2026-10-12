@@ -36,6 +36,12 @@ class ServerModel with ChangeNotifier {
       if (ring != _funtiRinging) {
         _funtiRinging = ring;
         bind.cmFuntiRing(on: ring);
+        // FUNTIDESK: a ringing call in the middle of the screen, above the
+        // notification corner (an OneDrive toast hid "Answer", 2026-10-11);
+        // back to the corner once answered or declined.
+        windowManager.setAlignment(
+            ring ? Alignment.center : Alignment.topRight);
+        if (ring) windowManager.focus();
       }
     }
     super.notifyListeners();

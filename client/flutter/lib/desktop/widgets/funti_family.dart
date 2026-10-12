@@ -233,6 +233,12 @@ void showFuntiFamilyAddDialog({VoidCallback? onChanged}) {
   });
 }
 
+void showFuntiFamilyCodeDialog({VoidCallback? onChanged}) =>
+    _showCodeDialog(onChanged);
+
+void showFuntiFamilyEnterCodeDialog({VoidCallback? onChanged}) =>
+    _enterCodeDialog(onChanged);
+
 void _showCodeDialog(VoidCallback? onChanged) {
   final code = bind.mainFuntiFamilyCode(start: true);
   final before = funtiFamilyMembers().map((m) => m.id).toSet();

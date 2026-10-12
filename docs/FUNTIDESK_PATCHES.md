@@ -42,7 +42,8 @@
 | Передача файлов: `%переменные%`, быстрые папки | — | `common.rs` (`funti_expand_env`), `ui_cm_interface.rs`, `flutter_ffi.rs`, `file_manager_page.dart`, `file_model.dart` |
 | Звук: подбор формата микрофона | — | `server/audio_service.rs` |
 | Камера: режим, кадры | — | `libs/scrap/src/common/camera.rs` |
-| Интерфейс | `funti_home_view.dart`, `funti_home_scene.dart`, `funti_theme.dart`, `funti_quotes.dart` | `desktop_home_page.dart`, `desktop_setting_page.dart` («О программе»), `server_page.dart`, `common.dart`, `consts.dart` |
+| Интерфейс | `funti_home_view.dart`, `funti_home_scene.dart`, `funti_theme.dart`, `funti_quotes.dart` | `desktop_home_page.dart`, `desktop_setting_page.dart` («О программе»; окно настроек по макету 2026-10-12: вкладки `access`/`family`/`calls`/`advanced`, старые вкладки показываются частями через `_FuntiPart`, `funtiSettingsTab` переводит старые ключи `safety`/`network`/`display`/`printer` на новые), `server_page.dart`, `common.dart`, `consts.dart` |
+| Нет сервера аккаунтов (R-14) | — | `flutter_ffi.rs` (`is_disable_account` всегда `true`: скрыты «Аккаунт», «Заметка», аудит), `common.rs` (`get_api_server` пустой) |
 | Переводы | ключи `funti-*` | `src/lang/ru.rs`, `en.rs`, `template.rs` |
 
 ## Сервер (`server/`)
