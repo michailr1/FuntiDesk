@@ -28,6 +28,7 @@ import '../../models/server_model.dart';
 import '../../models/state_model.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_home_scene.dart';
+import '../widgets/funti_update_notice.dart';
 import 'desktop_home_page.dart' show setPasswordDialog;
 import 'desktop_setting_page.dart' show DesktopSettingPage, SettingsTabKey;
 
@@ -166,6 +167,7 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
                               const SizedBox(height: 16),
                             ],
                             widget.notices,
+                            const FuntiUpdateNotice(),
                           ],
                         ),
                         SizedBox(

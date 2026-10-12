@@ -119,7 +119,19 @@ jobs:
           $versionFile = Join-Path $dist 'funtidesk-version.txt'
           [IO.File]::WriteAllText($versionFile, "$base-ft.$n`n")
           Get-Content $versionFile
-          $sums = foreach ($f in @($zip, $single, $versionFile)) {
+          # ADR-007: "what's new" for the notice on the main screen - the top
+          # section of docs/WHATS_NEW.md (from the first "## " to the next).
+          $whatsNew = Join-Path $dist 'funtidesk-whats-new.txt'
+          $section = @(); $inSection = $false
+          foreach ($line in [IO.File]::ReadAllLines((Resolve-Path 'docs/WHATS_NEW.md'), [Text.Encoding]::UTF8)) {
+            if ($line.StartsWith('## ')) { if ($inSection) { break }; $inSection = $true; continue }
+            if ($inSection) { $section += $line }
+          }
+          $text = ($section -join "`n").Trim()
+          if (-not $text) { throw 'docs/WHATS_NEW.md: no section to publish' }
+          [IO.File]::WriteAllText($whatsNew, "$text`n", (New-Object Text.UTF8Encoding $false))
+          Get-Content -Encoding utf8 $whatsNew
+          $sums = foreach ($f in @($zip, $single, $versionFile, $whatsNew)) {
             "$((Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant())  $(Split-Path $f -Leaf)"
           }
           $sums | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
@@ -131,12 +143,15 @@ jobs:
           $notes = @"
           FuntiDesk $(Get-Content $versionFile -Raw | ForEach-Object Trim) для Windows x64.
 
+          Что нового:
+          $text
+
           Установка и обновление: ``irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex`` или «О программе» → «Проверить обновления». FuntiDesk-portable.exe — тот же клиент одним файлом.
 
           Исходный код этой сборки: $repo/tree/$env:GITHUB_SHA (коммит $env:GITHUB_SHA; архивы «Source code» ниже).
           Лицензия: GNU AGPL-3.0, $repo/blob/$env:GITHUB_SHA/client/LICENCE. FuntiDesk основан на RustDesk (© Purslane Tech Pte. Ltd.).
           "@
-          gh release create $tag $zip $single $versionFile (Join-Path $dist 'SHA256SUMS.txt') `
+          gh release create $tag $zip $single $versionFile $whatsNew (Join-Path $dist 'SHA256SUMS.txt') `
             --target $env:GITHUB_SHA --latest `
             --title "FuntiDesk для Windows $short" `
             --notes ($notes -replace '(?m)^ {10}', '')

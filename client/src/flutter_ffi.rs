@@ -1216,6 +1216,18 @@ pub fn main_funti_update_check() -> String {
     res.to_string()
 }
 
+/// FUNTIDESK (ADR-007): "what's new" of the latest release, empty on any
+/// error (the notice then shows only the version).
+pub fn main_funti_whats_new() -> String {
+    #[cfg(windows)]
+    return crate::funti_update::whats_new().unwrap_or_else(|e| {
+        log::info!("funti update: no what's new: {e}");
+        String::new()
+    });
+    #[cfg(not(windows))]
+    String::new()
+}
+
 /// FUNTIDESK (ADR-007): download, check and stage the update; on success
 /// the process exits and the new copy starts. Returns the error otherwise.
 pub fn main_funti_update_start() -> String {
