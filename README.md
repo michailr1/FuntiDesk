@@ -57,19 +57,13 @@
 
 ## Установка на Windows
 
-В PowerShell (без прав администратора):
+Команда установки для PowerShell (без прав администратора) — в описании [последнего релиза](../../releases/latest). Она запускает [install.ps1](install.ps1): скрипт ставит последнюю сборку в `%LOCALAPPDATA%\Programs\FuntiDesk`, проверяет SHA256, добавляет ярлык в «Пуск» и запускает FuntiDesk. Повторный запуск обновляет программу, ID и настройки сохраняются. Дальше обновлять можно кнопкой в «О программе».
 
-```powershell
-irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex
-```
-
-Скрипт ставит последнюю сборку в `%LOCALAPPDATA%\Programs\FuntiDesk`, проверяет SHA256, добавляет ярлык в «Пуск» и запускает FuntiDesk. Повторный запуск обновляет программу, ID и настройки сохраняются. Пока установщик не попал в `main`, вместо `main` в ссылке — ветка `claude/rustdesk-fork-planning-324gyk`.
-
-Без установки — один файл `FuntiDesk-portable.exe` из [последнего релиза](https://github.com/michailr1/FuntiDesk/releases/latest). Скачанный браузером файл SmartScreen предупреждает, пока у сборок нет подписи кода; установка командой выше этого предупреждения не вызывает.
+Без установки — один файл `FuntiDesk-portable.exe` из [последнего релиза](../../releases/latest). Скачанный браузером файл SmartScreen предупреждает, пока у сборок нет подписи кода; установка командой выше этого предупреждения не вызывает.
 
 ## Android (тестовая сборка)
 
-APK для телефонов arm64 — в релизах `funtidesk-android-<коммит>` (pre-release) на [странице релизов](https://github.com/michailr1/FuntiDesk/releases). Подпись отладочная: ставится вручную из файла, для проверки. Подробности — [docs/ANDROID.md](docs/ANDROID.md).
+APK для телефонов arm64 — в релизах `funtidesk-android-<коммит>` (pre-release) на [странице релизов](../../releases). Подпись отладочная: ставится вручную из файла, для проверки. Подробности — [docs/ANDROID.md](docs/ANDROID.md).
 
 ## Состояние
 
