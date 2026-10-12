@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' show Random;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
     show funtiHomeBannerHidden, setFuntiHomeBannerHidden;
 import 'package:flutter_hbb/common/funti_quotes.dart';
 import 'package:flutter_hbb/common/funti_theme.dart';
+import 'package:flutter_hbb/desktop/widgets/funti_family.dart';
 import 'package:flutter_hbb/desktop/widgets/funti_home_scene.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
@@ -62,10 +64,31 @@ enum SettingsTabKey {
   account,
   printer,
   about,
+  // FUNTIDESK: the settings window by the approved mockup (2026-10-12).
+  access,
+  family,
+  calls,
+  advanced,
+}
+
+// FUNTIDESK: security, network, display and printer now live under
+// "Access" or "Advanced"; old callers still name the old tabs.
+SettingsTabKey funtiSettingsTab(SettingsTabKey key) {
+  switch (key) {
+    case SettingsTabKey.safety:
+      return SettingsTabKey.access;
+    case SettingsTabKey.network:
+    case SettingsTabKey.display:
+    case SettingsTabKey.printer:
+      return SettingsTabKey.advanced;
+    default:
+      return key;
+  }
 }
 
 class DesktopSettingPage extends StatefulWidget {
   final SettingsTabKey initialTabkey;
+  // FUNTIDESK: no account server (R-14), so no "Account" tab.
   static final List<SettingsTabKey> tabKeys = [
     if (bind.mainGetBuildinOption(key: kOptionHideGeneralSetting) != 'Y')
       SettingsTabKey.general,
@@ -73,17 +96,11 @@ class DesktopSettingPage extends StatefulWidget {
         !bind.isOutgoingOnly() &&
         !bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
-      SettingsTabKey.safety,
-    if (!bind.isDisableSettings() &&
-        bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
-      SettingsTabKey.network,
-    if (!bind.isIncomingOnly()) SettingsTabKey.display,
-    // FUNTIDESK: no account server (R-14), so no "Account" tab.
-    if (isWindows &&
-        !bind.isDisableSettings() &&
-        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
-      SettingsTabKey.printer,
+      SettingsTabKey.access,
+    if (!isWeb && !bind.isOutgoingOnly()) SettingsTabKey.family,
+    if (!isWeb && !bind.isOutgoingOnly()) SettingsTabKey.calls,
     SettingsTabKey.about,
+    if (!isWeb) SettingsTabKey.advanced,
   ];
 
   DesktopSettingPage({Key? key, required this.initialTabkey}) : super(key: key);
@@ -93,6 +110,7 @@ class DesktopSettingPage extends StatefulWidget {
       _DesktopSettingPageState(initialTabkey);
 
   static void switch2page(SettingsTabKey page) {
+    page = funtiSettingsTab(page);
     try {
       int index = tabKeys.indexOf(page);
       if (index == -1) {
@@ -132,7 +150,8 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   Timer? _videoConnTimer;
 
   _DesktopSettingPageState(SettingsTabKey initialTabkey) {
-    var initialIndex = DesktopSettingPage.tabKeys.indexOf(initialTabkey);
+    var initialIndex =
+        DesktopSettingPage.tabKeys.indexOf(funtiSettingsTab(initialTabkey));
     if (initialIndex == -1) {
       initialIndex = 0;
     }
@@ -218,6 +237,22 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           settingTabs
               .add(_TabInfo(tab, 'About', Icons.info_outline, Icons.info));
           break;
+        case SettingsTabKey.access:
+          settingTabs.add(_TabInfo(tab, 'funti-settings-access',
+              Icons.lock_outline, Icons.lock));
+          break;
+        case SettingsTabKey.family:
+          settingTabs.add(_TabInfo(tab, 'funti-settings-family',
+              Icons.people_outline, Icons.people));
+          break;
+        case SettingsTabKey.calls:
+          settingTabs.add(_TabInfo(tab, 'funti-settings-calls',
+              Icons.call_outlined, Icons.call));
+          break;
+        case SettingsTabKey.advanced:
+          settingTabs.add(_TabInfo(tab, 'funti-settings-advanced',
+              Icons.tune_outlined, Icons.tune));
+          break;
       }
     }
     return settingTabs;
@@ -247,6 +282,18 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           break;
         case SettingsTabKey.about:
           children.add(const _About());
+          break;
+        case SettingsTabKey.access:
+          children.add(const _Safety(part: _FuntiPart.main));
+          break;
+        case SettingsTabKey.family:
+          children.add(const _FuntiFamilySettings());
+          break;
+        case SettingsTabKey.calls:
+          children.add(const _General(part: _FuntiPart.calls));
+          break;
+        case SettingsTabKey.advanced:
+          children.add(const _FuntiAdvanced());
           break;
       }
     }
@@ -399,8 +446,13 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
 
 //#region pages
 
+// FUNTIDESK: which slice of an old tab a new tab shows.
+enum _FuntiPart { main, calls, advanced }
+
 class _General extends StatefulWidget {
-  const _General({Key? key}) : super(key: key);
+  const _General({Key? key, this.part = _FuntiPart.main}) : super(key: key);
+
+  final _FuntiPart part;
 
   @override
   State<_General> createState() => _GeneralState();
@@ -415,20 +467,44 @@ class _GeneralState extends State<_General> {
   @override
   Widget build(BuildContext context) {
     final scrollController = ScrollController();
+    if (widget.part == _FuntiPart.main) {
+      return ListView(
+        controller: scrollController,
+        children: [
+          _Card(title: 'Language', children: [language()]),
+          theme(),
+          if (!isWeb && !bind.isIncomingOnly())
+            _Card(title: 'funti-appearance', children: [funtiHomeBanner()]),
+          if (!isWeb) service(),
+        ],
+      ).marginOnly(bottom: _kListViewBottomMargin);
+    }
+    if (widget.part == _FuntiPart.calls) {
+      return ListView(
+        controller: scrollController,
+        children: [
+          if (!isWeb) audio(context),
+          _funtiNote('funti-calls-note'),
+        ],
+      ).marginOnly(bottom: _kListViewBottomMargin);
+    }
     return ListView(
       controller: scrollController,
       children: [
-        if (!isWeb) service(),
-        theme(),
-        _Card(title: 'Language', children: [language()]),
         if (!isWeb) hwcodec(),
-        if (!isWeb) audio(context),
         if (!isWeb) record(context),
         if (!isWeb) WaylandCard(),
         other()
       ],
     ).marginOnly(bottom: _kListViewBottomMargin);
   }
+
+  // FUNTIDESK: brings back the main-screen picture closed with its cross.
+  Widget funtiHomeBanner() => _OptionCheckBox(
+      context, 'funti-show-home-banner', 'funti-home-banner',
+      isServer: false,
+      optGetter: () => !funtiHomeBannerHidden.value,
+      optSetter: (_, show) async => setFuntiHomeBannerHidden(!show));
 
   Widget theme() {
     final current = MyTheme.getThemeModePreference().toShortString();
@@ -491,12 +567,6 @@ class _GeneralState extends State<_General> {
     final showAutoUpdate = (isWindows && bind.mainIsInstalled()) ||
     (isMacOS && bind.mainIsInstalled() && bind.mainIsInstalledDaemon(prompt: false) && !bind.isCustomClient());
     final children = <Widget>[
-      // FUNTIDESK: brings back the main-screen picture closed with its cross.
-      if (!isWeb && !incomingOnly)
-        _OptionCheckBox(context, 'funti-show-home-banner', 'funti-home-banner',
-            isServer: false,
-            optGetter: () => !funtiHomeBannerHidden.value,
-            optSetter: (_, show) async => setFuntiHomeBannerHidden(!show)),
       if (!isWeb && !incomingOnly)
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
             kOptionEnableConfirmClosingTabs,
@@ -981,7 +1051,9 @@ enum _AccessMode {
 }
 
 class _Safety extends StatefulWidget {
-  const _Safety({Key? key}) : super(key: key);
+  const _Safety({Key? key, this.part = _FuntiPart.main}) : super(key: key);
+
+  final _FuntiPart part;
 
   @override
   State<_Safety> createState() => _SafetyState();
@@ -1007,12 +1079,15 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
             preventMouseKeyBuilder(
               block: locked,
               child: Column(children: [
-                permissions(context),
-                password(context),
-                _Card(title: '2FA', children: [tfa()]),
-                if (!isChangeIdDisabled())
-                  _Card(title: 'ID', children: [changeId()]),
-                more(context),
+                if (widget.part == _FuntiPart.main) ...[
+                  password(context),
+                  permissions(context),
+                ] else ...[
+                  _Card(title: '2FA', children: [tfa()]),
+                  if (!isChangeIdDisabled())
+                    _Card(title: 'ID', children: [changeId()]),
+                  more(context),
+                ],
               ]),
             ),
           ],
@@ -2519,6 +2594,192 @@ class __PrinterState extends State<_Printer> {
         enabled: printerOptions.action != kValuePrinterIncomingJobDismiss,
       )
     ]);
+  }
+}
+
+// FUNTIDESK: a muted explanation under the cards of a settings page.
+Widget _funtiNote(String key) => Row(children: [
+      Flexible(
+        child: SizedBox(
+          width: _kCardFixedWidth,
+          child: Text(translate(key),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey))
+              .marginOnly(left: _kCardLeftMargin + 4, top: 12, right: 8),
+        ),
+      ),
+    ]);
+
+// FUNTIDESK: "Family" tab — the same family list as on the main screen.
+class _FuntiFamilySettings extends StatefulWidget {
+  const _FuntiFamilySettings({Key? key}) : super(key: key);
+
+  @override
+  State<_FuntiFamilySettings> createState() => _FuntiFamilySettingsState();
+}
+
+class _FuntiFamilySettingsState extends State<_FuntiFamilySettings> {
+  List<FuntiFamilyMember> _family = funtiFamilyMembers();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // The service changes the list (pairing or removal on the other side).
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _reload());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _reload() {
+    final family = funtiFamilyMembers();
+    if (mounted && !listEquals(family, _family)) {
+      setState(() => _family = family);
+    }
+  }
+
+  Widget _member(FuntiFamilyMember m) => Row(children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: _accentColor.withOpacity(0.12),
+          child: Text(m.title.characters.first.toUpperCase(),
+              style: const TextStyle(color: _accentColor)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(m.title,
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            Text('ID ${formatFuntiId(m.id)}',
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          ]),
+        ),
+        TextButton(
+            onPressed: () =>
+                showFuntiFamilyRenameDialog(m, onChanged: _reload),
+            child: Text(translate('Rename'))),
+        TextButton(
+            onPressed: () =>
+                showFuntiFamilyRemoveDialog(m, onChanged: _reload),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error),
+            child: Text(translate('funti-family-remove'))),
+      ]).marginOnly(left: _kContentHMargin, bottom: 6);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(controller: ScrollController(), children: [
+      _Card(title: 'funti-settings-family', children: [
+        if (_family.isEmpty)
+          Text(translate('funti-family-empty'))
+              .marginOnly(left: _kContentHMargin),
+        ..._family.map(_member),
+      ]),
+      _Card(title: 'funti-family-add', children: [
+        Wrap(spacing: 10, runSpacing: 8, children: [
+          ElevatedButton(
+              onPressed: () => showFuntiFamilyCodeDialog(onChanged: _reload),
+              child: Text(translate('funti-family-show-code'))),
+          OutlinedButton(
+              onPressed: () =>
+                  showFuntiFamilyEnterCodeDialog(onChanged: _reload),
+              child: Text(translate('funti-family-enter-code'))),
+        ]).marginOnly(left: _kContentHMargin),
+        Text(translate('funti-family-show-code-hint'),
+                style: const TextStyle(fontSize: 13, color: Colors.grey))
+            .marginOnly(left: _kContentHMargin, top: 6),
+      ]),
+      _funtiNote('funti-family-about'),
+    ]).marginOnly(bottom: _kListViewBottomMargin);
+  }
+}
+
+// FUNTIDESK: "Advanced" — everything technical from the old tabs, one group
+// at a time; each group is the old page itself, unchanged.
+class _FuntiAdvanced extends StatefulWidget {
+  const _FuntiAdvanced({Key? key}) : super(key: key);
+
+  @override
+  State<_FuntiAdvanced> createState() => _FuntiAdvancedState();
+}
+
+class _FuntiAdvancedGroup {
+  const _FuntiAdvancedGroup(this.title, this.text, this.icon, this.page);
+  final String title;
+  final String text;
+  final IconData icon;
+  final Widget page;
+}
+
+class _FuntiAdvancedState extends State<_FuntiAdvanced> {
+  _FuntiAdvancedGroup? _open;
+
+  List<_FuntiAdvancedGroup> _groups() => [
+        if (!bind.isIncomingOnly())
+          const _FuntiAdvancedGroup('funti-adv-connect',
+              'funti-adv-connect-text', Icons.desktop_windows_outlined,
+              _Display()),
+        const _FuntiAdvancedGroup('funti-adv-misc', 'funti-adv-misc-text',
+            Icons.videocam_outlined, _General(part: _FuntiPart.advanced)),
+        if (!bind.isOutgoingOnly() &&
+            !bind.isDisableSettings() &&
+            bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
+          const _FuntiAdvancedGroup('Security', 'funti-adv-security-text',
+              Icons.enhanced_encryption_outlined,
+              _Safety(part: _FuntiPart.advanced)),
+        if (!bind.isDisableSettings() &&
+            bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
+          const _FuntiAdvancedGroup('Network', 'funti-adv-network-text',
+              Icons.link_outlined, _Network()),
+        if (isWindows &&
+            !bind.isDisableSettings() &&
+            bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) !=
+                'Y')
+          const _FuntiAdvancedGroup('Printer', 'funti-adv-printer-text',
+              Icons.print_outlined, _Printer()),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    final open = _open;
+    if (open != null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          TextButton.icon(
+              onPressed: () => setState(() => _open = null),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: Text(translate('Back'))),
+          const SizedBox(width: 8),
+          Text(translate(open.title),
+              style: const TextStyle(fontSize: _kTitleFontSize)),
+        ]).marginOnly(left: _kCardLeftMargin, top: 12),
+        Expanded(child: open.page),
+      ]);
+    }
+    return ListView(controller: ScrollController(), children: [
+      _funtiNote('funti-adv-intro'),
+      ..._groups().map((g) => Row(children: [
+            Flexible(
+              child: SizedBox(
+                width: _kCardFixedWidth,
+                child: Card(
+                  child: ListTile(
+                    leading: Icon(g.icon),
+                    title: Text(translate(g.title),
+                        style: const TextStyle(fontSize: 16)),
+                    subtitle: Text(translate(g.text)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => setState(() => _open = g),
+                  ),
+                ).marginOnly(left: _kCardLeftMargin, top: 12),
+              ),
+            ),
+          ])),
+    ]).marginOnly(bottom: _kListViewBottomMargin);
   }
 }
 
