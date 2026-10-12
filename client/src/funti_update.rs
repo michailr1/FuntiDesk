@@ -34,7 +34,13 @@ const VERSION_NAME: &str = "funtidesk-version.txt";
 const WHATS_NEW_NAME: &str = "funtidesk-whats-new.txt";
 const WHATS_NEW_MAX: usize = 16 * 1024;
 const EXE_NAME: &str = "FuntiDesk.exe";
+const PORTABLE_NAME: &str = "FuntiDesk-portable.exe";
 pub const FINISH_ARG: &str = "--funti-finish-update";
+/// Set by FuntiDesk-portable.exe for the copy it unpacked: its own path.
+const PORTABLE_ENV: &str = "FUNTIDESK_PORTABLE_EXE";
+/// Understood by FuntiDesk-portable.exe: wait for this process before
+/// unpacking over its files.
+const WAIT_ARG: &str = "--funti-wait-pid";
 
 pub struct Latest {
     pub version: String,
@@ -134,12 +140,10 @@ fn verify(sums: &str, name: &str, data: &[u8]) -> ResultType<()> {
     Ok(())
 }
 
-/// %LOCALAPPDATA%\Programs\FuntiDesk, where install.ps1 puts FuntiDesk.
-fn install_dir() -> ResultType<PathBuf> {
-    let Some(local) = std::env::var_os("LOCALAPPDATA") else {
-        bail!("LOCALAPPDATA is not set");
-    };
-    Ok(PathBuf::from(local).join("Programs").join("FuntiDesk"))
+/// Where FuntiDesk-portable.exe unpacks itself (libs/portable).
+fn portable_unpack_dir() -> Option<PathBuf> {
+    let local = std::env::var_os("LOCALAPPDATA")?;
+    Some(PathBuf::from(local).join("FuntiDesk").join("portable"))
 }
 
 fn sibling(dir: &Path, suffix: &str) -> PathBuf {
@@ -163,16 +167,50 @@ fn current_dir() -> ResultType<PathBuf> {
     Ok(dir.to_path_buf())
 }
 
-/// Only the copy installed by install.ps1 updates itself. The service
-/// (installed mode) and other copies are not supported yet: fail closed.
-pub fn unsupported_reason() -> Option<&'static str> {
+/// What is updated (owner's decision 2026-10-12: every copy, in place).
+enum Copy {
+    /// A folder with FuntiDesk.exe and its files (install.ps1 or an
+    /// unpacked archive): replaced as a whole by `finish()`.
+    Folder(PathBuf),
+    /// FuntiDesk-portable.exe, which unpacks itself on every start: the
+    /// file itself is replaced.
+    Portable(PathBuf),
+}
+
+fn this_copy() -> Result<Copy, &'static str> {
+    // The service (installed mode) needs administrator rights: ADR-007,
+    // stages 2-3. Fail closed until then.
     if crate::platform::is_installed() {
-        return Some("funti-update-unsupported-service");
+        return Err("funti-update-unsupported-service");
     }
-    match (install_dir(), current_dir()) {
-        (Ok(install), Ok(cur)) if same_path(&install, &cur) => None,
-        _ => Some("funti-update-unsupported-copy"),
+    let Ok(cur) = current_dir() else {
+        return Err("funti-update-unsupported-copy");
+    };
+    let unpacked = portable_unpack_dir().map_or(false, |d| same_path(&d, &cur));
+    if unpacked {
+        // Replacing the unpacked files would be undone by the next start of
+        // the old FuntiDesk-portable.exe. Older ones do not say where they are.
+        return match std::env::var_os(PORTABLE_ENV).map(PathBuf::from) {
+            Some(exe) if exe.is_file() => Ok(Copy::Portable(exe)),
+            _ => Err("funti-update-unsupported-portable-old"),
+        };
     }
+    if !writable_next_to(&cur) {
+        return Err("funti-update-unsupported-copy");
+    }
+    Ok(Copy::Folder(cur))
+}
+
+/// The update works next to the copy (`.update`, `.old`).
+fn writable_next_to(dir: &Path) -> bool {
+    let probe = sibling(dir, ".update-probe");
+    let ok = std::fs::create_dir(&probe).is_ok();
+    std::fs::remove_dir(&probe).ok();
+    ok
+}
+
+pub fn unsupported_reason() -> Option<&'static str> {
+    this_copy().err()
 }
 
 fn unpack(zip: &[u8], to: &Path) -> ResultType<()> {
@@ -199,10 +237,10 @@ fn unpack(zip: &[u8], to: &Path) -> ResultType<()> {
 /// Download, check and unpack the latest release, start the new exe to swap
 /// the files. On success the caller exits the process.
 pub fn start() -> ResultType<String> {
-    if let Some(reason) = unsupported_reason() {
-        bail!("{reason}");
-    }
-    let install = install_dir()?;
+    let copy = match this_copy() {
+        Ok(copy) => copy,
+        Err(reason) => bail!("{reason}"),
+    };
     let client = http()?;
     let version_bytes = download(&client, VERSION_NAME)?;
     let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
@@ -213,6 +251,16 @@ pub fn start() -> ResultType<String> {
         Some(_) => bail!("the release {version} is not newer than this copy"),
         None => bail!("unexpected version in the release: {version:?}"),
     }
+    let install = match copy {
+        Copy::Folder(dir) => dir,
+        Copy::Portable(exe) => {
+            let data = download(&client, PORTABLE_NAME)?;
+            verify(&sums, PORTABLE_NAME, &data)?;
+            replace_portable(&exe, &data)?;
+            log::info!("FuntiDesk {version} portable ready, handing over to it");
+            return Ok(version);
+        }
+    };
     let zip = download(&client, ZIP_NAME)?;
     verify(&sums, ZIP_NAME, &zip)?;
 
@@ -241,6 +289,35 @@ pub fn start() -> ResultType<String> {
     }
     log::info!("FuntiDesk {version} staged, handing over to the new copy");
     Ok(version)
+}
+
+/// Puts the new FuntiDesk-portable.exe in place of `exe` and starts it; it
+/// waits for this process before unpacking. The old file stays as `.old`
+/// until the next start.
+fn replace_portable(exe: &Path, data: &[u8]) -> ResultType<()> {
+    let new = exe.with_extension("exe.new");
+    let old = exe.with_extension("exe.old");
+    std::fs::write(&new, data)?;
+    std::fs::remove_file(&old).ok();
+    if let Err(e) = std::fs::rename(exe, &old) {
+        std::fs::remove_file(&new).ok();
+        bail!("{} is busy: {e}", exe.display());
+    }
+    if let Err(e) = std::fs::rename(&new, exe) {
+        std::fs::rename(&old, exe).ok();
+        bail!("could not put the new {PORTABLE_NAME} in place: {e}");
+    }
+    let started = std::process::Command::new(exe)
+        .current_dir(exe.parent().unwrap_or(Path::new(".")))
+        .arg(WAIT_ARG)
+        .arg(std::process::id().to_string())
+        .spawn();
+    if let Err(e) = started {
+        std::fs::remove_file(exe).ok();
+        std::fs::rename(&old, exe).ok();
+        bail!("could not start the new {PORTABLE_NAME}: {e}");
+    }
+    Ok(())
 }
 
 /// Exit after `start()`: close the other FuntiDesk processes of this copy
@@ -334,7 +411,7 @@ pub fn finish(args: &[String]) {
         log::error!("update not installed: {e}");
         // Whatever failed, FuntiDesk must be running again: the old copy
         // (or the restored one) is still in place.
-        if let Ok(install) = install_dir() {
+        if let Some(install) = args.get(2).map(PathBuf::from) {
             if install.join(EXE_NAME).is_file() && !running_in(&install) {
                 launch(&install);
             }
@@ -347,12 +424,11 @@ fn finish_(args: &[String]) -> ResultType<()> {
         bail!("bad arguments");
     };
     let pid: u32 = pid.parse()?;
-    let install = install_dir()?;
-    let target = PathBuf::from(target);
+    let install = PathBuf::from(target);
     let work = sibling(&install, ".update");
-    // Only the install.ps1 location, only from our own staging folder.
-    if !same_path(&target, &install) || !same_path(&current_dir()?, &work.join("files")) {
-        bail!("refusing to update {}", target.display());
+    // Only a FuntiDesk folder, only from the staging folder next to it.
+    if !install.join(EXE_NAME).is_file() || !same_path(&current_dir()?, &work.join("files")) {
+        bail!("refusing to update {}", install.display());
     }
     // The old copy may have started us with its working directory, the
     // install dir (a Start menu shortcut sets it): a working directory
@@ -399,21 +475,23 @@ fn finish_(args: &[String]) -> ResultType<()> {
 
 /// Leftovers of a previous update, removed on a normal start.
 pub fn cleanup() {
-    let Ok(install) = install_dir() else {
+    let Ok(install) = current_dir() else {
         return;
     };
-    let Ok(cur) = current_dir() else {
-        return;
-    };
-    if !same_path(&install, &cur) {
-        return;
-    }
+    let portable_old = std::env::var_os(PORTABLE_ENV)
+        .map(|exe| PathBuf::from(exe).with_extension("exe.old"));
     std::thread::spawn(move || {
         // The staged copy may still be exiting.
         std::thread::sleep(Duration::from_secs(10));
-        for suffix in [".old", ".update"] {
+        if let Some(old) = portable_old.filter(|p| p.is_file()) {
+            if let Err(e) = std::fs::remove_file(&old) {
+                log::warn!("failed to remove {}: {e}", old.display());
+            }
+        }
+        // Only what an update left: a FuntiDesk folder and its staging.
+        for (suffix, marker) in [(".old", EXE_NAME), (".update", "files")] {
             let dir = sibling(&install, suffix);
-            if dir.exists() {
+            if dir.join(marker).exists() {
                 if let Err(e) = std::fs::remove_dir_all(&dir) {
                     log::warn!("failed to remove {}: {e}", dir.display());
                 }

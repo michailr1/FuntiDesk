@@ -23,6 +23,11 @@ const APP_PREFIX: &str = "FuntiDesk";
 const APP_PORTABLE_DIR: &str = "portable";
 const META_LINE_PREFIX_FILE: &str = "file = ";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+// FUNTIDESK (ADR-007): the unpacked FuntiDesk updates this file in place, so
+// it is told where it is; after the update it starts the new file with
+// WAIT_ARG and its pid, and the new file waits before unpacking over it.
+const PORTABLE_EXE_ENV_KEY: &str = "FUNTIDESK_PORTABLE_EXE";
+const WAIT_ARG: &str = "--funti-wait-pid";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
@@ -248,6 +253,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     }
 
     cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    cmd.env(PORTABLE_EXE_ENV_KEY, &exe);
     if use_null_stdio() {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -272,6 +278,27 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     }
 }
 
+/// Waits up to 30 s for the FuntiDesk that is updating us to exit; its
+/// files are about to be unpacked over.
+fn wait_for_process(pid: u32) {
+    #[cfg(windows)]
+    unsafe {
+        use winapi::um::{
+            handleapi::CloseHandle, processthreadsapi::OpenProcess, synchapi::WaitForSingleObject,
+            winnt::SYNCHRONIZE,
+        };
+        let handle = OpenProcess(SYNCHRONIZE, 0, pid);
+        if !handle.is_null() {
+            WaitForSingleObject(handle, 30_000);
+            CloseHandle(handle);
+        }
+    }
+    // Its helper processes close right after it.
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    #[cfg(not(windows))]
+    let _ = pid;
+}
+
 fn main() -> Result<(), String> {
     let mut args = Vec::new();
     let mut arg_exe = Default::default();
@@ -283,6 +310,12 @@ fn main() -> Result<(), String> {
             args.push(arg);
         }
         i += 1;
+    }
+    if args.first().map(String::as_str) == Some(WAIT_ARG) {
+        if let Some(pid) = args.get(1).and_then(|p| p.parse::<u32>().ok()) {
+            wait_for_process(pid);
+        }
+        args.drain(..2.min(args.len()));
     }
     let click_setup = args.is_empty() && arg_exe.to_lowercase().ends_with("install.exe");
     #[cfg(windows)]
