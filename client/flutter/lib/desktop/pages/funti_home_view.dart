@@ -600,45 +600,15 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
         ] else
           Text(translate('funti-otp-off-tip'),
               style: TextStyle(fontSize: 14, color: t.muted)),
-        const SizedBox(height: 14),
-        // Ready-to-send text for a messenger: who, ID and the password.
-        OutlinedButton.icon(
-          onPressed: () => _copy(_shareText(model, showOneTime)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: t.link,
-            side: BorderSide(color: t.stroke),
-            minimumSize: const Size(0, 40),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          icon: const Icon(Icons.ios_share_rounded, size: 18),
-          label: Text(translate(
-              showOneTime ? 'funti-copy-id-and-password' : 'Copy ID')),
-        ),
-        // FUNTIDESK (ADR-006): one button for "come and help me", sent to the
-        // family; shown once this computer has family members.
-        if (funtiFamilyMembers().isNotEmpty) ...[
-          const SizedBox(height: 10),
-          ElevatedButton.icon(
-            onPressed: showFuntiAskHelpDialog,
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: t.accent,
-              foregroundColor: t.onAccent,
-              minimumSize: const Size(0, 40),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: const Icon(Icons.support_agent_rounded, size: 18),
-            label: Text(translate('funti-help-ask')),
-          ),
-        ],
-        const SizedBox(height: 14),
-        const Spacer(),
+        const SizedBox(height: 12),
         Container(
-          padding: const EdgeInsets.only(top: 14),
+          // FUNTIDESK: right under the password, where it is always seen
+          // (it fell below the card on a laptop screen, 2026-10-11).
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: t.stroke)),
+            border: Border(
+                top: BorderSide(color: t.stroke),
+                bottom: BorderSide(color: t.stroke)),
           ),
           child: Row(
             children: [
@@ -691,6 +661,40 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
             ],
           ),
         ),
+        const SizedBox(height: 14),
+        // Ready-to-send text for a messenger: who, ID and the password.
+        OutlinedButton.icon(
+          onPressed: () => _copy(_shareText(model, showOneTime)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: t.link,
+            side: BorderSide(color: t.stroke),
+            minimumSize: const Size(0, 40),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          icon: const Icon(Icons.ios_share_rounded, size: 18),
+          label: Text(translate(
+              showOneTime ? 'funti-copy-id-and-password' : 'Copy ID')),
+        ),
+        // FUNTIDESK (ADR-006): one button for "come and help me", sent to the
+        // family; shown once this computer has family members.
+        if (funtiFamilyMembers().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: showFuntiAskHelpDialog,
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: t.accent,
+              foregroundColor: t.onAccent,
+              minimumSize: const Size(0, 40),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.support_agent_rounded, size: 18),
+            label: Text(translate('funti-help-ask')),
+          ),
+        ],
+        const Spacer(),
       ],
     );
   }
