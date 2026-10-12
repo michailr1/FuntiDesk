@@ -13,6 +13,8 @@ cd "$(git rev-parse --show-toplevel)"
 
 ref="${1:-}"
 if [[ -z "$ref" ]]; then
+  # The backticks are literal Markdown, not command substitution.
+  # shellcheck disable=SC2016
   tag="$(grep -oE 'rustdesk/rustdesk`, tag `[^`]+`' docs/UPSTREAM.md | head -1 | sed -E 's/.*tag `([^`]+)`/\1/')"
   ref="upstream-client-$tag"
 fi
