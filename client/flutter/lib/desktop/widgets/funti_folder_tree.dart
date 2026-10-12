@@ -6,6 +6,8 @@
 // Folders are read with the panel's own FileFetcher, so a remote tree uses
 // the same file transfer session and the same permissions as the list.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -48,6 +50,8 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
 
   List<_Node>? _drives;
   bool _drivesFailed = false;
+  bool _drivesLoading = false;
+  StreamSubscription? _dirSub;
 
   FileController get _c => widget.controller;
 
@@ -55,6 +59,17 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
   void initState() {
     super.initState();
     _loadDrives();
+    // A remote tree may ask before the file transfer session is ready: ask
+    // again once the panel has opened a folder.
+    _dirSub = _c.directory.listen((_) {
+      if (_drives == null && !_drivesLoading) _loadDrives();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dirSub?.cancel();
+    super.dispose();
   }
 
   Future<List<Entry>> _read(String path) async {
@@ -65,6 +80,7 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
   }
 
   Future<void> _loadDrives() async {
+    _drivesLoading = true;
     try {
       final entries = await _read('/');
       final drives = entries
@@ -75,10 +91,16 @@ class _FuntiFolderTreeState extends State<FuntiFolderTree> {
             return _Node(e.name, path, 0);
           })
           .toList();
-      if (mounted) setState(() => _drives = drives);
+      if (mounted) {
+        setState(() {
+          _drives = drives;
+          _drivesFailed = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _drivesFailed = true);
     }
+    _drivesLoading = false;
   }
 
   Future<void> _toggle(_Node node) async {
