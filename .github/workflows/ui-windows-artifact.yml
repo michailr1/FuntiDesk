@@ -59,11 +59,24 @@ jobs:
           }
           python3 --version
 
+      # FUNTIDESK: vcpkg builds every C/C++ dependency from source on each
+      # run; aom comes from aomedia.googlesource.com, which answered 503 on
+      # 2026-10-12 and failed releases. The binary cache keeps the built
+      # packages between runs, keyed by the manifest and the pinned vcpkg.
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/vcpkg-bincache
+          key: vcpkg-bin-windows-${{ hashFiles('client/vcpkg.json', 'scripts/windows/bootstrap.ps1') }}
+          restore-keys: vcpkg-bin-windows-
+
       - name: Build Windows runtime
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}/vcpkg-bincache
         run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1 -PortablePack
 
       - name: Write SHA256 manifest
