@@ -110,7 +110,7 @@ APK для телефонов arm64 — в релизах `funtidesk-android-<к
 
 ### Управление проектом
 
-- GitHub — источник истины для кода, архитектуры, ролей, планов, ADR и эксплуатационной документации; Linear — статусы и приоритеты.
+- GitHub — единственный источник истины для кода, архитектуры, ролей, планов, статусов (`docs/ROADMAP.md`, PR), ADR и эксплуатационной документации.
 - Изменения production-поведения — через историю репозитория и задокументированные критерии приёмки.
 
 Документы: `AGENTS.md` (правила работы), `docs/ROLES.md`, `docs/ROADMAP.md`, `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/UPSTREAM.md`, `docs/UPSTREAM_REVIEW.md`, ADR `docs/ADR-*.md`.

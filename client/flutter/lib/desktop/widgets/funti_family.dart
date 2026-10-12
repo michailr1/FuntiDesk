@@ -71,12 +71,6 @@ List<FuntiFamilyMember> funtiFamilyMembers() {
   }
 }
 
-Future<void> funtiFamilyRemove(String id) async {
-  final rest = funtiFamilyMembers().where((m) => m.id != id).toList();
-  await bind.mainSetOption(
-      key: kFuntiOptionFamily,
-      value: jsonEncode(rest.map((m) => m.toJson()).toList()));
-}
 
 /// Asks to remove [member]: a confirmation that wraps its text, then the
 /// member is gone here at once and the other computer is told in the
@@ -128,15 +122,10 @@ void showFuntiFamilyRemoveDialog(FuntiFamilyMember member,
 }
 
 /// Local name for a family member (only on this device).
+// The service owns the family list: the UI's option cache may be older than
+// a pairing that just happened, so it is never written from here.
 Future<void> funtiFamilyRename(String id, String name) async {
-  final list = funtiFamilyMembers()
-      .map((m) => m.id == id
-          ? FuntiFamilyMember(id: m.id, name: name.trim(), pk: m.pk)
-          : m)
-      .toList();
-  await bind.mainSetOption(
-      key: kFuntiOptionFamily,
-      value: jsonEncode(list.map((m) => m.toJson()).toList()));
+  await bind.mainFuntiFamilyRename(id: id, name: name.trim());
 }
 
 /// Rename dialog for a family member.
@@ -252,7 +241,7 @@ void _showCodeDialog(VoidCallback? onChanged) {
   Timer? timer;
   gFFI.dialogManager.show((setState, close, context) {
     final t = FuntiTokens.of(context);
-    timer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+    timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
       final now = funtiFamilyMembers();
       final fresh = now.where((m) => !before.contains(m.id));
       if (fresh.isNotEmpty && added.value == null) {
@@ -339,27 +328,20 @@ void _showCodeDialog(VoidCallback? onChanged) {
                               style: TextStyle(
                                   color: Theme.of(context).colorScheme.error)),
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  '${translate('funti-family-this-id')}: '
-                  '${formatFuntiId(gFFI.serverModel.serverId.text)}',
-                  style: TextStyle(fontSize: 13, color: t.muted),
-                ),
                 if (value.length == 6) ...[
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {
-                      final id = formatFuntiId(gFFI.serverModel.serverId.text);
+                      // ADR-008: the code alone is enough.
                       final code =
                           '${value.substring(0, 3)} ${value.substring(3)}';
                       Clipboard.setData(ClipboardData(
-                          text: translate('funti-family-share')
-                              .replaceAll('{id}', id)
+                          text: translate('funti-family-share-code')
                               .replaceAll('{code}', code)));
                       showToast(translate('Copied'));
                     },
                     icon: const Icon(Icons.ios_share_rounded, size: 18),
-                    label: Text(translate('funti-family-copy-code')),
+                    label: Text(translate('funti-family-copy-code-only')),
                   ),
                 ],
               ],
@@ -378,7 +360,6 @@ void _showCodeDialog(VoidCallback? onChanged) {
 }
 
 void _enterCodeDialog(VoidCallback? onChanged) {
-  final idController = TextEditingController();
   final codeController = TextEditingController();
   final nameController = TextEditingController();
   final busy = false.obs;
@@ -391,9 +372,10 @@ void _enterCodeDialog(VoidCallback? onChanged) {
         close();
         return;
       }
-      final id = idController.text.replaceAll(' ', '');
+      // ADR-008: the code alone; the computer is found by it on the server.
+      const id = '';
       final code = codeController.text.replaceAll(' ', '');
-      if (id.isEmpty || code.length != 6) {
+      if (code.length != 6) {
         error.value = translate('funti-family-enter-both');
         return;
       }
@@ -404,13 +386,20 @@ void _enterCodeDialog(VoidCallback? onChanged) {
       busy.value = false;
       if (res['name'] != null) {
         final name = nameController.text.trim();
-        if (name.isNotEmpty) await funtiFamilyRename(id, name);
+        final pairedId = (res['id'] ?? id).toString();
+        if (name.isNotEmpty && pairedId.isNotEmpty) {
+          await funtiFamilyRename(pairedId, name);
+        }
         added.value = name.isNotEmpty ? name : res['name'].toString();
         onChanged?.call();
       } else {
         final e = (res['error'] ?? '').toString();
         error.value = e == 'funti-family-pair-failed'
             ? translate('funti-family-code-wrong')
+            : e == 'funti-family-too-many'
+                ? translate(e)
+            : e.startsWith('funti-family-server-error')
+                ? translate('funti-family-server-unreachable')
             : e == 'timeout' || e == 'connection closed'
                 // An older FuntiDesk ignores the pairing request.
                 ? translate('funti-family-no-answer')
@@ -445,15 +434,8 @@ void _enterCodeDialog(VoidCallback? onChanged) {
                 style: TextStyle(fontSize: 13, color: t.muted)),
             const SizedBox(height: 14),
             TextField(
-              controller: idController,
-              autofocus: true,
-              enabled: !busy.value,
-              decoration: InputDecoration(
-                  labelText: translate('funti-family-their-id')),
-            ),
-            const SizedBox(height: 10),
-            TextField(
               controller: codeController,
+              autofocus: true,
               enabled: !busy.value,
               maxLength: 7,
               decoration: InputDecoration(

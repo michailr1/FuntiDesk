@@ -170,6 +170,34 @@ message HealthCheck {
   string token = 1;
 }
 
+// FUNTIDESK (ADR-008): pairing by code alone. The computer showing the code
+// registers it (signed with its device key); the other one finds that
+// computer's ID by the code. Numbers from 1000 are reserved for FuntiDesk.
+message FuntiPairOffer {
+  string id = 1;
+  string code = 2;
+  // Unix seconds; the server accepts only a fresh offer.
+  int64 time = 3;
+  // Device-key signature of "funtidesk-pair-offer-v1\n{id}\n{code}\n{time}".
+  bytes signature = 4;
+}
+
+message FuntiPairLookup {
+  string code = 1;
+}
+
+message FuntiPairResponse {
+  enum Result {
+    OK = 0;
+    NOT_FOUND = 1;
+    TOO_MANY_ATTEMPTS = 2;
+    BAD_REQUEST = 3;
+  }
+  Result result = 1;
+  // Lookup: the ID of the computer showing the code.
+  string id = 2;
+}
+
 message RendezvousMessage {
   oneof union {
     RegisterPeer register_peer = 6;
@@ -193,5 +221,9 @@ message RendezvousMessage {
     OnlineResponse online_response = 24;
     KeyExchange key_exchange = 25;
     HealthCheck hc = 26;
+    // FUNTIDESK (ADR-008): pairing by code.
+    FuntiPairOffer funti_pair_offer = 1001;
+    FuntiPairLookup funti_pair_lookup = 1002;
+    FuntiPairResponse funti_pair_response = 1003;
   }
 }

@@ -1008,12 +1008,21 @@ pub fn main_funti_family_code(start: bool) -> String {
     String::new()
 }
 
+// FUNTIDESK (ADR-006): rename a family member in the service, which owns
+// the list (writing the option from the UI raced with pairing).
+pub fn main_funti_family_rename(id: String, name: String) -> bool {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::funti_family::rename_blocking(&id, &name);
+    #[allow(unreachable_code)]
+    false
+}
+
 // FUNTIDESK (ADR-006): pair with computer `id` by the code shown there.
 // JSON: {"name": "..."} on success, {"error": "..."} otherwise.
 pub fn main_funti_family_pair(id: String, code: String) -> String {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return match crate::funti_family::pair_blocking(&id, &code) {
-        Ok(name) => serde_json::json!({ "name": name }).to_string(),
+        Ok((id, name)) => serde_json::json!({ "id": id, "name": name }).to_string(),
         Err(error) => serde_json::json!({ "error": error }).to_string(),
     };
     #[allow(unreachable_code)]
