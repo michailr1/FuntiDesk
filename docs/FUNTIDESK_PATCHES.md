@@ -49,3 +49,5 @@
 ## Сервер (`server/`)
 
 `rendezvous_server.rs` — сигнализация по TCP (ADR-004), поиск по коду (`funti_pair.rs`, ADR-008); сборка и развёртывание — `docs/SERVER_DEPLOYMENT.md`.
+
+`server/src/lib.rs` и `server/src/rendezvous_server.rs` — тонкие хуки необязательного внутреннего resolver `funti_account_identity.rs` (проект ADR-010). Он выдаёт account-сервису только зарегистрированный открытый ключ указанного ID через отдельный Unix socket. Без явного `FUNTI_ACCOUNT_IDENTITY_SOCKET` прежний путь не меняется; ошибка resolver не останавливает hbbs. Account не получает базу или приватный ключ hbbs. Проверки account — `.github/workflows/account-ci.yml`; реальные клиенты и production ещё не проверены.

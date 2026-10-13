@@ -1,0 +1,15 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS challenges(id TEXT PRIMARY KEY, email TEXT NOT NULL, email_hash TEXT NOT NULL, scope_hash TEXT NOT NULL, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 1);
+CREATE UNIQUE INDEX IF NOT EXISTS pending_scope ON challenges(scope_hash) WHERE pending=1;
+CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), browser INTEGER NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER);
+CREATE INDEX IF NOT EXISTS account_sessions ON sessions(account_id);
+CREATE TABLE IF NOT EXISTS rate_limits(name TEXT NOT NULL, period INTEGER NOT NULL, window_start INTEGER NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(name,period,window_start));
+CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), funti_id TEXT NOT NULL, pk TEXT NOT NULL UNIQUE, name TEXT NOT NULL, version TEXT NOT NULL DEFAULT '', bound_at INTEGER NOT NULL, last_seen INTEGER);
+CREATE INDEX IF NOT EXISTS account_devices ON devices(account_id);
+CREATE TABLE IF NOT EXISTS nonces(id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), device_id TEXT REFERENCES devices(id), session_hash TEXT, action TEXT NOT NULL, funti_id TEXT NOT NULL, pk TEXT NOT NULL, payload_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS family_copies(device_id TEXT PRIMARY KEY REFERENCES devices(id), revision INTEGER NOT NULL, members_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL REFERENCES accounts(id), kind TEXT NOT NULL CHECK(kind IN ('login','remove')), target_pk TEXT NOT NULL, created_at INTEGER NOT NULL, request_id TEXT, UNIQUE(account_id,request_id));
+CREATE TABLE IF NOT EXISTS deliveries(event_id INTEGER NOT NULL REFERENCES events(id), device_id TEXT NOT NULL REFERENCES devices(id), acknowledged_at INTEGER, PRIMARY KEY(event_id,device_id));
+PRAGMA user_version=1;
+COMMIT;
