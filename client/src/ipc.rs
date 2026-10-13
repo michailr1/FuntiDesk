@@ -321,6 +321,9 @@ pub enum SwitchSidesUuidAction {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum Data {
+    // FUNTIDESK (ADR-009/010): Packet Debug redacts codes, email and replies.
+    #[cfg(windows)]
+    FuntiAccount(crate::funti_account::Packet, Option<bool>),
     Login {
         id: i32,
         is_file_transfer: bool,
@@ -625,6 +628,11 @@ fn legacy_hot_measured() -> bool {
 #[tokio::main(flavor = "current_thread")]
 pub async fn start(postfix: &str) -> ResultType<()> {
     let mut incoming = new_listener(postfix).await?;
+    // FUNTIDESK: one account actor in the owner of the authorized main IPC.
+    #[cfg(windows)]
+    if postfix.is_empty() {
+        crate::funti_account::start();
+    }
     loop {
         if let Some(result) = incoming.next().await {
             match result {
@@ -858,6 +866,12 @@ impl Drop for CheckIfRestart {
 
 async fn handle(data: Data, stream: &mut Connection) {
     match data {
+        #[cfg(windows)]
+        Data::FuntiAccount(packet, None) => {
+            let response = crate::funti_account::execute(packet).await;
+            let packet = crate::funti_account::Packet { action: "reply".into(), payload: response.to_string() };
+            allow_err!(stream.send(&Data::FuntiAccount(packet, Some(true))).await);
+        }
         Data::SystemInfo(_) => {
             let info = format!(
                 "log_path: {}, config: {}, username: {}",

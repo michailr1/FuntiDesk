@@ -1008,6 +1008,11 @@ pub fn main_funti_family_code(start: bool) -> String {
     String::new()
 }
 
+/// FUNTIDESK (ADR-009/010): the service handles account operations and secrets.
+pub async fn main_funti_account(action: String, payload: String) -> String {
+    crate::funti_account::call(action, payload).await
+}
+
 // FUNTIDESK (ADR-006): rename a family member in the service, which owns
 // the list (writing the option from the UI raced with pairing).
 pub fn main_funti_family_rename(id: String, name: String) -> bool {

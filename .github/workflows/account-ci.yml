@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'account/**'
+      - 'client/src/funti_account_protocol.rs'
       - '.github/workflows/account-ci.yml'
       - 'server/src/funti_account_identity.rs'
   push:
     paths:
       - 'account/**'
+      - 'client/src/funti_account_protocol.rs'
       - '.github/workflows/account-ci.yml'
       - 'server/src/funti_account_identity.rs'
   workflow_dispatch:
