@@ -400,7 +400,12 @@ fn copy_dir(from: &Path, to: &Path) -> ResultType<()> {
 }
 
 fn launch(dir: &Path) {
-    if let Err(e) = std::process::Command::new(dir.join(EXE_NAME)).spawn() {
+    // Its own folder as the working directory: the staging folder we run in
+    // would stay busy and `cleanup()` could not remove it.
+    if let Err(e) = std::process::Command::new(dir.join(EXE_NAME))
+        .current_dir(dir)
+        .spawn()
+    {
         log::error!("failed to start {}: {e}", dir.display());
     }
 }
