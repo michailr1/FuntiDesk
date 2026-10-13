@@ -40,6 +40,9 @@ lazy_static::lazy_static! {
 
 fn initialize(app_dir: &str, custom_client_config: &str) {
     flutter::async_tasks::start_flutter_async_runner();
+    // FUNTIDESK: own IPC runner for the pinned bridge's synchronous Rust functions.
+    #[cfg(windows)]
+    crate::funti_account::start_ui();
     // `APP_DIR` is set in `main_get_data_dir_ios()` on iOS.
     #[cfg(not(target_os = "ios"))]
     {
@@ -1009,8 +1012,8 @@ pub fn main_funti_family_code(start: bool) -> String {
 }
 
 /// FUNTIDESK (ADR-009/010): the service handles account operations and secrets.
-pub async fn main_funti_account(action: String, payload: String) -> String {
-    crate::funti_account::call(action, payload).await
+pub fn main_funti_account(action: String, payload: String) -> String {
+    crate::funti_account::call_blocking(action, payload)
 }
 
 // FUNTIDESK (ADR-006): rename a family member in the service, which owns

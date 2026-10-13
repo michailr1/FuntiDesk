@@ -685,10 +685,9 @@ fn dpapi(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>> {
     use winapi::{
         shared::minwindef::FALSE,
         um::{
+            dpapi::{CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN},
             winbase::LocalFree,
-            wincrypt::{
-                CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
-            },
+            wincrypt::CRYPT_INTEGER_BLOB,
         },
     };
     if bytes.is_empty() || bytes.len() > 4096 {

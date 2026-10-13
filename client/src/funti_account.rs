@@ -46,3 +46,15 @@ pub async fn call(action: String, payload: String) -> String {
 mod windows;
 #[cfg(windows)]
 pub use windows::{execute, start};
+
+#[cfg(windows)]
+#[path = "funti_account_ui.rs"]
+mod ui;
+#[cfg(windows)]
+pub use ui::{call_blocking, start_ui};
+
+#[cfg(not(windows))]
+pub fn call_blocking(action: String, payload: String) -> String {
+    let _ = (action, payload);
+    r#"{"error":"funti-account-unsupported"}"#.into()
+}
