@@ -272,10 +272,6 @@ impl Store {
             expires_at: now + 300,
             session_hash: auth.map(|a| a.hash.clone()),
         };
-        tx.execute(
-            "UPDATE nonces SET used=1 WHERE device_id=?1 AND action=?2 AND used=0",
-            params![source, action],
-        )?;
         insert_nonce(&tx, &nonce, now)?;
         tx.commit()?;
         Ok(Some(nonce))
@@ -319,6 +315,10 @@ impl Store {
             if account != auth.account {
                 return Ok(None);
             }
+            tx.execute(
+                "UPDATE devices SET funti_id=?2,name=?3,version=?4,last_seen=?5 WHERE id=?1",
+                params![id, nonce.funti_id, name, version, now],
+            )?;
             tx.commit()?;
             return Ok(Some(id));
         }
@@ -505,11 +505,12 @@ impl Store {
         if !self.active(auth, now)? {
             return Ok(None);
         }
-        let mut stmt = self.db.prepare("SELECT e.id,e.target_pk,e.created_at,d.device_id,d.acknowledged_at FROM events e JOIN deliveries d ON d.event_id=e.id WHERE e.account_id=?1 AND e.kind='remove' ORDER BY e.id DESC,d.device_id LIMIT 4096")?;
+        let mut stmt = self.db.prepare("SELECT e.id,e.target_pk,e.created_at,d.device_id,d.acknowledged_at FROM events e JOIN deliveries d ON d.event_id=e.id WHERE e.account_id=?1 AND e.kind='remove' ORDER BY e.id DESC,d.device_id LIMIT 4097")?;
         let rows = stmt.query_map([&auth.account], |r| Ok(json!({"event_id":r.get::<_,i64>(0)?,"target_pk":r.get::<_,String>(1)?,"created_at":r.get::<_,i64>(2)?,"source_device_id":r.get::<_,String>(3)?,"acknowledged_at":r.get::<_,Option<i64>>(4)?})))?;
-        Ok(Some(
-            json!({"deliveries":rows.collect::<rusqlite::Result<Vec<_>>>()?}),
-        ))
+        let mut deliveries = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+        let has_more = deliveries.len() > 4096;
+        deliveries.truncate(4096);
+        Ok(Some(json!({"deliveries":deliveries,"has_more":has_more})))
     }
 }
 

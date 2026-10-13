@@ -695,6 +695,189 @@ async fn changed_key_for_same_id_gets_new_identity_without_family() {
     assert_eq!(f.bind(&token, "111111", &new).await, second);
 }
 
+#[tokio::test]
+async fn concurrent_source_nonces_remain_usable() {
+    let mut f = Fixture::new();
+    let token = f.login("person@example.invalid").await;
+    let key = f.key("111111");
+    let source = f.bind(&token, "111111", &key).await;
+    let removal = f
+        .call(
+            Method::POST,
+            "/family/remove",
+            &auth(&token),
+            json!({"target_pk":pk(&key),"request_id":crypto::token()}),
+        )
+        .await;
+    for (action, payload, headers) in [
+        ("sync", json!({"after":0}), vec![]),
+        ("ack", json!({"events":[removal.body["event_id"]]}), vec![]),
+        (
+            "family",
+            json!({"name":"Ноутбук","version":"1","members":[]}),
+            auth(&token),
+        ),
+    ] {
+        let route = format!("/devices/{source}/{action}");
+        let request = json!({"payload_hash":payload_hash(&payload).unwrap()});
+        let first = f
+            .call(
+                Method::POST,
+                &format!("{route}/nonce"),
+                &headers,
+                request.clone(),
+            )
+            .await;
+        let rival = f
+            .call(Method::POST, &format!("{route}/nonce"), &headers, request)
+            .await;
+        assert_eq!(rival.status, StatusCode::OK);
+        assert_ne!(first.body["nonce"], rival.body["nonce"]);
+        let reply = f.call(Method::POST, &route, &headers,
+            json!({"nonce":first.body["nonce"],"signature":sign(&first.body,&key),"payload":payload})).await;
+        assert_eq!(reply.status, StatusCode::OK, "{action}");
+    }
+}
+
+#[tokio::test]
+async fn rebinding_same_key_updates_address_without_losing_deliveries() {
+    let mut f = Fixture::new();
+    let token = f.login("person@example.invalid").await;
+    let key = f.key("111111");
+    let source = f.bind(&token, "111111", &key).await;
+    let before = f
+        .call(Method::GET, "/devices", &auth(&token), json!({}))
+        .await;
+    let removal = f
+        .call(
+            Method::POST,
+            "/family/remove",
+            &auth(&token),
+            json!({"target_pk":pk(&key),"request_id":crypto::token()}),
+        )
+        .await;
+    f.registry
+        .0
+        .lock()
+        .unwrap()
+        .insert("222222".into(), key.verifying_key().to_bytes());
+    f.advance(61);
+    assert_eq!(f.bind(&token, "222222", &key).await, source);
+    let after = f
+        .call(Method::GET, "/devices", &auth(&token), json!({}))
+        .await;
+    assert_eq!(after.body["devices"].as_array().unwrap().len(), 1);
+    assert_eq!(after.body["devices"][0]["funti_id"], "222222");
+    assert_eq!(
+        after.body["devices"][0]["bound_at"],
+        before.body["devices"][0]["bound_at"]
+    );
+    assert!(
+        after.body["devices"][0]["last_seen"].as_i64().unwrap()
+            > before.body["devices"][0]["last_seen"].as_i64().unwrap()
+    );
+    let sync = f
+        .signed(None, &source, "sync", json!({"after":0}), &key)
+        .await;
+    assert_eq!(sync.body["events"][0]["event_id"], removal.body["event_id"]);
+}
+
+#[tokio::test]
+async fn rejected_mail_requests_do_not_exhaust_everyones_send_budget() {
+    let mut f = Fixture::new();
+    let (context, _, _) = f.start("person@example.invalid").await;
+    let headers = [
+        ("x-funti-client", "native".into()),
+        ("x-funti-login", context),
+    ];
+    for _ in 0..25 {
+        assert_eq!(
+            f.call(
+                Method::POST,
+                "/auth/request",
+                &headers,
+                json!({"email":"person@example.invalid"})
+            )
+            .await
+            .status,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+    let next = f
+        .call(
+            Method::POST,
+            "/auth/request",
+            &[
+                ("x-funti-client", "native".into()),
+                ("x-funti-login", crypto::token()),
+            ],
+            json!({"email":"another@example.invalid"}),
+        )
+        .await;
+    assert_eq!(next.status, StatusCode::ACCEPTED);
+    assert_eq!(f.mail.try_recv().unwrap().email, "another@example.invalid");
+}
+
+#[test]
+fn native_token_cannot_bypass_browser_session_limit() {
+    let mut db = Store::memory([3; 32]).unwrap();
+    let mut first = String::new();
+    let mut now = 1_800_000_000;
+    for _ in 0..20 {
+        let context = crypto::token();
+        let challenge = db
+            .begin_login(
+                "person@example.invalid",
+                &context,
+                "192.0.2.1",
+                "123456",
+                now,
+            )
+            .unwrap()
+            .unwrap();
+        let issued = db
+            .verify_login(
+                &challenge,
+                &context,
+                "123456",
+                "192.0.2.1",
+                SessionRequest::Native,
+                now,
+            )
+            .unwrap()
+            .unwrap();
+        if first.is_empty() {
+            first = issued.token;
+        }
+        now += 3601;
+    }
+    let context = crypto::token();
+    let challenge = db
+        .begin_login(
+            "person@example.invalid",
+            &context,
+            "192.0.2.1",
+            "123456",
+            now,
+        )
+        .unwrap()
+        .unwrap();
+    assert!(db
+        .verify_login(
+            &challenge,
+            &context,
+            "123456",
+            "192.0.2.1",
+            SessionRequest::Browser {
+                previous_hash: Some(&crypto::digest(first.as_bytes()))
+            },
+            now
+        )
+        .unwrap()
+        .is_none());
+    assert!(db.authenticate(&first, false, now).unwrap().is_some());
+}
+
 #[test]
 fn limits_and_code_hashes_survive_service_restart() {
     let dir = tempfile::tempdir().unwrap();

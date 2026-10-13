@@ -221,7 +221,7 @@ impl Store {
                 id
             }
         };
-        let count: i64 = tx.query_row("SELECT COUNT(*) FROM sessions WHERE account_id=?1 AND revoked_at IS NULL AND expires_at>?2 AND token_hash<>?3", params![account,now,old_hash.unwrap_or("")], |r| r.get(0))?;
+        let count: i64 = tx.query_row("SELECT COUNT(*) FROM sessions WHERE account_id=?1 AND revoked_at IS NULL AND expires_at>?2 AND NOT (token_hash=?3 AND browser=1)", params![account,now,old_hash.unwrap_or("")], |r| r.get(0))?;
         if count >= 20 {
             tx.commit()?;
             return Ok(None);
@@ -306,6 +306,9 @@ pub(crate) fn quotas(tx: &Transaction<'_>, now: i64, rules: &[(&str, i64, i64)])
         if count >= *max {
             return Ok(false);
         }
+    }
+    for (name, period, _) in rules {
+        let start = now / period * period;
         tx.execute("INSERT INTO rate_limits(name,period,window_start,count) VALUES(?1,?2,?3,1) ON CONFLICT(name,period,window_start) DO UPDATE SET count=count+1", params![name,period,start])?;
     }
     Ok(true)
