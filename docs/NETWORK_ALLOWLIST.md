@@ -15,6 +15,7 @@
 | `stun.l.google.com:19302` | STUN | public address discovery only |
 | `stun.cloudflare.com:3478` | STUN | public address discovery fallback |
 | `stun.nextcloud.com:3478` | STUN | public address discovery fallback |
+| `github.com:443`, `*.githubusercontent.com:443` | HTTPS | обновление и «что нового» (ADR-007): только релизы `michailr1/FuntiDesk`, при запуске и раз в 6 часов; редиректы только внутри GitHub |
 
 Third-party STUN is explicitly allowed for NAT/address discovery; remote-control payload, authentication secrets and relay traffic must not be sent to these STUN services.
 
@@ -48,3 +49,7 @@ Before Family Release, capture DNS/TCP/UDP from a clean Windows VM for:
 6. network switch/reconnect.
 
 Any FuntiDesk process destination outside this allowlist requires a documented decision before release.
+
+## Планируется
+
+- Личный кабинет (ADR-009): HTTPS к сервису аккаунтов на `desk.funti.cc` (маршрут — на решение владельца, `docs/reviews/2026-10-13-handoff-account.md`). Добавить в таблицу выше, когда появится в клиенте.
