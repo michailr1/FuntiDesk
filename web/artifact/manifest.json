@@ -10,38 +10,38 @@
     },
     {
       "file": "style.css",
-      "bytes": 15942,
-      "sha256": "ac9e77db020b9dc5e801325c4f3f2a160ca1b49b8ba293a47189aa22f9e2f52d",
+      "bytes": 15937,
+      "sha256": "8ea3742d1827374302709ca7442216083e480d5fd4c1a777a04c00990795f115",
       "content_type": "text/css"
     },
     {
       "file": "lab.css",
-      "bytes": 11013,
-      "sha256": "f50065d2173d82fb5a28fc20acfdb91e20bd00cdc3a2811b67c7204cfed71808",
+      "bytes": 11007,
+      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e",
       "content_type": "text/css"
     },
     {
       "file": "platforms.css",
-      "bytes": 24852,
-      "sha256": "acc4b377aa6f07fa90fbf7c77011151f50b8838664df3f2d8ca200aebeeea3f0",
+      "bytes": 24843,
+      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9",
       "content_type": "text/css"
     },
     {
       "file": "family.css",
-      "bytes": 9960,
-      "sha256": "38d2c25ba47e76e84ad0e730b6e7f17b22a7fa655db79c7f4c5ab5780c9349bb",
+      "bytes": 9957,
+      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
       "content_type": "text/css"
     },
     {
       "file": "prototype.css",
-      "bytes": 28084,
-      "sha256": "15cfbefda6d175ae204990e9e92301f4889567aaac366df1c6963726c995d247",
+      "bytes": 28061,
+      "sha256": "ac76c719e140dc918466004e9a0f10337a8bbc74b5d23aced43ea72aebd9a9a9",
       "content_type": "text/css"
     },
     {
       "file": "theme.css",
-      "bytes": 3362,
-      "sha256": "7f6d10d1792d78c7f490a11ebaeb301f33b5163ed754fe11998de26db5be7520",
+      "bytes": 3330,
+      "sha256": "d4300b883c67445967af46da533eb8d24e7cb3ef2db26a86fdbaec48a8f33438",
       "content_type": "text/css"
     },
     {
@@ -76,14 +76,14 @@
     },
     {
       "file": "theme.js",
-      "bytes": 1732,
-      "sha256": "5bb0405875b6524c1bd01615458f3a20849f4b9a3ff6865810fce79a896f8287",
+      "bytes": 1715,
+      "sha256": "921ed8b8c15201b9033c579b663e231929f633ab3a37834dd5eb89e1f7959fdf",
       "content_type": "application/javascript"
     },
     {
       "file": "mark.svg",
-      "bytes": 2129,
-      "sha256": "43b995e5b0bf300c4c33c826f48ee3704592f940f8e5aa057e6a6918768a7d04",
+      "bytes": 2104,
+      "sha256": "63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3",
       "content_type": "image/svg+xml"
     },
     {
