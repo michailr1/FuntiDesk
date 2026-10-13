@@ -2533,8 +2533,11 @@ impl Connection {
         // mouse, files and terminal limits apply to every session.
         let rights = family::rights(&lr.my_id);
         if !help_answer && !self.view_camera && !rights.no_password {
+            // The member's client sent no password and waits: ask for one, as
+            // for a signature that is not accepted.
             log::info!("FuntiDesk family: {} has to use the password here", lr.my_id);
-            return None;
+            self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY).await;
+            return Some(true);
         }
         if self.terminal && !rights.terminal {
             self.send_login_error("No permission of terminal").await;
