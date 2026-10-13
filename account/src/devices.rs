@@ -521,7 +521,7 @@ fn nonce_quota(tx: &Transaction<'_>, key: &[u8; 32], ip: &str, now: i64) -> Resu
         now,
         &[
             ("nonce:global", 60, 600),
-            (&format!("nonce:ip:{ip}"), 60, 60),
+            (&format!("nonce:ip:{ip}"), 60, 240),
         ],
     )
 }
