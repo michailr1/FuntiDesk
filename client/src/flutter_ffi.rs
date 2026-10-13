@@ -1017,6 +1017,15 @@ pub fn main_funti_family_rename(id: String, name: String) -> bool {
     false
 }
 
+// FUNTIDESK: rights of family member `id` on this computer (JSON of
+// funti_family::Rights), set by the service. False when not set.
+pub fn main_funti_family_set_rights(id: String, rights: String) -> bool {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::funti_family::rights_blocking(&id, &rights);
+    #[allow(unreachable_code)]
+    false
+}
+
 // FUNTIDESK (ADR-006): pair with computer `id` by the code shown there.
 // JSON: {"name": "..."} on success, {"error": "..."} otherwise.
 pub fn main_funti_family_pair(id: String, code: String) -> String {

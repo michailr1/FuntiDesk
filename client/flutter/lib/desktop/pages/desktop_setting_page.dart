@@ -2654,10 +2654,18 @@ class _FuntiFamilySettingsState extends State<_FuntiFamilySettings> {
             Text(m.title,
                 style:
                     const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            Text('ID ${formatFuntiId(m.id)}',
+            Text(
+                'ID ${formatFuntiId(m.id)}' +
+                    (m.rights.isDefault
+                        ? ''
+                        : ' · ${translate('funti-family-rights-limited')}'),
                 style: const TextStyle(fontSize: 13, color: Colors.grey)),
           ]),
         ),
+        TextButton(
+            onPressed: () =>
+                showFuntiFamilyRightsDialog(m, onChanged: _reload),
+            child: Text(translate('funti-family-rights'))),
         TextButton(
             onPressed: () =>
                 showFuntiFamilyRenameDialog(m, onChanged: _reload),

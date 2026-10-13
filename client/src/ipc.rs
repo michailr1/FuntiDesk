@@ -424,6 +424,10 @@ pub enum Data {
     // Rename family member `id` here (local name).
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiFamilyRename(String, String),
+    // Set the rights of family member `id` here (JSON); the answer carries
+    // "Y" when they were set.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiFamilyRights(String, String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -1169,6 +1173,12 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::FuntiFamilyRename(id, name) => {
             crate::funti_family::rename(&id, &name);
             allow_err!(stream.send(&Data::FuntiFamilyRename(id, name)).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiFamilyRights(id, json) => {
+            let ok = crate::funti_family::set_rights(&id, &json);
+            let answer = if ok { "Y" } else { "" }.to_owned();
+            allow_err!(stream.send(&Data::FuntiFamilyRights(id, answer)).await);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiHelpAllow(id) => {
