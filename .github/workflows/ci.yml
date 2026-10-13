@@ -99,4 +99,19 @@ jobs:
         run: |
           # Upstream websocket::tests::test_check_ws is timing/port-sensitive on shared CI runners.
           # Keep the rest of the locked hbb_common suite blocking while excluding that unrelated flaky network test.
-          cargo +stable test --manifest-path client/Cargo.toml -p hbb_common --lib --locked -- --skip websocket::tests::test_check_ws
+          # FUNTIDESK: socket_client::tests::test_nat64 resolves rustdesk.com — CI must not depend on upstream
+          # infrastructure. The test binary rarely dies with SIGSEGV (2 of ~200 runs, 2026-10-12, not reproduced
+          # under gdb in 120 runs): keep a core dump and print every thread's stack when it happens.
+          ulimit -c unlimited
+          sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p > /dev/null
+          status=0
+          cargo +stable test --manifest-path client/Cargo.toml -p hbb_common --lib --locked --             --skip websocket::tests::test_check_ws --skip socket_client::tests::test_nat64 || status=$?
+          if [ "$status" -ne 0 ] && ls /tmp/core.* > /dev/null 2>&1; then
+            sudo apt-get install -y gdb > /dev/null
+            bin=$(ls -t client/target/debug/deps/hbb_common-* | grep -v '\.d$' | head -1)
+            for core in /tmp/core.*; do
+              echo "::warning::core dump $core"
+              gdb -q -batch -ex 'thread apply all bt 40' "$bin" "$core" || true
+            done
+          fi
+          exit "$status"
