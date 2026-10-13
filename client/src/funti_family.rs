@@ -94,6 +94,82 @@ pub struct Member {
     pub name: String,
     /// Ed25519 device public key, base64.
     pub pk: String,
+    /// What this member may do on this computer. Set only here.
+    #[serde(default)]
+    pub rights: Rights,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// Rights of a family member on this computer (owner's decision
+/// 2026-10-13): everything is allowed by default, the owner of this
+/// computer can take any right away. Lists written before rights existed
+/// get the defaults; a list that does not parse gives no family at all.
+/// Calls and "ask for help" do not depend on these.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Rights {
+    /// Sign in without a password (with the device key).
+    #[serde(default = "yes")]
+    pub no_password: bool,
+    /// The person here has to accept every session.
+    #[serde(default)]
+    pub confirm: bool,
+    /// Mouse and keyboard; without it the session is view only.
+    #[serde(default = "yes")]
+    pub control: bool,
+    #[serde(default = "yes")]
+    pub files: bool,
+    #[serde(default = "yes")]
+    pub terminal: bool,
+}
+
+impl Default for Rights {
+    fn default() -> Self {
+        Self {
+            no_password: true,
+            confirm: false,
+            control: true,
+            files: true,
+            terminal: true,
+        }
+    }
+}
+
+/// Rights of member `id`; the most restrictive ones for a stranger.
+pub fn rights(id: &str) -> Rights {
+    member(id).map(|m| m.rights).unwrap_or(Rights {
+        no_password: false,
+        confirm: true,
+        control: false,
+        files: false,
+        terminal: false,
+    })
+}
+
+/// Sets the rights of member `id` (JSON of `Rights`). False when the member
+/// is unknown or the JSON is not valid: nothing is changed then.
+pub fn set_rights(id: &str, json: &str) -> bool {
+    let Ok(rights) = serde_json::from_str::<Rights>(json) else {
+        return false;
+    };
+    let mut found = false;
+    let list: Vec<Member> = members()
+        .into_iter()
+        .map(|mut m| {
+            if m.id == id {
+                m.rights = rights.clone();
+                found = true;
+            }
+            m
+        })
+        .collect();
+    if found {
+        store(&list);
+        log::info!("FuntiDesk family: rights of {} set to {:?}", id, rights);
+    }
+    found
 }
 
 impl Member {
@@ -119,11 +195,14 @@ pub fn member(id: &str) -> Option<Member> {
 
 /// Adds or replaces the member with this id.
 pub fn add(id: &str, name: &str, pk: &[u8]) {
+    // Pairing again keeps the rights the owner set here.
+    let rights = member(id).map(|m| m.rights).unwrap_or_default();
     let mut list: Vec<Member> = members().into_iter().filter(|m| m.id != id).collect();
     list.push(Member {
         id: id.to_owned(),
         name: name.to_owned(),
         pk: base64::encode(pk, Variant::Original),
+        rights,
     });
     store(&list);
     log::info!("FuntiDesk family: {} ({}) added", id, name);
@@ -314,6 +393,23 @@ mod client_side {
         matches!(
             conn.next_timeout(2000).await,
             Ok(Some(IpcData::FuntiFamilyRename(..)))
+        )
+    }
+
+    pub async fn request_rights(id: &str, json: &str) -> bool {
+        let Ok(mut conn) = ipc::connect(1000, "").await else {
+            return false;
+        };
+        if conn
+            .send(&IpcData::FuntiFamilyRights(id.to_owned(), json.to_owned()))
+            .await
+            .is_err()
+        {
+            return false;
+        }
+        matches!(
+            conn.next_timeout(2000).await,
+            Ok(Some(IpcData::FuntiFamilyRights(_, answer))) if answer == "Y"
         )
     }
 
@@ -590,13 +686,20 @@ mod client_side {
 }
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use client_side::{
-    ask_help, leave, offer_code, pair_with, request_code, request_rename, request_sign,
+    ask_help, leave, offer_code, pair_with, request_code, request_rename, request_rights,
+    request_sign,
 };
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tokio::main(flavor = "current_thread")]
 pub async fn rename_blocking(id: &str, name: &str) -> bool {
     request_rename(id, name).await
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn rights_blocking(id: &str, json: &str) -> bool {
+    request_rights(id, json).await
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -633,6 +736,22 @@ pub async fn leave_blocking(id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_family_lists_get_default_rights() {
+        let list: Vec<Member> =
+            serde_json::from_str(r#"[{"id":"1","name":"a","pk":"x"}]"#).unwrap();
+        assert_eq!(list[0].rights, Rights::default());
+        assert!(list[0].rights.no_password && list[0].rights.terminal);
+        assert!(!list[0].rights.confirm);
+    }
+
+    #[test]
+    fn partial_rights_keep_the_other_defaults() {
+        let r: Rights = serde_json::from_str(r#"{"terminal":false}"#).unwrap();
+        assert!(!r.terminal && r.no_password && r.control && r.files && !r.confirm);
+        assert!(serde_json::from_str::<Rights>(r#"{"terminal":"no"}"#).is_err());
+    }
 
     #[test]
     fn signature_roundtrip_is_bound_to_message() {

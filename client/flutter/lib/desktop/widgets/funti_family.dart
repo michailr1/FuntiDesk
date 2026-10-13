@@ -15,22 +15,82 @@ import '../../models/platform_model.dart';
 
 const String kFuntiOptionFamily = 'funti-family';
 
+/// Rights of a family member on this computer (funti_family::Rights in
+/// Rust; owner's decision 2026-10-13). Missing values are the defaults:
+/// everything allowed, no confirmation.
+class FuntiFamilyRights {
+  const FuntiFamilyRights({
+    this.noPassword = true,
+    this.confirm = false,
+    this.control = true,
+    this.files = true,
+    this.terminal = true,
+  });
+
+  final bool noPassword;
+  final bool confirm;
+  final bool control;
+  final bool files;
+  final bool terminal;
+
+  factory FuntiFamilyRights.fromJson(dynamic json) {
+    if (json is! Map) return const FuntiFamilyRights();
+    bool v(String k, bool d) => json[k] is bool ? json[k] as bool : d;
+    return FuntiFamilyRights(
+      noPassword: v('no_password', true),
+      confirm: v('confirm', false),
+      control: v('control', true),
+      files: v('files', true),
+      terminal: v('terminal', true),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'no_password': noPassword,
+        'confirm': confirm,
+        'control': control,
+        'files': files,
+        'terminal': terminal,
+      };
+
+  bool get isDefault =>
+      noPassword && !confirm && control && files && terminal;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FuntiFamilyRights &&
+      other.noPassword == noPassword &&
+      other.confirm == confirm &&
+      other.control == control &&
+      other.files == files &&
+      other.terminal == terminal;
+
+  @override
+  int get hashCode => Object.hash(noPassword, confirm, control, files, terminal);
+}
+
 class FuntiFamilyMember {
   const FuntiFamilyMember(
-      {required this.id, required this.name, required this.pk});
+      {required this.id,
+      required this.name,
+      required this.pk,
+      this.rights = const FuntiFamilyRights()});
 
   final String id;
   final String name;
   final String pk;
+  final FuntiFamilyRights rights;
 
   factory FuntiFamilyMember.fromJson(Map<String, dynamic> json) =>
       FuntiFamilyMember(
         id: (json['id'] ?? '').toString(),
         name: (json['name'] ?? '').toString(),
         pk: (json['pk'] ?? '').toString(),
+        rights: FuntiFamilyRights.fromJson(json['rights']),
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'pk': pk};
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'pk': pk, 'rights': rights.toJson()};
 
   String get title => name.isEmpty ? formatFuntiId(id) : name;
 
@@ -39,10 +99,11 @@ class FuntiFamilyMember {
       other is FuntiFamilyMember &&
       other.id == id &&
       other.name == name &&
-      other.pk == pk;
+      other.pk == pk &&
+      other.rights == rights;
 
   @override
-  int get hashCode => Object.hash(id, name, pk);
+  int get hashCode => Object.hash(id, name, pk, rights);
 }
 
 String formatFuntiId(String id) {
@@ -126,6 +187,79 @@ void showFuntiFamilyRemoveDialog(FuntiFamilyMember member,
 // a pairing that just happened, so it is never written from here.
 Future<void> funtiFamilyRename(String id, String name) async {
   await bind.mainFuntiFamilyRename(id: id, name: name.trim());
+}
+
+/// Rights of a family member on this computer; saved by the service.
+void showFuntiFamilyRightsDialog(FuntiFamilyMember member,
+    {VoidCallback? onChanged}) {
+  var r = member.rights;
+  gFFI.dialogManager.show((setState, close, context) {
+    final t = FuntiTokens.of(context);
+    Widget item(String key, String tipKey, bool value, ValueChanged<bool> set) =>
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: value,
+          onChanged: (v) => setState(() => set(v)),
+          title: Text(translate(key),
+              style: TextStyle(fontSize: 14, color: t.text)),
+          subtitle: Text(translate(tipKey),
+              style: TextStyle(fontSize: 12, color: t.muted)),
+        );
+    FuntiFamilyRights copy(
+            {bool? noPassword,
+            bool? confirm,
+            bool? control,
+            bool? files,
+            bool? terminal}) =>
+        FuntiFamilyRights(
+          noPassword: noPassword ?? r.noPassword,
+          confirm: confirm ?? r.confirm,
+          control: control ?? r.control,
+          files: files ?? r.files,
+          terminal: terminal ?? r.terminal,
+        );
+    Future<void> save() async {
+      final ok = await bind.mainFuntiFamilySetRights(
+          id: member.id, rights: jsonEncode(r.toJson()));
+      if (!ok) {
+        showToast(translate('funti-family-service-error'));
+        return;
+      }
+      onChanged?.call();
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('funti-family-rights-title')
+          .replaceAll('{}', member.title)),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 480),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate('funti-family-rights-text'),
+              style: TextStyle(fontSize: 13, color: t.muted)),
+          const SizedBox(height: 8),
+          item('funti-right-no-password', 'funti-right-no-password-tip',
+              r.noPassword, (v) => r = copy(noPassword: v)),
+          item('funti-right-confirm', 'funti-right-confirm-tip', r.confirm,
+              (v) => r = copy(confirm: v)),
+          item('funti-right-control', 'funti-right-control-tip', r.control,
+              (v) => r = copy(control: v)),
+          item('funti-right-files', 'funti-right-files-tip', r.files,
+              (v) => r = copy(files: v)),
+          item('funti-right-terminal', 'funti-right-terminal-tip', r.terminal,
+              (v) => r = copy(terminal: v)),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: save),
+      ],
+      onSubmit: save,
+      onCancel: close,
+    );
+  });
 }
 
 /// Rename dialog for a family member.

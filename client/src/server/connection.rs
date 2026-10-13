@@ -2528,7 +2528,35 @@ impl Connection {
         // files and terminal without "Accept" (like a permanent password);
         // only a call (camera session) has to be answered here.
         let help_answer = family::take_help(&lr.my_id);
-        if help_answer || !self.view_camera {
+        // Owner decision 2026-10-13: rights of this member on this computer.
+        // A call and an answer to "ask for help" work whatever they say;
+        // mouse, files and terminal limits apply to every session.
+        let rights = family::rights(&lr.my_id);
+        if !help_answer && !self.view_camera && !rights.no_password {
+            // The member's client sent no password and waits: ask for one, as
+            // for a signature that is not accepted.
+            log::info!("FuntiDesk family: {} has to use the password here", lr.my_id);
+            self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY).await;
+            return Some(true);
+        }
+        if self.terminal && !rights.terminal {
+            self.send_login_error("No permission of terminal").await;
+            sleep(1.).await;
+            return Some(false);
+        }
+        if self.file_transfer.is_some() && !rights.files {
+            self.send_login_error("No permission of file transfer").await;
+            sleep(1.).await;
+            return Some(false);
+        }
+        if !rights.control {
+            self.keyboard = false;
+        }
+        if !rights.files {
+            self.file = false;
+        }
+        let confirm = rights.confirm && !help_answer;
+        if (help_answer || !self.view_camera) && !confirm {
             log::info!(
                 "FuntiDesk family: {} signed in{}",
                 lr.my_id,
@@ -2541,7 +2569,11 @@ impl Connection {
             self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
             return Some(true);
         }
-        log::info!("FuntiDesk family: {} calls, waiting for answer", lr.my_id);
+        log::info!(
+            "FuntiDesk family: {} {}, waiting for answer",
+            lr.my_id,
+            if self.view_camera { "calls" } else { "has to be accepted" }
+        );
         self.try_start_cm(lr.my_id.clone(), lr.my_name.clone(), false);
         self.send_login_error(crate::client::LOGIN_MSG_NO_PASSWORD_ACCESS)
             .await;
