@@ -1202,7 +1202,7 @@ class _Segmented extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Family (ADR-006)
 
-enum _FamilyAction { connect, files, terminal, help, rename, remove }
+enum _FamilyAction { connect, files, terminal, help, rights, rename, remove }
 
 class _FamilyList extends StatelessWidget {
   const _FamilyList({required this.members, required this.onChanged});
@@ -1288,6 +1288,9 @@ class _FamilyRow extends StatelessWidget {
       case _FamilyAction.help:
         funtiAskHelpFrom(member);
         break;
+      case _FamilyAction.rights:
+        showFuntiFamilyRightsDialog(member, onChanged: onChanged);
+        break;
       case _FamilyAction.rename:
         showFuntiFamilyRenameDialog(member, onChanged: onChanged);
         break;
@@ -1323,6 +1326,10 @@ class _FamilyRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text('ID ${formatFuntiId(member.id)}',
                     style: TextStyle(fontSize: 12.5, color: t.muted)),
+                if (!member.rights.isDefault)
+                  Text(translate('funti-family-rights-limited'),
+                      style: TextStyle(
+                          fontSize: 12.5, color: Colors.orange.shade800)),
               ],
             ),
           ),
@@ -1352,6 +1359,9 @@ class _FamilyRow extends StatelessWidget {
                   value: _FamilyAction.help,
                   child: Text(translate('funti-help-ask'), style: style)),
               const PopupMenuDivider(),
+              PopupMenuItem(
+                  value: _FamilyAction.rights,
+                  child: Text(translate('funti-family-rights'), style: style)),
               PopupMenuItem(
                   value: _FamilyAction.rename,
                   child: Text(translate('Rename'), style: style)),
