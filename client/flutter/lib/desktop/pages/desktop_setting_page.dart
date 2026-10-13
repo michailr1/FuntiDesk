@@ -2641,42 +2641,52 @@ class _FuntiFamilySettingsState extends State<_FuntiFamilySettings> {
     }
   }
 
-  Widget _member(FuntiFamilyMember m) => Row(children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: _accentColor.withOpacity(0.12),
-          child: Text(m.title.characters.first.toUpperCase(),
-              style: const TextStyle(color: _accentColor)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.title,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            Text(
-                'ID ${formatFuntiId(m.id)}' +
-                    (m.rights.isDefault
-                        ? ''
-                        : ' · ${translate('funti-family-rights-limited')}'),
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+  Widget _member(FuntiFamilyMember m) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: _accentColor.withOpacity(0.12),
+              child: Text(m.title.characters.first.toUpperCase(),
+                  style: const TextStyle(color: _accentColor)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.title,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    Text('ID ${formatFuntiId(m.id)}',
+                        style:
+                            const TextStyle(fontSize: 13, color: Colors.grey)),
+                    if (!m.rights.isDefault)
+                      Text(translate('funti-family-rights-limited'),
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.orange.shade800)),
+                  ]),
+            ),
           ]),
-        ),
-        TextButton(
-            onPressed: () =>
-                showFuntiFamilyRightsDialog(m, onChanged: _reload),
-            child: Text(translate('funti-family-rights'))),
-        TextButton(
-            onPressed: () =>
-                showFuntiFamilyRenameDialog(m, onChanged: _reload),
-            child: Text(translate('Rename'))),
-        TextButton(
-            onPressed: () =>
-                showFuntiFamilyRemoveDialog(m, onChanged: _reload),
-            style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
-            child: Text(translate('funti-family-remove'))),
-      ]).marginOnly(left: _kContentHMargin, bottom: 6);
+          Wrap(spacing: 4, children: [
+            TextButton(
+                onPressed: () =>
+                    showFuntiFamilyRightsDialog(m, onChanged: _reload),
+                child: Text(translate('funti-family-rights'))),
+            TextButton(
+                onPressed: () =>
+                    showFuntiFamilyRenameDialog(m, onChanged: _reload),
+                child: Text(translate('Rename'))),
+            TextButton(
+                onPressed: () =>
+                    showFuntiFamilyRemoveDialog(m, onChanged: _reload),
+                style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error),
+                child: Text(translate('funti-family-remove'))),
+          ]).marginOnly(left: 36),
+        ],
+      ).marginOnly(left: _kContentHMargin, bottom: 6);
 
   @override
   Widget build(BuildContext context) {
