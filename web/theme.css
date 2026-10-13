@@ -1,0 +1,32 @@
+:root[data-theme=dark]{color-scheme:dark}
+:root[data-theme=light]{color-scheme:light;--bg:#F4F1EC;--chrome:#FAF8F5;--panel:#FFFFFF;--surface:#FFFFFF;--surface2:#F1EDE7;--banner:#FBF8F4;--line:#E3DDD4;--stroke:#E3DDD4;--row-stroke:#EEE9E2;--text:#102249;--muted:#5F5950;--hint:#8C857A;--accent:#1267EF;--blue:#0F5AD6;--mint:#0F5AD6;--amber:#B07A12;--input:#FFFFFF;--input-stroke:#CFC7BB;--hover:#E6E0D7;--online-bg:#ECF3E3;--online-text:#355F18;--online:#6BA33A;--offline:#ABA397;--raised:#FFFFFF}
+.theme-picker{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);white-space:nowrap}.theme-picker select,.settings-row select{border:1px solid var(--input-stroke);border-radius:8px;background:var(--surface2);color:var(--text);font:12px 'Segoe UI',sans-serif;padding:8px 9px;min-height:34px;max-width:150px}.theme-picker select:focus-visible,.settings-row select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.settings-row select{font-size:12px}
+[data-theme=light] .client-home{box-shadow:0 16px 40px #1022490b}
+[data-theme=light] .hero-node{box-shadow:0 8px 26px #10224908}
+[data-theme=light] dialog{box-shadow:0 24px 70px #10224925}
+[data-theme=light] dialog::backdrop{background:#10224945}
+[data-theme=light] .suggestions{box-shadow:0 6px 18px #10224918}
+[data-theme=light] .family-select select,[data-theme=light] .family-select input{color-scheme:light}
+[data-theme=light] .family-demo .family-danger{background:#FAEEEB;border-color:#E5C9C2;color:#9B3C2D}
+[data-theme=light] #target-error{color:#9B3C2D}
+[data-theme=light] .banner-scene [fill="#26231E"]{fill:#F1EDE7}
+[data-theme=light] .banner-scene [fill="#14130F"]{fill:#FFFFFF}
+[data-theme=light] .banner-scene [fill="#1A1814"]{fill:#FBF8F4}
+[data-theme=light] .banner-scene [fill="#102249"]{fill:#E9F0FC}
+[data-theme=light] .banner-scene [fill="#38332C"]{fill:#CFC7BB}
+[data-theme=light] .banner-scene [stroke="#453F37"]{stroke:#CFC7BB}
+[data-theme=light] .banner-scene [stroke="#857E73"]{stroke:#8C857A}
+[data-theme=light] .banner-scene [stroke="#2A73F0"]{stroke:#1267EF}
+[data-theme=light] .banner-scene [stroke="#7DB2FF"]{stroke:#0F5AD6}
+[data-theme=light] .banner-scene [fill="#7DB2FF"]{fill:#0F5AD6}
+/* Video illustrations are independent of website theme; labels remain legible. */
+[data-theme=light] .call-tile b,[data-theme=light] .call-tile small{color:#EEEAE3}
+[data-theme=light] .call-tile.camera-off b,[data-theme=light] .call-tile.camera-off small{background:#F1EDE7;color:#102249}
+[data-theme=light] .call-stage-top #call-quality{color:var(--blue)}
+[data-theme=light] .shared-notes{color:#102249}
+[data-theme=light] .call-screen-preview>div:first-child{color:var(--text)}
+[data-theme=light] .call-screen-preview>div:first-child span{color:var(--muted)}
+@media(max-width:1250px){header{gap:14px}nav{gap:13px;font-size:12px}.theme-picker{gap:4px}.theme-picker>span{display:none}.theme-picker select{font-size:11px;max-width:126px;padding:7px}}
+@media(max-width:800px){.theme-picker{margin-left:auto}header .quiet{margin-left:0}.theme-picker select{max-width:140px}}
+@media(max-width:500px){header{gap:10px}.theme-picker select{max-width:118px;font-size:10px}.theme-picker{gap:0}header .quiet{font-size:9px}}
+.network-scene stop:first-child{stop-color:var(--accent)}.network-scene stop:last-child{stop-color:var(--blue)}
