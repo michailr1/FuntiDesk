@@ -428,6 +428,10 @@ pub enum Data {
     // "Y" when they were set.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiFamilyRights(String, String),
+    // FUNTIDESK (ADR-007 stage 2): the window asks the service to update the
+    // installed FuntiDesk; the answer is "ok:<version>" or "err:<reason>".
+    #[cfg(windows)]
+    FuntiUpdateService(String),
     #[cfg(feature = "flutter")]
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     SwitchSidesBack,
@@ -1174,6 +1178,15 @@ async fn handle(data: Data, stream: &mut Connection) {
             crate::funti_family::rename(&id, &name);
             allow_err!(stream.send(&Data::FuntiFamilyRename(id, name)).await);
         }
+        #[cfg(windows)]
+        Data::FuntiUpdateService(_) => {
+            let answer = match tokio::task::spawn_blocking(crate::funti_update::start_service).await {
+                Ok(Ok(version)) => format!("ok:{version}"),
+                Ok(Err(e)) => format!("err:{e}"),
+                Err(e) => format!("err:{e}"),
+            };
+            allow_err!(stream.send(&Data::FuntiUpdateService(answer)).await);
+        }
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         Data::FuntiFamilyRights(id, json) => {
             let ok = crate::funti_family::set_rights(&id, &json);
@@ -1747,6 +1760,19 @@ where
                 bail!("reset by the peer");
             }
         }
+    }
+}
+
+// FUNTIDESK (ADR-007 stage 2): asks the installed service to update; it
+// downloads and checks the release first, hence the long wait.
+#[cfg(windows)]
+#[tokio::main(flavor = "current_thread")]
+pub async fn funti_update_service_blocking() -> ResultType<String> {
+    let mut c = connect(1000, "").await?;
+    c.send(&Data::FuntiUpdateService(String::new())).await?;
+    match c.next_timeout(300_000).await? {
+        Some(Data::FuntiUpdateService(answer)) => Ok(answer),
+        _ => bail!("no answer from the service"),
     }
 }
 

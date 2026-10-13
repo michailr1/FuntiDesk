@@ -175,13 +175,15 @@ enum Copy {
     /// FuntiDesk-portable.exe, which unpacks itself on every start: the
     /// file itself is replaced.
     Portable(PathBuf),
+    /// Installed with the service (Program Files): the service updates it,
+    /// see `start_service()`.
+    Service,
 }
 
 fn this_copy() -> Result<Copy, &'static str> {
-    // The service (installed mode) needs administrator rights: ADR-007,
-    // stages 2-3. Fail closed until then.
+    // Installed mode: only the service (SYSTEM) may write Program Files.
     if crate::platform::is_installed() {
-        return Err("funti-update-unsupported-service");
+        return Ok(Copy::Service);
     }
     let Ok(cur) = current_dir() else {
         return Err("funti-update-unsupported-copy");
@@ -213,6 +215,11 @@ pub fn unsupported_reason() -> Option<&'static str> {
     this_copy().err()
 }
 
+/// The service installs the update and closes this window itself.
+pub fn updated_by_service() -> bool {
+    matches!(this_copy(), Ok(Copy::Service))
+}
+
 fn unpack(zip: &[u8], to: &Path) -> ResultType<()> {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip))?;
     for i in 0..archive.len() {
@@ -241,6 +248,9 @@ pub fn start() -> ResultType<String> {
         Ok(copy) => copy,
         Err(reason) => bail!("{reason}"),
     };
+    if matches!(copy, Copy::Service) {
+        return request_service_update();
+    }
     let client = http()?;
     let version_bytes = download(&client, VERSION_NAME)?;
     let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
@@ -253,6 +263,7 @@ pub fn start() -> ResultType<String> {
     }
     let install = match copy {
         Copy::Folder(dir) => dir,
+        Copy::Service => unreachable!("handled above"),
         Copy::Portable(exe) => {
             let data = download(&client, PORTABLE_NAME)?;
             verify(&sums, PORTABLE_NAME, &data)?;
@@ -318,6 +329,126 @@ fn replace_portable(exe: &Path, data: &[u8]) -> ResultType<()> {
         bail!("could not start the new {PORTABLE_NAME}: {e}");
     }
     Ok(())
+}
+
+/// Window side of the installed mode: asks the service to update.
+fn request_service_update() -> ResultType<String> {
+    match crate::ipc::funti_update_service_blocking() {
+        Ok(answer) => match answer.strip_prefix("ok:") {
+            Some(version) => Ok(version.to_owned()),
+            None => bail!("{}", answer.strip_prefix("err:").unwrap_or(&answer)),
+        },
+        Err(e) => {
+            log::warn!("funti update: service not reachable: {e}");
+            bail!("funti-update-service-unreachable")
+        }
+    }
+}
+
+/// Service side of the installed mode (ADR-007, stage 2), run by the
+/// `--server` process, which is SYSTEM in installed mode. Downloads and
+/// checks the latest release like `start()`, unpacks it to
+/// `<install dir>.update\files` (Program Files: users cannot write there,
+/// so nothing can be swapped before it runs) and starts the new
+/// `FuntiDesk.exe --update` from there with SYSTEM rights in this session.
+/// `--update` (upstream `update_me`) stops the service and the windows,
+/// copies the files over the installed ones, updates the registry and
+/// starts the service again. Any error leaves the installation untouched.
+pub fn start_service() -> ResultType<String> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static BUSY: AtomicBool = AtomicBool::new(false);
+    if !crate::platform::is_installed() || !crate::platform::is_root() {
+        bail!("funti-update-unsupported-service");
+    }
+    if BUSY.swap(true, Ordering::SeqCst) {
+        bail!("an update is already running");
+    }
+    let res = start_service_();
+    BUSY.store(false, Ordering::SeqCst);
+    res
+}
+
+fn start_service_() -> ResultType<String> {
+    let install = PathBuf::from(crate::platform::get_install_info().1);
+    if !install.join(EXE_NAME).is_file() {
+        bail!("no FuntiDesk in {}", install.display());
+    }
+    let client = http()?;
+    let version_bytes = download(&client, VERSION_NAME)?;
+    let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
+    verify(&sums, VERSION_NAME, &version_bytes)?;
+    let version = String::from_utf8_lossy(&version_bytes).trim().to_owned();
+    match parse_build(&version) {
+        Some(build) if is_newer(build) => {}
+        Some(_) => bail!("the release {version} is not newer than this copy"),
+        None => bail!("unexpected version in the release: {version:?}"),
+    }
+    let zip = download(&client, ZIP_NAME)?;
+    verify(&sums, ZIP_NAME, &zip)?;
+
+    let work = sibling(&install, ".update");
+    remove_staging(&work)?;
+    let files = work.join("files");
+    std::fs::create_dir_all(&files)?;
+    let staged = (|| {
+        unpack(&zip, &files)?;
+        let exe = files.join(EXE_NAME);
+        if !exe.is_file() {
+            bail!("{EXE_NAME} is missing from the archive");
+        }
+        let Some(session) = crate::platform::get_current_process_session_id() else {
+            bail!("no session for the update");
+        };
+        let handle = crate::platform::launch_privileged_process(
+            session,
+            &format!("\"{}\" --update", exe.display()),
+        )?;
+        if handle.is_null() {
+            bail!("the new FuntiDesk did not start");
+        }
+        Ok(())
+    })();
+    if let Err(e) = staged {
+        remove_staging(&work).ok();
+        return Err(e);
+    }
+    log::info!("FuntiDesk {version} staged for the service, handing over to --update");
+    Ok(version)
+}
+
+/// Removes a staging folder; refuses links (a link would redirect a SYSTEM
+/// delete or write elsewhere).
+fn remove_staging(work: &Path) -> ResultType<()> {
+    let Ok(meta) = std::fs::symlink_metadata(work) else {
+        return Ok(());
+    };
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 || meta.file_type().is_symlink() {
+            bail!("{} is a link", work.display());
+        }
+    }
+    std::fs::remove_dir_all(work)?;
+    Ok(())
+}
+
+/// Service side: removes what an update left next to the installation.
+pub fn cleanup_service() {
+    if !crate::platform::is_installed() || !crate::platform::is_root() {
+        return;
+    }
+    std::thread::spawn(|| {
+        // `--update` may still be copying from the staging folder.
+        std::thread::sleep(Duration::from_secs(60));
+        let install = PathBuf::from(crate::platform::get_install_info().1);
+        let work = sibling(&install, ".update");
+        if work.join("files").exists() {
+            if let Err(e) = remove_staging(&work) {
+                log::warn!("failed to remove {}: {e}", work.display());
+            }
+        }
+    });
 }
 
 /// Exit after `start()`: close the other FuntiDesk processes of this copy

@@ -421,6 +421,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-update-unsupported-service", "Updating with the button is not supported yet in installed (service) mode."),
         ("funti-update-unsupported-copy", "FuntiDesk cannot update itself in this folder: there is no right to write next to it. Move the FuntiDesk folder, for example, to Documents, or install it with the install command."),
         ("funti-update-unsupported-portable-old", "This FuntiDesk-portable.exe is too old to update with the button. Download FuntiDesk-portable.exe from the latest release once; after that the button updates it."),
+        ("funti-update-service-unreachable", "The FuntiDesk service does not answer. Restart the computer and try again."),
         ("id_whitelist_tip", "Only whitelisted IDs can access me"),
         ("id_whitelist_wildcard_tip", "Wildcards are supported: '*' matches any number of characters, '?' matches exactly one character"),
         ("id_whitelist_caveat_tip", "The ID is reported by the connecting client. This whitelist reduces exposure and does not replace the password or 2FA."),

@@ -1242,6 +1242,8 @@ pub fn main_funti_whats_new() -> String {
 pub fn main_funti_update_start() -> String {
     #[cfg(windows)]
     match crate::funti_update::start() {
+        // Installed mode: `--update` closes this window itself.
+        Ok(_) if crate::funti_update::updated_by_service() => String::new(),
         Ok(_) => {
             std::thread::spawn(|| {
                 // Let the UI show the "restarting" state.

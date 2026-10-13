@@ -36,7 +36,7 @@
 |---|---|---|
 | Звонки, «Камера недоступна» | `funti_ring.rs` | `server/connection.rs` (звонок только звонит, в т. ч. по свежему сеансу), `server/video_service.rs`, `server/service.rs`, `client/io_loop.rs`, `ipc.rs`, `toolbar.dart` («Позвонить» в меню сеанса) |
 | Семья, «Попросить помощи», добавление по коду, права членов семьи | `funti_family.rs`, `funti_family.dart` | `server/connection.rs` (`funti_family_login`), `ipc.rs` (в т. ч. `keep_family` — список семьи не затирается кэшем настроек интерфейса), `flutter_ffi.rs`, `client.rs` (`handle_hash`); права — `server/connection.rs` (`funti_family_login`), `ipc.rs` (`FuntiFamilyRights`) |
-| Обновление кнопкой, оповещение о новой версии | `funti_update.rs`, `funti_update_notice.dart` | `core_main.rs` (`--funti-finish-update`, очистка), `flutter_ffi.rs`, «О программе», `funti_home_view.dart` (окошко на главном экране), `libs/portable/src/main.rs` (`FUNTIDESK_PORTABLE_EXE`, `--funti-wait-pid`) |
+| Обновление кнопкой, оповещение о новой версии | `funti_update.rs`, `funti_update_notice.dart` | `core_main.rs` (`--funti-finish-update`, очистка), `flutter_ffi.rs`, «О программе», `funti_home_view.dart` (окошко на главном экране), `libs/portable/src/main.rs` (`FUNTIDESK_PORTABLE_EXE`, `--funti-wait-pid`); служба — `ipc.rs` (`FuntiUpdateService`), `core_main.rs` (`--server`: `cleanup_service`) |
 | Номер сборки `X.Y.Z-ft.N` | `build.rs` | `core_main.rs` (`--version`), `ui_interface.rs` |
 | Сигнализация по TCP | — | `rendezvous_mediator.rs`, `server/src/rendezvous_server.rs` (ADR-004) |
 | Передача файлов: `%переменные%`, быстрые папки | — | `common.rs` (`funti_expand_env`), `ui_cm_interface.rs`, `flutter_ffi.rs`, `file_manager_page.dart`, `file_model.dart` |
