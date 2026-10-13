@@ -417,6 +417,9 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             #[cfg(windows)]
             crate::privacy_mode::restore_reg_connectivity(true, false);
+            // FUNTIDESK (ADR-007 stage 2): leftovers of a service update.
+            #[cfg(windows)]
+            crate::funti_update::cleanup_service();
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 crate::start_server(true, false);
