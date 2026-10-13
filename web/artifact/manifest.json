@@ -4,86 +4,86 @@
   "artifacts": [
     {
       "file": "index.html",
-      "bytes": 26512,
-      "sha256": "aca84cfded8a9ba41ae17dc3d83416f5c529fa37e973ffcf2928965cce97c31e",
+      "bytes": 26502,
+      "sha256": "627a2efdb3cdd4871071c38bb119634110882ca8e3062cd830138a014b91ac59",
       "content_type": "text/html"
     },
     {
       "file": "style.css",
-      "bytes": 15937,
-      "sha256": "8ea3742d1827374302709ca7442216083e480d5fd4c1a777a04c00990795f115",
+      "bytes": 15942,
+      "sha256": "ac9e77db020b9dc5e801325c4f3f2a160ca1b49b8ba293a47189aa22f9e2f52d",
       "content_type": "text/css"
     },
     {
       "file": "lab.css",
-      "bytes": 11007,
-      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e",
+      "bytes": 11013,
+      "sha256": "f50065d2173d82fb5a28fc20acfdb91e20bd00cdc3a2811b67c7204cfed71808",
       "content_type": "text/css"
     },
     {
       "file": "platforms.css",
-      "bytes": 24843,
-      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9",
+      "bytes": 24852,
+      "sha256": "acc4b377aa6f07fa90fbf7c77011151f50b8838664df3f2d8ca200aebeeea3f0",
       "content_type": "text/css"
     },
     {
       "file": "family.css",
-      "bytes": 9957,
-      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
+      "bytes": 9960,
+      "sha256": "38d2c25ba47e76e84ad0e730b6e7f17b22a7fa655db79c7f4c5ab5780c9349bb",
       "content_type": "text/css"
     },
     {
       "file": "prototype.css",
-      "bytes": 28061,
-      "sha256": "ac76c719e140dc918466004e9a0f10337a8bbc74b5d23aced43ea72aebd9a9a9",
+      "bytes": 28084,
+      "sha256": "15cfbefda6d175ae204990e9e92301f4889567aaac366df1c6963726c995d247",
       "content_type": "text/css"
     },
     {
       "file": "theme.css",
-      "bytes": 3330,
-      "sha256": "d4300b883c67445967af46da533eb8d24e7cb3ef2db26a86fdbaec48a8f33438",
+      "bytes": 3362,
+      "sha256": "7f6d10d1792d78c7f490a11ebaeb301f33b5163ed754fe11998de26db5be7520",
       "content_type": "text/css"
     },
     {
       "file": "app.js",
-      "bytes": 11149,
-      "sha256": "f3a4446826068eeba1fe8193c58fbafe7f0927a0e761ef5dd20703cea3130130",
+      "bytes": 11109,
+      "sha256": "0fef3a683bbd2f0b6ec9833ed72d5b2f363e026e79cdb0463d96ea9f579e748d",
       "content_type": "application/javascript"
     },
     {
       "file": "lab.js",
-      "bytes": 22519,
-      "sha256": "1eb85cd64ed01ceca003cb439f61b43d9eb92335b9a5dc7ce4aacdf6fdcd7c0e",
+      "bytes": 22511,
+      "sha256": "b8ab3bb3ba77eb09d591df414941b0a27971c387a48240953ef4f5135ac53e56",
       "content_type": "application/javascript"
     },
     {
       "file": "platforms.js",
-      "bytes": 34767,
-      "sha256": "6acb099329699516415f059caea4d03d57809b04d57e7cc0cbe03c26e5e1564c",
+      "bytes": 34733,
+      "sha256": "1b5d92c45694025ce9d40e931d0a7fe22bcfa70505c32f65d1bce53a193a9c6b",
       "content_type": "application/javascript"
     },
     {
       "file": "family.js",
-      "bytes": 27137,
-      "sha256": "7a3484f4b7bc21ebd7a76193b6f592811e6596689b4134f94526aa6910ef6ce5",
+      "bytes": 27153,
+      "sha256": "0049b8ad273da10b91165af9f2875b203769bd555a15c81e6df819610e2b28e8",
       "content_type": "application/javascript"
     },
     {
       "file": "prototype.js",
-      "bytes": 18528,
-      "sha256": "cab0225c25e023c9b89b28436f0b20e281de9ae568af4e43a81dede3eae2c3da",
+      "bytes": 18512,
+      "sha256": "6402fb1bb0e3dc4e1c264e710fe31e2e555abdad44b617488fc0dfa07644c67d",
       "content_type": "application/javascript"
     },
     {
       "file": "theme.js",
-      "bytes": 1715,
-      "sha256": "921ed8b8c15201b9033c579b663e231929f633ab3a37834dd5eb89e1f7959fdf",
+      "bytes": 1732,
+      "sha256": "5bb0405875b6524c1bd01615458f3a20849f4b9a3ff6865810fce79a896f8287",
       "content_type": "application/javascript"
     },
     {
       "file": "mark.svg",
-      "bytes": 2104,
-      "sha256": "63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3",
+      "bytes": 2129,
+      "sha256": "43b995e5b0bf300c4c33c826f48ee3704592f940f8e5aa057e6a6918768a7d04",
       "content_type": "image/svg+xml"
     },
     {
