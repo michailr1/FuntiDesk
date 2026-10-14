@@ -124,14 +124,16 @@ try:
     for _ in range(60):
         rows = [json.loads(line) for line in docker("exec", mail, "postqueue", "-j").splitlines()]
         for row in rows:
-            raw = docker("exec", mail, "postcat", "-q", row["queue_id"])
+            # Preserve all MIME headers; their order is not fixed by the mail library.
+            raw = docker("exec", mail, "postcat", "-bh", "-q", row["queue_id"])
+            if raw.startswith("*** "):
+                raw = raw.partition("\n")[2]
+            raw = raw.split("\n*** ", 1)[0]
             if "person@example.invalid" in raw and "DKIM-Signature:" in raw:
                 signature_match = re.search(r"(?m)^DKIM-Signature:([^\n]*(?:\n[ \t][^\n]*)*)", raw)
                 if signature_match:
                     signature = re.sub(r"\s+", "", signature_match.group(1))
-                match = re.search(r"(?m)^From: ", raw)
-                if match:
-                    message = email.message_from_string(raw[match.start():], policy=email.policy.default)
+                message = email.message_from_string(raw, policy=email.policy.default)
         if message:
             break
         time.sleep(0.25)
