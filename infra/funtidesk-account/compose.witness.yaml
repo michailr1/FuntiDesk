@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
-    # Official Caddy binary requests this file capability even on port 8446.
+    # Official Caddy binary requests this file capability even on port 8447.
     cap_add: [NET_BIND_SERVICE]
     environment:
       NO_PROXY: funtidesk-account-witness,127.0.0.1,localhost
@@ -38,7 +38,7 @@ services:
     mem_limit: 128m
     pids_limit: 32
     ports:
-      - '${FUNTI_WITNESS_BIND_IP:-0.0.0.0}:8446:8446/tcp'
+      - '${FUNTI_WITNESS_BIND_IP:-0.0.0.0}:8447:8447/tcp'
     volumes:
       - ./Caddyfile.witness.proposed:/etc/caddy/Caddyfile:ro
       - ${FUNTI_WITNESS_TLS_DIRECTORY:?own certificate directory required}:/certs:ro

@@ -3,7 +3,7 @@
 	auto_https off
 }
 
-https://de.funti.cc:8446 {
+https://de.funti.cc:8447 {
 	tls /certs/fullchain.pem /certs/privkey.pem
 	header Cache-Control no-store
 	handle /v1/witness {
