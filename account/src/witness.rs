@@ -28,6 +28,7 @@ use std::{
 pub const MAX_DATABASE: usize = 16 * 1024 * 1024;
 pub const MAX_ENVELOPE: usize = 24 * 1024 * 1024;
 pub const MAX_RECORDS: usize = 100_000;
+const RECORD_DOMAIN: &str = "witness-record-v1";
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -165,14 +166,14 @@ impl Record {
         Ok(Self {
             head: snapshot.head.clone(),
             previous: snapshot.previous.clone(),
-            mac: crypto::tag(key, "witness-record-v1", &[&bytes]),
+            mac: crypto::tag(key, RECORD_DOMAIN, &[&bytes]),
         })
     }
     fn valid(&self, key: &[u8; 32]) -> Result<bool> {
         let bytes = serde_json::to_string(&(&self.head, &self.previous))?;
         Ok(self.head.valid()
             && self.previous.valid()
-            && crypto::matches(key, "witness-record-v1", &[&bytes], &self.mac))
+            && crypto::matches(key, RECORD_DOMAIN, &[&bytes], &self.mac))
     }
 }
 
