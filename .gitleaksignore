@@ -1,0 +1,4 @@
+# Проверенные ложные срабатывания: публичная метка HMAC "witness-record-v1".
+# Только эти две строки исторического commit; секреты и другие файлы не исключаются.
+ffd270b85e8e6761c0a54219c6e3d2fce70b50e1:account/src/witness.rs:generic-api-key:168
+ffd270b85e8e6761c0a54219c6e3d2fce70b50e1:account/src/witness.rs:generic-api-key:175
