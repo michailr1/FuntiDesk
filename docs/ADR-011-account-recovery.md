@@ -17,7 +17,7 @@
 ```mermaid
 flowchart LR
   API[Account и SQLite на desk] -->|подписанная зашифрованная копия| Relay[Переходник без ключей]
-  Relay -->|HTTPS 8446| TLS[Собственный Caddy на DE]
+  Relay -->|HTTPS 8447| TLS[Собственный Caddy на DE]
   TLS -->|внутренняя сеть| Witness[Последняя копия и цепочка отметок]
   Witness -->|свежая подписанная квитанция после fsync| API
 ```

@@ -14,8 +14,14 @@ for argument in "$1" "$2"; do
 done
 for command in python3 openssl docker install systemctl; do command -v "$command" >/dev/null; done
 
-python3 - <<'PY'
+python3 - "$1" "$2" <<'PY'
 from pathlib import Path
+import sys
+for source in sys.argv[1:]:
+    paths = [Path(source), Path(source).resolve(strict=True)]
+    if any(path == parent or parent in path.parents for path in paths
+           for parent in [Path('/root'), Path('/home'), Path('/run/user')]):
+        raise SystemExit('ERROR: TLS source is hidden by service ProtectHome')
 marker = '# Managed by FuntiDesk scripts/account/install-witness-tls.sh'
 for name in ['/usr/local/libexec/funtidesk-account-sync-witness-tls.py',
              '/etc/funtidesk-account-witness-tls.env',

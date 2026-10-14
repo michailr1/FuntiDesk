@@ -11,6 +11,7 @@ import re
 import tempfile
 import time
 import uuid
+from unittest.mock import patch
 
 image = os.environ["FUNTI_ACCOUNT_IMAGE"]
 caddy_image = "caddy@sha256:748016f285ed8c43a9ce6e3aed6d92d3009d90ca41157950880f40beaf3ff62b"
@@ -174,7 +175,16 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
                                   capture_output=True, check=True).stdout
         original_peer = peer_certificate()
         rotated, rotated_private = issue_certificate("rotated")
-        assert tls_sync.synchronize(rotated, rotated_private, tls, project=prefix, ca_file=base / "ca.pem") == "updated and reloaded"
+        # Model a process lost after publication, before the reload request.
+        with patch.object(tls_sync, "reload_caddy", side_effect=SystemExit("fixture interruption")):
+            try:
+                tls_sync.synchronize(rotated, rotated_private, tls, project=prefix, ca_file=base / "ca.pem")
+            except SystemExit:
+                pass
+            else:
+                raise AssertionError("missing interruption")
+        assert peer_certificate() == original_peer, "interruption unexpectedly reloaded Caddy"
+        assert tls_sync.synchronize(rotated, rotated_private, tls, project=prefix, ca_file=base / "ca.pem") == "unchanged and reloaded"
         expected = subprocess.run(["openssl", "x509", "-in", str(rotated), "-outform", "DER"],
                                   capture_output=True, check=True).stdout
         assert peer_certificate() == expected and expected != original_peer, "Caddy kept cached old certificate"

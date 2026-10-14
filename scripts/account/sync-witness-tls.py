@@ -71,8 +71,9 @@ def running_caddy(project):
     if len(containers) > 1:
         raise RuntimeError("Ambiguous witness Caddy service")
     if containers:
-        if docker("inspect", "--format", "{{.HostConfig.NetworkMode}}", containers[0]) == "host":
-            raise RuntimeError("Witness Caddy must not use host network")
+        mode = docker("inspect", "--format", "{{.HostConfig.NetworkMode}}", containers[0])
+        if mode == "host" or mode.startswith("container:"):
+            raise RuntimeError("Witness Caddy must have its own network namespace")
         return containers[0]
     return None
 
@@ -85,9 +86,12 @@ def reload_caddy(container):
 
 def set_current(directory, generation):
     temporary = directory / (".current-" + uuid.uuid4().hex)
-    temporary.symlink_to(generation)
-    os.replace(temporary, directory / "current")
-    sync_directory(directory)
+    try:
+        temporary.symlink_to(generation)
+        os.replace(temporary, directory / "current")
+        sync_directory(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def synchronize(certificate, private, directory, project="funtidesk-account-witness", ca_file=None):
@@ -126,6 +130,11 @@ def synchronize(certificate, private, directory, project="funtidesk-account-witn
             validate(stage, ca_file)
             if previous and all((stage / name).read_bytes() == (directory / previous / name).read_bytes()
                                 for name in ["fullchain.pem", "privkey.pem"]):
+                # A process can die after publishing files but before reload.
+                container = running_caddy(project)
+                if container:
+                    reload_caddy(container)
+                    return "unchanged and reloaded"
                 return "unchanged"
             container = running_caddy(project)
             generation = "generation-" + uuid.uuid4().hex
@@ -135,8 +144,9 @@ def synchronize(certificate, private, directory, project="funtidesk-account-witn
                 link = directory / name
                 if not link.is_symlink():
                     link.symlink_to("current/" + name)
-            set_current(directory, generation)
+            # The link may already have changed even if its subsequent fsync fails.
             published = True
+            set_current(directory, generation)
             if container:
                 reload_caddy(container)
             keep = {generation, previous}
@@ -165,10 +175,9 @@ def main():
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--key", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--project", default="funtidesk-account-witness")
     arguments = parser.parse_args()
     try:
-        result = synchronize(arguments.certificate, arguments.key, arguments.directory, arguments.project)
+        result = synchronize(arguments.certificate, arguments.key, arguments.directory)
         print("WITNESS_TLS_SYNC_OK: " + result)
     except Exception as error:
         # Never forward subprocess stderr, private material or a traceback into journald.
