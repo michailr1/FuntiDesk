@@ -362,7 +362,7 @@ impl Store {
         if !active_in(&tx, auth, now)? || !consume_nonce(&tx, nonce, now)? {
             return Ok(false);
         }
-        tx.execute("INSERT INTO family_copies(device_id,revision,members_json,updated_at) VALUES(?1,1,?2,?3) ON CONFLICT(device_id) DO UPDATE SET revision=revision+1,members_json=excluded.members_json,updated_at=excluded.updated_at", params![source,data,now])?;
+        tx.execute("INSERT INTO family_copies(device_id,revision,members_json,updated_at) VALUES(?1,1,?2,?3) ON CONFLICT(device_id) DO UPDATE SET revision=family_copies.revision+CASE WHEN family_copies.members_json=excluded.members_json THEN 0 ELSE 1 END,members_json=excluded.members_json,updated_at=excluded.updated_at", params![source,data,now])?;
         tx.execute(
             "UPDATE devices SET name=?2,version=?3,last_seen=?4 WHERE id=?1",
             params![source, payload.name, payload.version, now],

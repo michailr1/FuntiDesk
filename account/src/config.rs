@@ -27,22 +27,7 @@ impl Config {
             std::env::var("FUNTI_ACCOUNT_KEY_FILE")
                 .context("FUNTI_ACCOUNT_KEY_FILE is required")?,
         );
-        let metadata = std::fs::metadata(&secret_path)?;
-        if !metadata.is_file() {
-            bail!("account key must be a file");
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if metadata.permissions().mode() & 0o077 != 0 {
-                bail!("account key permissions must exclude group and others");
-            }
-        }
-        let bytes = hex::decode(std::fs::read_to_string(secret_path)?.trim())
-            .context("invalid account key encoding")?;
-        let key: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("account key must contain 32 bytes"))?;
+        let key = read_key(&secret_path)?;
         let proxies = std::env::var("FUNTI_ACCOUNT_TRUSTED_PROXIES")
             .unwrap_or_else(|_| "127.0.0.1,::1".to_owned());
         Ok(Self {
@@ -67,4 +52,24 @@ impl Config {
                 .collect::<std::result::Result<_, _>>()?,
         })
     }
+}
+
+pub fn read_key(secret_path: &std::path::Path) -> Result<[u8; 32]> {
+    let metadata = std::fs::metadata(secret_path)?;
+    if !metadata.is_file() {
+        bail!("account key must be a file");
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            bail!("account key permissions must exclude group and others");
+        }
+    }
+    let bytes = hex::decode(std::fs::read_to_string(secret_path)?.trim())
+        .context("invalid account key encoding")?;
+    let key: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("account key must contain 32 bytes"))?;
+    Ok(key)
 }
