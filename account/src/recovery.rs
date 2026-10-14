@@ -118,6 +118,14 @@ impl Recovery {
             Ok(store.key)
         }).await??;
         let key = derive_key(&account_key, &remote.namespace)?;
+        if remote.revision > 0 {
+            let snapshot = client.read().await?;
+            if snapshot.head != remote || client.head().await? != remote {
+                bail!("witness changed during startup");
+            }
+            // Refuse a replaced account key before it can encrypt a new latest copy.
+            snapshot.open(&key)?;
+        }
         let recovery = Arc::new(Self {
             gate: AsyncMutex::new(()),
             workers: Arc::new(tokio::sync::Semaphore::new(32)),
@@ -234,6 +242,25 @@ fn sidecar(path: &Path, suffix: &str) -> PathBuf {
     name.into()
 }
 
+struct RestoreFiles {
+    database: PathBuf,
+    capture: PathBuf,
+}
+
+impl Drop for RestoreFiles {
+    fn drop(&mut self) {
+        for file in [
+            self.database.clone(),
+            self.database.with_extension("lock"),
+            sidecar(&self.database, "-wal"),
+            sidecar(&self.database, "-shm"),
+            self.capture.clone(),
+        ] {
+            let _ = fs::remove_file(file);
+        }
+    }
+}
+
 /// Only the latest authenticated state can be restored, always to a fresh path.
 pub async fn restore(client: &Client, account_key: [u8; 32], destination: &Path) -> Result<Head> {
     if destination.exists()
@@ -247,15 +274,19 @@ pub async fn restore(client: &Client, account_key: [u8; 32], destination: &Path)
     if snapshot.head != head || client.head().await? != head {
         bail!("witness changed during restore");
     }
-    let bytes = snapshot.open(&derive_key(&account_key, &head.namespace)?)?;
+    let key = derive_key(&account_key, &head.namespace)?;
+    let bytes = snapshot.open(&key)?;
     let parent = destination.parent().context("missing recovery directory")?;
     if !parent.is_dir() {
         bail!("recovery directory must exist");
     }
-    let temporary = parent.join(format!(".restore-{}.sqlite3", crypto::token()));
-    atomic_file(&temporary, &bytes)?;
-    let result = (|| -> Result<()> {
-        let mut store = Store::open(&temporary, account_key)?;
+    let files = RestoreFiles {
+        database: parent.join(format!(".restore-{}.sqlite3", crypto::token())),
+        capture: parent.join(format!(".capture-{}.sqlite3", crypto::token())),
+    };
+    atomic_file(&files.database, &bytes)?;
+    let result = async {
+        let mut store = Store::open(&files.database, account_key)?;
         let check: String = store
             .db
             .query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
@@ -270,31 +301,41 @@ pub async fn restore(client: &Client, account_key: [u8; 32], destination: &Path)
         {
             bail!("invalid recovery metadata");
         }
-        store.db.execute_batch(
-            "BEGIN; DELETE FROM sessions; DELETE FROM challenges; DELETE FROM nonces; COMMIT;",
-        )?;
+        // The encrypted backup predates its local receipt. Confirm that receipt first.
         store.confirm(&head)?;
+        store.db.execute_batch(
+            "BEGIN; DELETE FROM sessions; DELETE FROM challenges; DELETE FROM nonces;
+             UPDATE recovery_state SET revision=revision+1 WHERE id=1; COMMIT;",
+        )?;
+        store.backup_file(&files.capture)?;
+        if fs::metadata(&files.capture)?.len() > MAX_DATABASE as u64 {
+            bail!("recovery database too large");
+        }
+        let (_, revision) = store.recovery_head()?;
+        let cleared = Snapshot::seal(
+            head,
+            revision,
+            store.event_highwater()?,
+            &key,
+            &fs::read(&files.capture)?,
+        )?;
+        fs::remove_file(&files.capture)?;
+        // A fresh epoch makes every pre-restore database stale. Do not publish a
+        // destination unless the witness has durably accepted session invalidation.
+        let restored_head = client.put(cleared).await?;
+        store.confirm(&restored_head)?;
         store.db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         drop(store);
-        fs::File::open(&temporary)?.sync_all()?;
+        fs::File::open(&files.database)?.sync_all()?;
         // An atomic link refuses a concurrently created destination instead of overwriting it.
-        fs::hard_link(&temporary, destination)?;
-        fs::remove_file(&temporary)?;
+        fs::hard_link(&files.database, destination)?;
+        fs::remove_file(&files.database)?;
         fs::File::open(parent)?.sync_all()?;
-        Ok(())
-    })();
-    for file in [
-        temporary.clone(),
-        temporary.with_extension("lock"),
-        sidecar(&temporary, "-wal"),
-        sidecar(&temporary, "-shm"),
-    ] {
-        if file.exists() {
-            fs::remove_file(file)?;
-        }
+        Ok(restored_head)
     }
-    result?;
-    Ok(head)
+    .await;
+    drop(files);
+    result
 }
 
 #[cfg(test)]
@@ -372,9 +413,18 @@ mod tests {
             }
         }
         async fn app(&self, path: &Path, recovery_dir: &str, initialize: bool) -> Result<App> {
+            self.app_with_key(path, recovery_dir, initialize, KEY).await
+        }
+        async fn app_with_key(
+            &self,
+            path: &Path,
+            recovery_dir: &str,
+            initialize: bool,
+            key: [u8; 32],
+        ) -> Result<App> {
             let (tx, _) = tokio::sync::mpsc::channel(20);
             let app = App::new(
-                Store::open(path, KEY)?,
+                Store::open(path, key)?,
                 tx,
                 Arc::new(UnixRegistry(self.dir.path().join("unused.sock"))),
                 vec![],
@@ -522,8 +572,14 @@ mod tests {
         assert!(restore(&f.client, [4; 32], &restored).await.is_err());
         assert!(!restored.exists());
         assert!(restore(&f.client, KEY, &primary).await.is_err());
+        drop(app);
         let result = restore(&f.client, KEY, &restored).await.unwrap();
-        assert!(result == head && result.event_highwater == event);
+        assert!(result.revision > head.revision && result.event_highwater == event);
+        assert!(f.client.head().await.unwrap() == result);
+        assert!(f
+            .app(&primary, "pre-restore-recovery", false)
+            .await
+            .is_err());
         let fresh = f.app(&restored, "fresh-recovery", false).await.unwrap();
         let source_copy = source.clone();
         let second_copy = second.clone();
@@ -569,6 +625,62 @@ mod tests {
                 let (new_auth, _) = login(s, &crypto::token(), NOW + 61)?;
                 assert_eq!(new_auth.account, auth.account);
                 assert!(s.event_highwater()? > event);
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+    #[tokio::test]
+    async fn restore_lost_receipt_never_publishes_old_sessions_and_retry_keeps_highwater() {
+        let f = Fixture::new().await;
+        let path = f.dir.path().join("primary.sqlite3");
+        let app = f.app(&path, "recovery", true).await.unwrap();
+        let (_, token, _, _, _) = setup(&app).await;
+        let before = f.client.head().await.unwrap();
+        drop(app);
+        let restored = f.dir.path().join("restored.sqlite3");
+        f.fault.store(2, Ordering::SeqCst);
+        assert!(restore(&f.client, KEY, &restored).await.is_err());
+        assert!(!restored.exists());
+        assert!(!fs::read_dir(f.dir.path()).unwrap().any(|entry| {
+            let name = entry.unwrap().file_name();
+            let name = name.to_string_lossy();
+            name.starts_with(".restore-") || name.starts_with(".capture-")
+        }));
+        let accepted = f.client.head().await.unwrap();
+        assert!(accepted.revision > before.revision);
+        assert_eq!(accepted.event_highwater, before.event_highwater);
+        assert!(f.app(&path, "old-recovery", false).await.is_err());
+        let completed = restore(&f.client, KEY, &restored).await.unwrap();
+        assert!(completed.revision > accepted.revision);
+        assert_eq!(completed.event_highwater, before.event_highwater);
+        let fresh = f.app(&restored, "fresh-recovery", false).await.unwrap();
+        fresh
+            .db(move |s| {
+                assert!(s.authenticate(&token, false, NOW + 1)?.is_none());
+                assert_eq!(s.event_highwater()?, before.event_highwater);
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+    #[tokio::test]
+    async fn startup_refuses_changed_account_key_before_overwriting_recovery_copies() {
+        let f = Fixture::new().await;
+        let path = f.dir.path().join("primary.sqlite3");
+        let app = f.app(&path, "recovery", true).await.unwrap();
+        let (_, token, _, _, _) = setup(&app).await;
+        let head = f.client.head().await.unwrap();
+        drop(app);
+        assert!(f
+            .app_with_key(&path, "recovery", false, [4; 32])
+            .await
+            .is_err());
+        assert!(f.client.head().await.unwrap() == head);
+        let valid = f.app(&path, "recovery", false).await.unwrap();
+        valid
+            .db(move |s| {
+                assert!(s.authenticate(&token, false, NOW + 1)?.is_some());
                 Ok(())
             })
             .await
