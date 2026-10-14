@@ -4,6 +4,7 @@ INSERT OR IGNORE INTO recovery_state(id) VALUES(1);
 CREATE TRIGGER IF NOT EXISTS recovery_account_insert AFTER INSERT ON accounts BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS recovery_account_update AFTER UPDATE ON accounts WHEN OLD.id IS NOT NEW.id OR OLD.email IS NOT NEW.email OR OLD.created_at IS NOT NEW.created_at OR OLD.disabled IS NOT NEW.disabled BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS recovery_account_delete AFTER DELETE ON accounts BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS recovery_session_revoke AFTER UPDATE OF revoked_at ON sessions WHEN OLD.revoked_at IS NOT NEW.revoked_at BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS recovery_device_insert AFTER INSERT ON devices BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS recovery_device_identity AFTER UPDATE OF account_id,funti_id,pk,bound_at,name,version ON devices WHEN OLD.account_id IS NOT NEW.account_id OR OLD.funti_id IS NOT NEW.funti_id OR OLD.pk IS NOT NEW.pk OR OLD.bound_at IS NOT NEW.bound_at OR OLD.name IS NOT NEW.name OR OLD.version IS NOT NEW.version BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;
 CREATE TRIGGER IF NOT EXISTS recovery_device_delete AFTER DELETE ON devices BEGIN UPDATE recovery_state SET revision=revision+1 WHERE id=1; END;

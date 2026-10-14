@@ -311,7 +311,15 @@ impl WitnessStore {
                 .join(format!("{}.sealed", self.head.revision)),
         )?)?;
         snapshot.checked_bytes()?;
-        if snapshot.head != self.head {
+        let record: Record = serde_json::from_slice(&fs::read(
+            self.directory
+                .join(format!("{}.record", self.head.revision)),
+        )?)?;
+        if snapshot.head != self.head
+            || record.head != self.head
+            || record.previous != snapshot.previous
+            || !record.valid(&self.key)?
+        {
             bail!("witness snapshot is incomplete");
         }
         Ok(snapshot)
@@ -372,8 +380,17 @@ impl WitnessStore {
             }
         }
         files.sort_by_key(|r| std::cmp::Reverse(r.0));
-        for (_, path) in files.into_iter().skip(2) {
-            fs::remove_file(path)?;
+        let mut kept = 0;
+        for (revision, path) in files {
+            if revision <= self.head.revision
+                && self.directory.join(format!("{revision}.record")).is_file()
+                && kept < 2
+            {
+                kept += 1;
+            } else {
+                // A sealed file without a durable record is not a recovery copy.
+                fs::remove_file(path)?;
+            }
         }
         File::open(&self.directory)?.sync_all()?;
         Ok(())
@@ -669,6 +686,37 @@ mod tests {
         assert!(WitnessStore::open(dir.path(), KEY).is_err());
     }
 
+    #[test]
+    fn orphan_files_cannot_displace_durable_copies_and_outer_metadata_matches_record() {
+        let (dir, mut store) = fixture();
+        let first = Snapshot::seal(store.head(), 1, 1, &KEY, b"first").unwrap();
+        store.put(&first).unwrap();
+        let second = Snapshot::seal(store.head(), 2, 2, &KEY, b"second").unwrap();
+        store.put(&second).unwrap();
+        for revision in [3, 4] {
+            let orphan = Snapshot::seal(store.head(), revision, 3, &KEY, b"unconfirmed").unwrap();
+            atomic_file(
+                &dir.path().join(format!("{revision}.sealed")),
+                &serde_json::to_vec(&orphan).unwrap(),
+            )
+            .unwrap();
+        }
+        drop(store);
+        let reopened = WitnessStore::open(dir.path(), KEY).unwrap();
+        assert!(reopened.head() == second.head);
+        assert!(dir.path().join("1.sealed").is_file() && dir.path().join("2.sealed").is_file());
+        assert!(!dir.path().join("3.sealed").exists() && !dir.path().join("4.sealed").exists());
+        drop(reopened);
+        let mut corrupt = second;
+        corrupt.previous.digest = "11".repeat(32);
+        atomic_file(
+            &dir.path().join("2.sealed"),
+            &serde_json::to_vec(&corrupt).unwrap(),
+        )
+        .unwrap();
+        assert!(WitnessStore::open(dir.path(), KEY).is_err());
+    }
+
     #[tokio::test]
     async fn fresh_head_rejects_replayed_or_forged_responses_and_untrusted_plaintext_transport() {
         use std::sync::atomic::{AtomicU8, Ordering};
@@ -713,7 +761,7 @@ mod tests {
         )
         .is_err());
         assert!(Client::new(
-            "https://de.funti.cc:8446/v1/witness?key=hidden".into(),
+            "https://de.funti.cc:8447/v1/witness?key=hidden".into(),
             "33".repeat(32),
             KEY
         )
