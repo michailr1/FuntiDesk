@@ -1,0 +1,72 @@
+services:
+  account:
+    image: ${FUNTI_ACCOUNT_IMAGE:?verified account image required}
+    pull_policy: never
+    restart: unless-stopped
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 64
+    environment:
+      FUNTI_ACCOUNT_LISTEN: 0.0.0.0:21800
+      FUNTI_ACCOUNT_DATABASE: /data/account.sqlite3
+      FUNTI_ACCOUNT_KEY_FILE: /secrets/account.key
+      FUNTI_ACCOUNT_REGISTRY_SOCKET: /run/funtidesk-identity/hbbs.sock
+      FUNTI_ACCOUNT_SMTP_HOST: funtidesk-mail
+      FUNTI_ACCOUNT_SMTP_PORT: '2525'
+      FUNTI_ACCOUNT_TRUSTED_PROXIES: ${FUNTI_ACCOUNT_CADDY_IP:-172.31.251.4}
+    volumes:
+      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/data:/data
+      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/account.key:/secrets/account.key:ro
+      - ${FUNTI_ACCOUNT_IDENTITY_DIR:-/opt/funtidesk-account/identity}:/run/funtidesk-identity:ro
+    networks:
+      frontend:
+        ipv4_address: ${FUNTI_ACCOUNT_API_IP:-172.31.251.3}
+        aliases: [funtidesk-account]
+      smtp:
+        ipv4_address: ${FUNTI_ACCOUNT_SMTP_CLIENT_IP:-172.31.250.3}
+    depends_on: [mail]
+
+  mail:
+    image: ${FUNTI_ACCOUNT_MAIL_IMAGE:?verified mail image required}
+    pull_policy: never
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, KILL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+    pids_limit: 64
+    environment:
+      FUNTI_MAIL_BIND_IP: ${FUNTI_ACCOUNT_SMTP_IP:-172.31.250.2}
+      FUNTI_MAIL_SUBNET: ${FUNTI_ACCOUNT_SMTP_SUBNET:-172.31.250.0/29}
+    volumes:
+      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/funtidesk202610.private:/secrets/dkim.private:ro
+      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/mail-queue:/var/spool/postfix
+    tmpfs:
+      - /run:mode=0755
+      - /tmp:mode=1777
+      - /etc/opendkim:mode=0700
+      - /etc/postfix:mode=0755
+      - /var/lib/postfix:mode=0755
+    networks:
+      smtp:
+        ipv4_address: ${FUNTI_ACCOUNT_SMTP_IP:-172.31.250.2}
+        aliases: [funtidesk-mail]
+      outbound: {}
+
+networks:
+  frontend:
+    name: ${FUNTI_ACCOUNT_FRONT_NETWORK:-funtidesk-account-front}
+    internal: true
+    ipam:
+      config:
+        - subnet: ${FUNTI_ACCOUNT_FRONT_SUBNET:-172.31.251.0/29}
+  smtp:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${FUNTI_ACCOUNT_SMTP_SUBNET:-172.31.250.0/29}
+  outbound: {}

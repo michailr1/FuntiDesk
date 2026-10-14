@@ -1,0 +1,5 @@
+.env
+build/
+*.key
+*.private
+*.sqlite3*
