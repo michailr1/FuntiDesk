@@ -1,0 +1,38 @@
+--- Caddyfile
++++ Caddyfile
+@@ -1,10 +1,27 @@
++# Replace only the desk.funti.cc block after approval; other blocks stay intact.
+ desk.funti.cc {
+-    root * /usr/share/caddy
+-    header {
+-        X-Content-Type-Options nosniff
+-        Referrer-Policy strict-origin-when-cross-origin
+-        X-Frame-Options DENY
+-        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+-    }
+-    file_server
++	root * /usr/share/caddy
++	header {
++		X-Content-Type-Options nosniff
++		Referrer-Policy strict-origin-when-cross-origin
++		X-Frame-Options DENY
++		Permissions-Policy "camera=(), microphone=(), geolocation=()"
++	}
++	handle /api/account/* {
++		reverse_proxy funtidesk-account:21800 {
++			header_up X-Funti-Client-IP {remote_host}
++		}
++	}
++	@account path /account /account/*
++	handle @account {
++		header {
++			Cache-Control no-store
++			Referrer-Policy same-origin
++			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
++		}
++		file_server
++	}
++	handle {
++		file_server
++	}
+ }
