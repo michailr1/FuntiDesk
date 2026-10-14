@@ -35,6 +35,10 @@ jobs:
         id: probe
         shell: bash
         run: |
+          if [ -n "$EXTRA_PORT" ] && ! [[ "$EXTRA_PORT" =~ ^[0-9]{1,5}$ ]]; then
+            echo "::error::extra_port must be a number"
+            exit 1
+          fi
           # A failure counts only if it repeats three times in about a minute.
           probe() {
             local failed=""
