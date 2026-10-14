@@ -1,0 +1,90 @@
+name: Server monitor
+
+# FUNTIDESK: external availability check of desk.funti.cc from a GitHub
+# runner (outside the server). A failure opens one issue with the label
+# `server-down`, so the owner gets a GitHub notification; recovery closes it.
+# Only GitHub is used: no third-party monitoring service.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: server-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HOST: desk.funti.cc
+    steps:
+      - name: Probe ports
+        id: probe
+        shell: bash
+        run: |
+          # A failure counts only if it repeats three times in about a minute.
+          probe() {
+            local failed=""
+            for port in 21115 21116 21117; do
+              timeout 8 bash -c "</dev/tcp/$HOST/$port" 2>/dev/null || failed="$failed tcp/$port"
+            done
+            curl -fsS --max-time 15 -o /dev/null "https://$HOST/" || failed="$failed https/443"
+            echo "$failed"
+          }
+          failed=""
+          for attempt in 1 2 3; do
+            failed=$(probe)
+            [ -z "$failed" ] && break
+            echo "attempt $attempt failed:$failed"
+            [ "$attempt" -lt 3 ] && sleep 25
+          done
+          echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
+          if [ -n "$failed" ]; then
+            echo "::warning::$HOST unavailable:$failed"
+          else
+            echo "$HOST: tcp/21115 tcp/21116 tcp/21117 https/443 — ok"
+          fi
+
+      - name: Open or update the outage issue
+        if: steps.probe.outputs.failed != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ steps.probe.outputs.failed }}
+        run: |
+          gh label create server-down --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "desk.funti.cc недоступен (Server monitor)" 2>/dev/null || true
+          now=$(date -u '+%Y-%m-%d %H:%M UTC')
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --label server-down --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -z "$issue" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label server-down \
+              --title "desk.funti.cc недоступен" \
+              --body "Проверка $now не прошла три раза подряд: $FAILED. Подключения FuntiDesk через сервер могут не работать. Запуск: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. Issue закроется сам, когда проверка пройдёт."
+          else
+            # One comment per hour at most, so a long outage does not flood.
+            last=$(gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json comments,createdAt \
+              --jq '([.comments[].createdAt] + [.createdAt]) | max')
+            if [ $(( $(date -u +%s) - $(date -u -d "$last" +%s) )) -ge 3600 ]; then
+              gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "Всё ещё недоступен ($now): $FAILED."
+            fi
+          fi
+
+      - name: Close the outage issue on recovery
+        if: steps.probe.outputs.failed == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for issue in $(gh issue list --repo "$GITHUB_REPOSITORY" --label server-down --state open \
+            --json number --jq '.[].number'); do
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
+              --comment "Снова доступен ($(date -u '+%Y-%m-%d %H:%M UTC')): tcp/21115, tcp/21116, tcp/21117, https/443."
+          done

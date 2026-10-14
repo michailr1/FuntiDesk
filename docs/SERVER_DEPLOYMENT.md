@@ -94,6 +94,12 @@ sudo bash /opt/funtidesk/repo/scripts/server/deploy.sh
 >
 > **Shared-host safety:** `apply-firewall.sh` добавляет только SSH/FuntiDesk allow rules и не меняет глобальные UFW default policies. Если UFW не активен, скрипт по умолчанию отказывается его включать, потому что на хосте могут работать другие сервисы. Включение неактивного UFW требует предварительной инвентаризации listeners/rules и явного `FUNTIDESK_ENABLE_UFW=1`.
 
+## Внешний мониторинг
+
+Workflow `.github/workflows/server-monitor.yml` (с 2026-10-14) каждые 10 минут с runner GitHub — то есть снаружи сервера — проверяет `tcp/21115`, `tcp/21116`, `tcp/21117` на `desk.funti.cc` и ответ сайта по `https`. Сбой засчитывается, только если проверка не прошла три раза подряд (около минуты). Тогда открывается один issue с меткой `server-down` (уведомление владельцу приходит от GitHub), при длительном сбое — не чаще одного комментария в час; после восстановления issue закрывается сам. Сторонних сервисов мониторинга нет.
+
+Ограничения: `udp/21116` (регистрация и heartbeat) этим способом не проверяется; GitHub запускает расписание с задержкой в несколько минут и отключает его, если в репозитории 60 дней нет активности. Запустить проверку вручную: Actions → «Server monitor» → Run workflow.
+
 ## Backup
 
 `scripts/server/backup.sh` создаёт зашифрованный `age`-артефакт persistent `data` и SHA-256 sidecar; plaintext archive не сохраняется как backup-артефакт.
