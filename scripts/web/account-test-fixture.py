@@ -70,6 +70,8 @@ class Proxy(http.server.BaseHTTPRequestHandler):
             for k,v in response.getheaders():
                 if k.lower() not in ['transfer-encoding','connection','content-length']:self.send_header(k,v)
             self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
+        except OSError:
+            self.send_response(503);self.send_header('Content-Length','0');self.end_headers()
         finally:conn.close()
 
 smtp=socketserver.ThreadingTCPServer(('127.0.0.1',0),SMTP)

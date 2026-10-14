@@ -21,8 +21,12 @@ const lines=createInterface({input:fixture.stdout});
 const ready=JSON.parse(await new Promise(r=>lines.once('line',r)));
 const base='http://127.0.0.1:'+ready.proxy_port;
 await writeFile(join(dir,'account.key'),randomBytes(32).toString('hex'),{mode:0o600});
-const service=spawn(binary,[],{env:{...process.env,FUNTI_ACCOUNT_LISTEN:'127.0.0.1:'+backendPort,FUNTI_ACCOUNT_DATABASE:join(dir,'account.sqlite3'),FUNTI_ACCOUNT_KEY_FILE:join(dir,'account.key'),FUNTI_ACCOUNT_SMTP_HOST:'127.0.0.1',FUNTI_ACCOUNT_SMTP_PORT:String(ready.smtp_port),FUNTI_ACCOUNT_REGISTRY_SOCKET:join(dir,'registry.sock')},stdio:['ignore','ignore','inherit']});
-let browser;
+await writeFile(join(dir,'witness.key'),randomBytes(32).toString('hex'),{mode:0o600});
+const witnessSocket=createServer();await new Promise(r=>witnessSocket.listen(0,'127.0.0.1',r));const witnessPort=witnessSocket.address().port;await new Promise(r=>witnessSocket.close(r));
+const serviceEnv={...process.env,FUNTI_ACCOUNT_LISTEN:'127.0.0.1:'+backendPort,FUNTI_ACCOUNT_DATABASE:join(dir,'account.sqlite3'),FUNTI_ACCOUNT_KEY_FILE:join(dir,'account.key'),FUNTI_ACCOUNT_SMTP_HOST:'127.0.0.1',FUNTI_ACCOUNT_SMTP_PORT:String(ready.smtp_port),FUNTI_ACCOUNT_REGISTRY_SOCKET:join(dir,'registry.sock'),FUNTI_ACCOUNT_WITNESS_KEY_FILE:join(dir,'witness.key'),FUNTI_ACCOUNT_WITNESS_NAMESPACE:randomBytes(32).toString('hex'),FUNTI_ACCOUNT_WITNESS_URL:'http://127.0.0.1:'+witnessPort+'/v1/witness',FUNTI_WITNESS_LISTEN:'127.0.0.1:'+witnessPort,FUNTI_WITNESS_DIRECTORY:join(dir,'witness')};
+const start=args=>spawn(binary,args,{env:serviceEnv,stdio:['ignore','ignore','inherit']});
+async function run(args){const child=start(args);const [code]=await once(child,'exit');assert.equal(code,0,'CLI '+args[0]+' failed');}
+let browser,service,witness;
 async function request(path,body,headers={}){const response=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{...headers,...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});assert.ok(response.ok,'API '+path+' HTTP '+response.status);return response.status===204?null:response.json();}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function inbox(address,previous=0){for(let i=0;i<100;i++){const all=await request('/test/inbox');const matching=all.filter(m=>m.to.includes(address));if(matching.length>previous)return matching.at(-1).code;await sleep(50)}throw Error('Test SMTP timeout');}
@@ -31,6 +35,9 @@ function key(){const pair=generateKeyPairSync('ed25519');return {...pair,pk:pair
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 function proof(n,pair){const message=n.action==='bind'?['funtidesk-account-v1','bind',n.account_id,n.funti_id,n.pk,n.nonce,n.expires_at]:['funtidesk-account-v1',n.action,n.account_id,n.device_id,n.funti_id,n.pk,n.payload_hash,n.nonce,n.expires_at];return sign(null,Buffer.from(message.join('\n')),pair.privateKey).toString('base64');}
 try{
+  await run(['witness-init']);witness=start(['witness']);
+  for(let i=0;i<100;i++){try{assert.equal((await fetch(serviceEnv.FUNTI_ACCOUNT_WITNESS_URL)).status,405);break}catch{await sleep(50);if(i===99)throw Error('Witness startup timeout')}}
+  await run(['initialize']);service=start([]);
   for(let i=0;i<100;i++){try{assert.equal((await fetch(base+'/health')).status,200);break}catch{await sleep(50);if(i===99)throw Error('Service startup timeout')}}
   const address='family@example.invalid';
   const native={'x-funti-client':'native'};
@@ -96,9 +103,9 @@ try{
   bootstrapDown=true;await page.reload();await page.locator('#retry-login:not([hidden])').waitFor();assert.equal(await page.locator('#send-code').isDisabled(),true);
   bootstrapDown=false;await page.locator('#retry-login').click();await page.locator('#send-code:enabled').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('ACCOUNT_BROWSER_API_OK: login, invalid/resend code, HttpOnly cookie restore, safe text, no storage, idempotent retry, pending/ack/partial deliveries, logout/all, outage retry');
+  console.log('ACCOUNT_BROWSER_API_OK: independent encrypted state, login, invalid/resend code, HttpOnly cookie restore, safe text, no storage, idempotent retry, pending/ack/partial deliveries, logout/all, outage retry');
 }finally{
   await browser?.close();
-  for(const child of [service,fixture]){if(child.exitCode===null){const ended=once(child,'exit');child.kill();await ended;}}
+  for(const child of [service,witness,fixture].filter(Boolean)){if(child.exitCode===null){const ended=once(child,'exit');child.kill();await ended;}}
   await rm(dir,{recursive:true,force:true});
 }
