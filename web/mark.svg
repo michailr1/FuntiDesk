@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title desc">
+  <title id="title">FuntiDesk — Secure Access shield (approved C)</title>
+  <desc id="desc">A blue gradient shield containing a white desktop window header with three dots and a white pointer arrow.</desc>
+  <defs>
+    <linearGradient id="funti-blue" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#1BC0E8"/>
+      <stop offset="0.49" stop-color="#138FF5"/>
+      <stop offset="1" stop-color="#064BEB"/>
+    </linearGradient>
+    <clipPath id="funti-shield-clip">
+      <path d="M128 15 C133 15 143 22 160 31 C180 41 200 46 220 51 C227 53 231 60 231 69 L231 138 C231 183 193 217 128 241 C64 217 25 183 25 138 L25 69 C25 60 29 53 36 51 C56 46 76 41 96 31 C113 22 123 15 128 15 Z"/>
+    </clipPath>
+  </defs>
+  <!-- The only canonical primary blue brand mark. No exterior rounded-square app tile. -->
+  <path fill="url(#funti-blue)" d="M128 15 C133 15 143 22 160 31 C180 41 200 46 220 51 C227 53 231 60 231 69 L231 138 C231 183 193 217 128 241 C64 217 25 183 25 138 L25 69 C25 60 29 53 36 51 C56 46 76 41 96 31 C113 22 123 15 128 15 Z"/>
+  <!-- The window is sculpted out of the shield: slanted browser chrome and left edge. -->
+  <g clip-path="url(#funti-shield-clip)" fill="#fff">
+    <path d="M69 132 L69 111 C69 92 80 80 99 76 L236 52 L236 68 L102 92 C89 95 84 101 84 113 L84 224 L69 216 Z"/>
+    <path d="M99 94 L234 70 L234 83 L106 106 C98 107 95 112 95 120 L95 226 L84 221 L84 119 C84 106 89 99 99 94 Z" opacity=".96"/>
+  </g>
+  <!-- Three distinct desktop-window controls. -->
+  <g fill="#fff"><circle cx="115" cy="124" r="7"/><circle cx="139" cy="120" r="7"/><circle cx="163" cy="116" r="7"/></g>
+  <!-- Pointer silhouette, with the sloping leading edge and offset shaft of a cursor. -->
+  <path fill="#fff" stroke="#fff" stroke-linejoin="round" stroke-width="2" d="M144 150 Q141 146 144 143 Q146 141 150 143 L201 171 Q207 174 205 180 Q204 183 199 184 L179 186 L171 207 Q169 212 164 211 Q160 211 158 207 Z"/>
+</svg>

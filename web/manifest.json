@@ -1,0 +1,112 @@
+{
+  "artifacts": [
+    {
+      "file": "account/account.css",
+      "bytes": 4400,
+      "sha256": "bd89775f5bb122127f64770e18b8bc19f17f4ed756beb291b14bfe446a2ded98",
+      "content_type": "text/css"
+    },
+    {
+      "file": "account/account.js",
+      "bytes": 13495,
+      "sha256": "56cb7efafe69bcd8c777804976033fe2abe75f1e818e5f71843cd70694bca445",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "account/index.html",
+      "bytes": 5605,
+      "sha256": "d4255a3b6631d40d2060ea6d930afd80029f68217afa26f2952f2f12880e8e52",
+      "content_type": "text/html"
+    },
+    {
+      "file": "app.js",
+      "bytes": 11140,
+      "sha256": "6d469bfa038612a199ec6b2d14092c14c8243f4a9eab575a68d3e3854cd16bce",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "assets/windows-bloom.jpg",
+      "bytes": 47734,
+      "sha256": "f5fbc4b41a9797db658e61cab4b7466a9c46153ec6900b9474f47cabefd20dfa",
+      "content_type": "image/jpeg"
+    },
+    {
+      "file": "family.css",
+      "bytes": 9957,
+      "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
+      "content_type": "text/css"
+    },
+    {
+      "file": "family.js",
+      "bytes": 27605,
+      "sha256": "3f5a298e571f62da5b7f326833087888f1239b25bbebdea1eb17637ace3977da",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "index.html",
+      "bytes": 27584,
+      "sha256": "646c910d3af1c9d388c5c7ea2f170396c192d745919e8036a84aceb5e8fa1ca6",
+      "content_type": "text/html"
+    },
+    {
+      "file": "lab.css",
+      "bytes": 11007,
+      "sha256": "932ef7fb8a5b4d9c7d40d694a00f422829f234e98b41c41ca358f98a8bfdc96e",
+      "content_type": "text/css"
+    },
+    {
+      "file": "lab.js",
+      "bytes": 22511,
+      "sha256": "b8ab3bb3ba77eb09d591df414941b0a27971c387a48240953ef4f5135ac53e56",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "mark.svg",
+      "bytes": 2104,
+      "sha256": "63e032fccb0f221bbb5553925200b03f9857dbc850ba7c92f8e3d8ffe95c25f3",
+      "content_type": "image/svg+xml"
+    },
+    {
+      "file": "platforms.css",
+      "bytes": 24843,
+      "sha256": "998efbb826430b01ee350499d543a14c6c7a343015c4f79060f80b8c0fabdeb9",
+      "content_type": "text/css"
+    },
+    {
+      "file": "platforms.js",
+      "bytes": 34733,
+      "sha256": "1b5d92c45694025ce9d40e931d0a7fe22bcfa70505c32f65d1bce53a193a9c6b",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "prototype.css",
+      "bytes": 28061,
+      "sha256": "ac76c719e140dc918466004e9a0f10337a8bbc74b5d23aced43ea72aebd9a9a9",
+      "content_type": "text/css"
+    },
+    {
+      "file": "prototype.js",
+      "bytes": 18627,
+      "sha256": "ff97c2f658eea7ad4d29ed80b4a2cec38f39fbc827d8b2b4f5f677a488263e07",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "style.css",
+      "bytes": 16164,
+      "sha256": "94673232bc4a49f81178406070f65783256a5e58789891c768cb22970e250cc5",
+      "content_type": "text/css"
+    },
+    {
+      "file": "theme.css",
+      "bytes": 3330,
+      "sha256": "d4300b883c67445967af46da533eb8d24e7cb3ef2db26a86fdbaec48a8f33438",
+      "content_type": "text/css"
+    },
+    {
+      "file": "theme.js",
+      "bytes": 1715,
+      "sha256": "921ed8b8c15201b9033c579b663e231929f633ab3a37834dd5eb89e1f7959fdf",
+      "content_type": "text/javascript"
+    }
+  ]
+}
