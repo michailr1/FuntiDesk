@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      extra_port:
+        description: "Дополнительно проверить этот TCP-порт (для проверки самого мониторинга; пусто — нет)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -24,6 +29,7 @@ jobs:
     timeout-minutes: 5
     env:
       HOST: desk.funti.cc
+      EXTRA_PORT: ${{ github.event.inputs.extra_port }}
     steps:
       - name: Probe ports
         id: probe
@@ -32,7 +38,7 @@ jobs:
           # A failure counts only if it repeats three times in about a minute.
           probe() {
             local failed=""
-            for port in 21115 21116 21117; do
+            for port in 21115 21116 21117 $EXTRA_PORT; do
               timeout 8 bash -c "</dev/tcp/$HOST/$port" 2>/dev/null || failed="$failed tcp/$port"
             done
             curl -fsS --max-time 15 -o /dev/null "https://$HOST/" || failed="$failed https/443"
