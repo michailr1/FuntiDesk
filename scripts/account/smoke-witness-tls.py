@@ -79,20 +79,20 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
                "--user", f"{os.getuid()}:{os.getgid()}", "--security-opt", "no-new-privileges:true",
                "--tmpfs", f"/config:mode=0700,uid={os.getuid()},gid={os.getgid()}",
                "--tmpfs", f"/data:mode=0700,uid={os.getuid()},gid={os.getgid()}",
-               "-p", "127.0.0.1::8446", "-v", str(tls) + ":/certs:ro",
+               "-p", "127.0.0.1::8447", "-v", str(tls) + ":/certs:ro",
                "-v", str(root / "infra/funtidesk-account/Caddyfile.witness.proposed") + ":/etc/caddy/Caddyfile:ro", caddy_image)
         docker("network", "connect", prefix, caddy)
         for _ in range(20):
             inspected=json.loads(docker("inspect", caddy))[0]
             ports=inspected["NetworkSettings"]["Ports"]
-            if ports.get("8446/tcp") or not inspected["State"]["Running"]:break
+            if ports.get("8447/tcp") or not inspected["State"]["Running"]:break
             time.sleep(0.1)
-        if not ports.get("8446/tcp"):
+        if not ports.get("8447/tcp"):
             raise RuntimeError("Witness TLS port unavailable; status=" + str(inspected["State"]["Status"]) + "; error=" + str(inspected["State"]["Error"]) + "; " + docker("logs", caddy)[-1500:])
-        port = int(ports["8446/tcp"][0]["HostPort"])
+        port = int(ports["8447/tcp"][0]["HostPort"])
         def request(path, payload):
             body=compact(payload).encode()
-            raw=(f"POST {path} HTTP/1.1\r\nHost: de.funti.cc:8446\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n").encode()+body
+            raw=(f"POST {path} HTTP/1.1\r\nHost: de.funti.cc:8447\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n").encode()+body
             client=prefix+"-client"
             try:
                 result=subprocess.run(["docker","run","--rm","--name",client,"-i","--network","host","--entrypoint","openssl",
