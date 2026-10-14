@@ -273,6 +273,9 @@ impl RendezvousMediator {
 
     pub async fn start_all() {
         crate::test_nat_type();
+        // FUNTIDESK: re-test the NAT after a network change.
+        #[cfg(target_os = "windows")]
+        crate::funti_network::start_monitor();
         if config::is_outgoing_only() {
             loop {
                 sleep(1.).await;

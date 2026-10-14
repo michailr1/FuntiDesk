@@ -667,10 +667,13 @@ pub fn test_nat_type() {
     use std::sync::atomic::{AtomicBool, Ordering};
     std::thread::spawn(move || {
         static IS_RUNNING: AtomicBool = AtomicBool::new(false);
-        if IS_RUNNING.load(Ordering::SeqCst) {
+        // FUNTIDESK: the network monitor also starts tests; one at a time.
+        if IS_RUNNING
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return;
         }
-        IS_RUNNING.store(true, Ordering::SeqCst);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         crate::ipc::get_socks_ws();
@@ -757,8 +760,12 @@ async fn test_nat_type_() -> ResultType<bool> {
         } else {
             NatType::SYMMETRIC
         };
+        #[cfg(target_os = "windows")]
+        let old_nat_type = Config::get_nat_type();
         Config::set_nat_type(t as _);
         log::info!("Tested nat type: {:?} in {:?}", t, start.elapsed());
+        #[cfg(target_os = "windows")]
+        crate::funti_network::on_tested(old_nat_type, t as i32);
     }
     Ok(ok)
 }

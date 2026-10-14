@@ -36,6 +36,9 @@ pub mod funti_ring;
 /// FUNTIDESK (ADR-007): update from the FuntiDesk release.
 #[cfg(windows)]
 pub mod funti_update;
+// FUNTIDESK: re-test the NAT after a network change (former MIK-16).
+#[cfg(windows)]
+mod funti_network;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(
