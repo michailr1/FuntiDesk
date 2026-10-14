@@ -1,0 +1,8 @@
+# Checked musl hbbs/hbbr with the opt-in private account resolver.
+FROM scratch
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/michailr1/FuntiDesk" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"
+COPY hbbs hbbr /usr/bin/
+COPY LICENCE /licenses/AGPL-3.0.txt
+WORKDIR /root
