@@ -1,6 +1,6 @@
 --- Caddyfile
 +++ Caddyfile
-@@ -1,10 +1,27 @@
+@@ -23,10 +23,27 @@
 +# Replace only the desk.funti.cc block after approval; other blocks stay intact.
  desk.funti.cc {
 -    root * /usr/share/caddy
