@@ -1,0 +1,14 @@
+# Merge with /opt/remnawave/caddy/docker-compose.yml, project caddy.
+services:
+  caddy:
+    networks:
+      remnawave-network: {}
+      funtidesk-account-front:
+        ipv4_address: ${FUNTI_ACCOUNT_CADDY_IP:-172.31.251.4}
+networks:
+  remnawave-network:
+    external: true
+    name: remnawave-network
+  funtidesk-account-front:
+    external: true
+    name: ${FUNTI_ACCOUNT_FRONT_NETWORK:-funtidesk-account-front}

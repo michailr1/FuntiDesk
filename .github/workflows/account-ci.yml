@@ -7,12 +7,16 @@ on:
       - 'client/src/funti_account_protocol.rs'
       - '.github/workflows/account-ci.yml'
       - 'server/src/funti_account_identity.rs'
+      - 'infra/funtidesk-account/**'
+      - 'scripts/account/**'
   push:
     paths:
       - 'account/**'
       - 'client/src/funti_account_protocol.rs'
       - '.github/workflows/account-ci.yml'
       - 'server/src/funti_account_identity.rs'
+      - 'infra/funtidesk-account/**'
+      - 'scripts/account/**'
   workflow_dispatch:
 
 permissions:
@@ -56,11 +60,56 @@ jobs:
           cargo build --manifest-path account/Cargo.toml --release --locked --target x86_64-unknown-linux-musl
           mkdir -p account-dist
           cp account/target/x86_64-unknown-linux-musl/release/funtidesk-account account-dist/
+          cp client/LICENCE account-dist/LICENCE
           cd account-dist
-          sha256sum funtidesk-account > SHA256SUMS
+          sha256sum funtidesk-account LICENCE > SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: funtidesk-account-${{ github.sha }}
           path: account-dist/
+          retention-days: 14
+          if-no-files-found: error
+
+  account-infra:
+    needs: account
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: funtidesk-account-${{ github.sha }}
+          path: account-dist/
+      - name: Build own account and SMTP images
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          (cd account-dist && sha256sum --check SHA256SUMS)
+          docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile -t funtidesk-account:ci account-dist
+          docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile.mail -t funtidesk-account-mail:ci infra/funtidesk-account
+      - name: Check Compose isolation and proposed Caddy block
+        run: python3 scripts/account/check-config.py
+      - name: Test real queued mail, authentication and SMTP refusal
+        env:
+          FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
+          FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
+        run: python3 scripts/account/smoke-mail.py
+      - name: Package checked images and provenance
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p account-infra-dist
+          printf '%s\n' "$SOURCE_REVISION" > account-infra-dist/SOURCE_REVISION
+          docker image inspect funtidesk-account:ci funtidesk-account-mail:ci > account-infra-dist/IMAGES.json
+          docker run --rm --network none --entrypoint cat funtidesk-account-mail:ci /usr/share/funtidesk-mail/package-versions.txt > account-infra-dist/MAIL_PACKAGES.txt
+          cp account-dist/SHA256SUMS account-infra-dist/API_SHA256SUMS
+          docker save funtidesk-account:ci funtidesk-account-mail:ci | gzip -n > account-infra-dist/account-images.tar.gz
+          (cd account-infra-dist && sha256sum SOURCE_REVISION IMAGES.json MAIL_PACKAGES.txt API_SHA256SUMS account-images.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: funtidesk-account-infra-${{ github.sha }}
+          path: account-infra-dist/
           retention-days: 14
           if-no-files-found: error

@@ -1,0 +1,8 @@
+# Merge only with the existing FuntiDesk server Compose project after approval.
+services:
+  hbbs:
+    environment:
+      FUNTI_ACCOUNT_IDENTITY_SOCKET: /run/funtidesk-identity/hbbs.sock
+      FUNTI_ACCOUNT_IDENTITY_GID: '10001'
+    volumes:
+      - ${FUNTI_ACCOUNT_IDENTITY_DIR:-/opt/funtidesk-account/identity}:/run/funtidesk-identity

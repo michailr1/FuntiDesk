@@ -1,0 +1,15 @@
+FROM debian@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/michailr1/FuntiDesk" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"
+RUN apt-get update -qq && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      postfix=3.7.11-0+deb12u1 opendkim=2.11.0~beta2-8+deb12u1 \
+      opendkim-tools=2.11.0~beta2-8+deb12u1 ca-certificates=20250419~deb12u1 && \
+    rm -rf /var/lib/apt/lists/* && \
+    usermod -a -G opendkim postfix && \
+    mkdir -p /usr/share/funtidesk-mail && \
+    cp -a /etc/postfix /usr/share/funtidesk-mail/postfix && \
+    dpkg-query -W > /usr/share/funtidesk-mail/package-versions.txt
+COPY --chmod=0555 mail-entrypoint.sh /usr/local/bin/funtidesk-mail
+ENTRYPOINT ["/usr/local/bin/funtidesk-mail"]
