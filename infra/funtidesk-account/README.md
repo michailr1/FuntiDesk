@@ -35,7 +35,7 @@ Core-переходник не имеет volumes/секретов: он пер�
 
 ## Артефакты и секреты
 
-Образ сервера `funtidesk-account-server:ci` содержит hbbs/hbbr с opt-in resolver из того же commit, собственный source label и AGPL. `hbbs-registry` теперь не только проверяет модуль, но и собирает настоящие статические server binaries; CI не публикует серверный релиз. Проверенный образ используют для обоих hbbs/hbbr через существующую переменную `FUNTIDESK_IMAGE` server Compose (точное имя сверяют перед применением), не меняя identity/data volumes. Прежний production image без resolver для кабинета не подходит.
+Образ сервера `funtidesk-account-server:ci` содержит hbbs/hbbr с opt-in resolver из того же commit, собственный source label и AGPL. `hbbs-registry` теперь не только проверяет модуль, но и собирает настоящие статические server binaries; CI не публикует серверный релиз. Это проверочная поставка; рабочее обновление hbbs/hbbr выполняется после разрешения штатным путём `Server build` → `server-release.env` (`FUNTIDESK_SERVER_RELEASE`) → `scripts/server/deploy.sh`, с сохранением identity/data volumes. Новая проверка не заменяет согласованный серверный выпуск. Прежний production image без resolver для кабинета не подходит.
 
 Account image содержит статический musl binary из успешного `Account checks` и текст AGPL из `client/LICENCE`, проверенные по SHA256SUMS и связанному commit/run. Dockerfile не включает исходники, mail credentials или hbbs данные; source URL и revision доступны в OCI labels. Build context создаётся вне репозитория из этого артефакта. Mail image фиксирует Debian digest; установленные версии Postfix/OpenDKIM и итоговый image digest сохраняют в manifest поставки. Пакетные лицензии Debian сохраняются внутри mail image.
 

@@ -16,6 +16,8 @@ root = Path(__file__).resolve().parents[2]
 prefix = "funti-witness-tls-check-" + uuid.uuid4().hex[:10]
 containers = []
 network_created = False
+REQUEST_DOMAIN = "witness-request-v1"
+RESPONSE_DOMAIN = "witness-response-v1"
 ingress_created = False
 
 
@@ -115,7 +117,7 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
 
         nonce = os.urandom(32).hex()
         frame = {"nonce": nonce, "namespace": namespace, "operation": "Head"}
-        frame["mac"] = tag(key, "witness-request-v1", compact([nonce, namespace, "Head"]))
+        frame["mac"] = tag(key, REQUEST_DOMAIN, compact([nonce, namespace, "Head"]))
         last_error = "no request"
         deadline=time.monotonic()+20
         while time.monotonic()<deadline:
@@ -131,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
             raise RuntimeError("Witness HTTPS startup failed: " + last_error + "; Caddy " + docker("logs", caddy)[-1000:] + "; witness " + docker("logs", witness)[-500:])
         reply = json.loads(raw)
         assert reply["nonce"] == nonce and cache == "no-store"
-        assert hmac.compare_digest(reply["mac"], tag(key, "witness-response-v1", compact([nonce, reply["reply"]])))
+        assert hmac.compare_digest(reply["mac"], tag(key, RESPONSE_DOMAIN, compact([nonce, reply["reply"]])))
         assert reply["reply"]["Head"] == {"namespace": namespace, "revision": 0, "event_highwater": 0, "digest": ""}
         frame["mac"] = "00" * 32
         assert request("/v1/witness", frame)[0] == 401, "unsigned witness access accepted"
