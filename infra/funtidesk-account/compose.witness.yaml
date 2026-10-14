@@ -29,6 +29,11 @@ services:
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
+    # Official Caddy binary requests this file capability even on port 8446.
+    cap_add: [NET_BIND_SERVICE]
+    environment:
+      NO_PROXY: funtidesk-account-witness,127.0.0.1,localhost
+      no_proxy: funtidesk-account-witness,127.0.0.1,localhost
     security_opt: [no-new-privileges:true]
     mem_limit: 128m
     pids_limit: 32
@@ -42,6 +47,7 @@ services:
       - /config:mode=0700
     networks:
       witness: {}
+      ingress: {}
 
 networks:
   witness:
@@ -49,3 +55,7 @@ networks:
     ipam:
       config:
         - subnet: ${FUNTI_WITNESS_SUBNET:-172.31.253.0/29}
+  ingress:
+    ipam:
+      config:
+        - subnet: ${FUNTI_WITNESS_INGRESS_SUBNET:-172.31.254.0/29}

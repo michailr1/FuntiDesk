@@ -27,14 +27,31 @@ concurrency:
 jobs:
   hbbs-registry:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: 1.90.0
+          targets: x86_64-unknown-linux-musl
       - name: Test private resolver and existing rendezvous behavior
         run: cargo test --manifest-path server/Cargo.toml --locked --test account_identity --test tcp_signaling
+      - name: Build actual server binaries with private account resolver
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo build --manifest-path server/Cargo.toml --release --locked --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr
+          mkdir -p account-server-dist
+          cp server/target/x86_64-unknown-linux-musl/release/hbbs server/target/x86_64-unknown-linux-musl/release/hbbr account-server-dist/
+          cp client/LICENCE account-server-dist/LICENCE
+          (cd account-server-dist && sha256sum hbbs hbbr LICENCE > SHA256SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: funtidesk-account-server-${{ github.sha }}
+          path: account-server-dist/
+          retention-days: 14
+          if-no-files-found: error
   account:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -69,7 +86,7 @@ jobs:
           if-no-files-found: error
 
   account-infra:
-    needs: account
+    needs: [account, hbbs-registry]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -78,14 +95,20 @@ jobs:
         with:
           name: funtidesk-account-${{ github.sha }}
           path: account-dist/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: funtidesk-account-server-${{ github.sha }}
+          path: account-server-dist/
       - name: Build own account and SMTP images
         env:
           SOURCE_REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
           (cd account-dist && sha256sum --check SHA256SUMS)
+          (cd account-server-dist && sha256sum --check SHA256SUMS)
           docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile -t funtidesk-account:ci account-dist
           docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile.mail -t funtidesk-account-mail:ci infra/funtidesk-account
+          docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile.server -t funtidesk-account-server:ci account-server-dist
       - name: Check Compose isolation and proposed Caddy block
         run: python3 scripts/account/check-config.py
       - name: Test real queued mail, authentication and SMTP refusal
@@ -93,6 +116,11 @@ jobs:
           FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
           FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
         run: python3 scripts/account/smoke-mail.py
+      - name: Test independent witness through real HTTPS Caddy
+        env:
+          FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
+          FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
+        run: python3 scripts/account/smoke-witness-tls.py
       - name: Package checked images and provenance
         env:
           SOURCE_REVISION: ${{ github.sha }}
@@ -100,11 +128,12 @@ jobs:
           set -euo pipefail
           mkdir -p account-infra-dist
           printf '%s\n' "$SOURCE_REVISION" > account-infra-dist/SOURCE_REVISION
-          docker image inspect funtidesk-account:ci funtidesk-account-mail:ci > account-infra-dist/IMAGES.json
+          docker image inspect funtidesk-account:ci funtidesk-account-mail:ci funtidesk-account-server:ci > account-infra-dist/IMAGES.json
           docker run --rm --network none --entrypoint cat funtidesk-account-mail:ci /usr/share/funtidesk-mail/package-versions.txt > account-infra-dist/MAIL_PACKAGES.txt
           cp account-dist/SHA256SUMS account-infra-dist/API_SHA256SUMS
-          docker save funtidesk-account:ci funtidesk-account-mail:ci | gzip -n > account-infra-dist/account-images.tar.gz
-          (cd account-infra-dist && sha256sum SOURCE_REVISION IMAGES.json MAIL_PACKAGES.txt API_SHA256SUMS account-images.tar.gz > SHA256SUMS)
+          cp account-server-dist/SHA256SUMS account-infra-dist/SERVER_SHA256SUMS
+          docker save funtidesk-account:ci funtidesk-account-mail:ci funtidesk-account-server:ci | gzip -n > account-infra-dist/account-images.tar.gz
+          (cd account-infra-dist && sha256sum SOURCE_REVISION IMAGES.json MAIL_PACKAGES.txt API_SHA256SUMS SERVER_SHA256SUMS account-images.tar.gz > SHA256SUMS)
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: funtidesk-account-infra-${{ github.sha }}

@@ -68,6 +68,9 @@ witness = json.loads(run("docker", "compose", "--env-file", str(infra / ".env.wi
 assert not witness["services"]["witness"].get("ports")
 assert set(witness["services"]["witness"]["networks"]) == {"witness"}
 assert witness["networks"]["witness"]["internal"]
+assert set(witness["services"]["caddy"]["networks"]) == {"witness", "ingress"}
+assert not witness["networks"]["ingress"].get("internal")
+assert witness["services"]["caddy"]["cap_add"] == ["NET_BIND_SERVICE"]
 assert witness["services"]["caddy"]["ports"][0]["published"] == "8446"
 assert set(witness["services"]["witness"]["environment"]).isdisjoint({"FUNTI_ACCOUNT_KEY_FILE", "FUNTI_ACCOUNT_DATABASE"})
 with tempfile.TemporaryDirectory(prefix="funtidesk-witness-tls-check-") as temporary:

@@ -27,17 +27,19 @@
 
 ## Независимое состояние на DE
 
-`compose.witness.yaml` — отдельный Compose-проект на `de.funti.cc`: тот же проверенный account binary в режиме `witness`, UID/GID `10002`, свой каталог `/opt/funtidesk-account-witness`; основной account-ключ и база туда не монтируются. Caddy выдаёт только HTTPS `de.funti.cc:8446/v1/witness`, остальные пути — 404. Это отдельный сервис; действующий MCP на 8445 не используется для хранения данных кабинета.
+`compose.witness.yaml` — отдельный Compose-проект на `de.funti.cc`: тот же проверенный account binary в режиме `witness`, UID/GID `10002`, свой каталог `/opt/funtidesk-account-witness`; основной account-ключ и база туда не монтируются. Caddy имеет отдельную входную сеть, а witness остаётся только во внутренней. У официального Caddy binary есть file capability; ему явно оставлен только `NET_BIND_SERVICE`. `NO_PROXY` исключает унаследованный proxy для внутреннего witness. Эти свойства проверены настоящим HTTPS-запросом, а не только адаптацией конфига. Caddy выдаёт только HTTPS `de.funti.cc:8446/v1/witness`, остальные пути — 404. Это отдельный сервис; действующий MCP на 8445 не используется для хранения данных кабинета.
 
-TLS-конфигурация использует сертификат/ключ из отдельного закрытого каталога с `fullchain.pem` и `privkey.pem`. Файлы до применения проверяет оператор; автоматическое получение и продление здесь не настроены. На DE ещё не проверены занятость 8446, доступность TLS и пересечения предлагаемого subnet `172.31.253.0/29`: MCP потребовал повторную OAuth-авторизацию. На основном сервере новая сеть переходника `172.31.252.0/29` также требует проверки перед запуском. Это не готовые production-значения.
+TLS-конфигурация использует сертификат/ключ из отдельного закрытого каталога с `fullchain.pem` и `privkey.pem`. Файлы до применения проверяет оператор; автоматическое получение и продление здесь не настроены. На DE ещё не проверены занятость 8446, доступность TLS и пересечения предлагаемого subnets `172.31.253.0/29` и `172.31.254.0/29`: MCP потребовал повторную OAuth-авторизацию. На основном сервере новая сеть переходника `172.31.252.0/29` также требует проверки перед запуском. Это не готовые production-значения.
 
 Core-переходник не имеет volumes/секретов: он передаёт только подписанное тело на закреплённый HTTPS-адрес, без cookies, редиректов и системного proxy. Инициализация обоих хранилищ выполняется явно и только один раз. Порядок и отказ при устаревшем состоянии — [ACCOUNT_RECOVERY.md](../../docs/ACCOUNT_RECOVERY.md), границы доверия — [ADR-011](../../docs/ADR-011-account-recovery.md).
 
 ## Артефакты и секреты
 
+Образ сервера `funtidesk-account-server:ci` содержит hbbs/hbbr с opt-in resolver из того же commit, собственный source label и AGPL. `hbbs-registry` теперь не только проверяет модуль, но и собирает настоящие статические server binaries; CI не публикует серверный релиз. Проверенный образ используют для обоих hbbs/hbbr через существующую переменную `FUNTIDESK_IMAGE` server Compose (точное имя сверяют перед применением), не меняя identity/data volumes. Прежний production image без resolver для кабинета не подходит.
+
 Account image содержит статический musl binary из успешного `Account checks` и текст AGPL из `client/LICENCE`, проверенные по SHA256SUMS и связанному commit/run. Dockerfile не включает исходники, mail credentials или hbbs данные; source URL и revision доступны в OCI labels. Build context создаётся вне репозитория из этого артефакта. Mail image фиксирует Debian digest; установленные версии Postfix/OpenDKIM и итоговый image digest сохраняют в manifest поставки. Пакетные лицензии Debian сохраняются внутри mail image.
 
-Job `account-infra` того же workflow берёт binary из текущего run, проверяет его SHA-256, собирает оба образа и запускает проверки ниже. Артефакт `funtidesk-account-infra-<commit>` содержит Docker archive, source SHA, image IDs, версии пакетов и SHA256SUMS; ни ключей, ни писем в нём нет. Workflow имеет только `contents: read`, не публикует релиз и ничего не развёртывает. Images загружают только из выбранного успешного run, проверив manifest; пример `.env` заменяют конкретными проверенными image IDs/тегами.
+Job `account-infra` того же workflow берёт binary из текущего run, проверяет его SHA-256, собирает три образа account/mail/server и запускает проверки ниже. Артефакт `funtidesk-account-infra-<commit>` содержит Docker archive трёх образов, source SHA, image IDs, manifests API/server binaries и версии пакетов и SHA256SUMS; ни ключей, ни писем в нём нет. Workflow имеет только `contents: read`, не публикует релиз и ничего не развёртывает. Images загружают только из выбранного успешного run, проверив manifest; пример `.env` заменяют конкретными проверенными image IDs/тегами.
 
 Локально проверки повторяются с уже собранными образами:
 
@@ -46,6 +48,9 @@ python3 scripts/account/check-config.py
 FUNTI_ACCOUNT_IMAGE=<проверенный-образ-API> \
 FUNTI_ACCOUNT_MAIL_IMAGE=<проверенный-образ-SMTP> \
 python3 scripts/account/smoke-mail.py
+FUNTI_ACCOUNT_IMAGE=<проверенный-образ-API> \
+FUNTI_ACCOUNT_MAIL_IMAGE=<проверенный-образ-SMTP> \
+python3 scripts/account/smoke-witness-tls.py
 ```
 
 Первая команда проверяет Compose и слияние Caddy override на минимальном fixture проверенных полей, затем валидирует предлагаемый desk-блок в закреплённом Caddy без сети. Это не проверка полного production Caddyfile. Вторая создаёт только временные контейнеры/тома/внутреннюю сеть, тестовые HMAC/DKIM keys, запрашивает код у настоящего API, читает подписанное письмо из изолированной очереди и открывает native session. Она запускает настоящий witness в отдельном тестовом томе, инициализирует основную базу явно и проверяет CLI restore: старый токен после восстановления недействителен. Она также проверяет отказ чужому sender и временный отказ после остановки DKIM, отсутствие секретов в stdout/stderr; SMTP наружу блокирован. Ресурсы удаляются в `finally`. Свободный test subnet по умолчанию `172.31.249.0/29` можно переопределить через `FUNTI_ACCOUNT_TEST_SUBNET`.
