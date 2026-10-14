@@ -58,8 +58,9 @@ jobs:
           cargo build --manifest-path account/Cargo.toml --release --locked --target x86_64-unknown-linux-musl
           mkdir -p account-dist
           cp account/target/x86_64-unknown-linux-musl/release/funtidesk-account account-dist/
+          cp client/LICENCE account-dist/LICENCE
           cd account-dist
-          sha256sum funtidesk-account > SHA256SUMS
+          sha256sum funtidesk-account LICENCE > SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: funtidesk-account-${{ github.sha }}

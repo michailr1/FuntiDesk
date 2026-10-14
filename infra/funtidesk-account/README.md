@@ -25,7 +25,7 @@
 
 ## Артефакты и секреты
 
-Account image содержит только статический musl binary из успешного `Account checks`, проверенный по SHA256SUMS и связанному commit/run. Dockerfile не включает исходники, mail credentials или hbbs данные. Build context создаётся вне репозитория из этого артефакта; Docker tag и label фиксируют source commit. Mail image фиксирует Debian digest; установленные версии Postfix/OpenDKIM и итоговый image digest сохраняют в manifest поставки.
+Account image содержит статический musl binary из успешного `Account checks` и текст AGPL из `client/LICENCE`, проверенные по SHA256SUMS и связанному commit/run. Dockerfile не включает исходники, mail credentials или hbbs данные; source URL и revision доступны в OCI labels. Build context создаётся вне репозитория из этого артефакта. Mail image фиксирует Debian digest; установленные версии Postfix/OpenDKIM и итоговый image digest сохраняют в manifest поставки. Пакетные лицензии Debian сохраняются внутри mail image.
 
 Job `account-infra` того же workflow берёт binary из текущего run, проверяет его SHA-256, собирает оба образа и запускает проверки ниже. Артефакт `funtidesk-account-infra-<commit>` содержит Docker archive, source SHA, image IDs, версии пакетов и SHA256SUMS; ни ключей, ни писем в нём нет. Workflow имеет только `contents: read`, не публикует релиз и ничего не развёртывает. Images загружают только из выбранного успешного run, проверив manifest; пример `.env` заменяют конкретными проверенными image IDs/тегами.
 
