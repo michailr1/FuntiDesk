@@ -20,9 +20,14 @@ def run(*arguments, data=None):
 account = json.loads(run("docker", "compose", "--env-file", str(infra / ".env.example"),
                          "-f", str(infra / "compose.yaml"), "config", "--format", "json"))
 assert all(not service.get("ports") for service in account["services"].values())
-assert set(account["services"]["account"]["networks"]) == {"frontend", "smtp"}
+assert set(account["services"]["account"]["networks"]) == {"frontend", "smtp", "witness"}
 assert set(account["services"]["mail"]["networks"]) == {"smtp", "outbound"}
 assert account["networks"]["frontend"]["internal"] and account["networks"]["smtp"]["internal"]
+assert account["networks"]["witness"]["internal"]
+relay = account["services"]["witness-relay"]
+assert set(relay["networks"]) == {"witness", "witness-outbound"}
+assert not relay.get("volumes") and relay["command"] == ["witness-relay"]
+assert account["services"]["account"]["environment"]["FUNTI_ACCOUNT_WITNESS_URL"] == "http://funtidesk-account-witness-relay:21801/v1/witness"
 assert account["services"]["account"]["environment"]["FUNTI_ACCOUNT_TRUSTED_PROXIES"] == "172.31.251.4"
 
 # Only the inspected Caddy service fields are reproduced; no VPN configuration or secrets.
@@ -58,4 +63,19 @@ adapted = json.loads(run("docker", "run", "--rm", "-i", "--network", "none", "--
                          caddy_image, "-c", "cat > /tmp/Caddyfile; caddy adapt --config /tmp/Caddyfile --adapter caddyfile --validate",
                          data=(infra / "Caddyfile.desk.proposed").read_text()))
 assert adapted["apps"]["http"]["servers"]
-print("ACCOUNT_COMPOSE_CADDY_CHECK_OK: private ports, isolated networks, existing mounts retained, proposed desk block valid")
+witness = json.loads(run("docker", "compose", "--env-file", str(infra / ".env.witness.example"),
+                        "-f", str(infra / "compose.witness.yaml"), "config", "--format", "json"))
+assert not witness["services"]["witness"].get("ports")
+assert set(witness["services"]["witness"]["networks"]) == {"witness"}
+assert witness["networks"]["witness"]["internal"]
+assert witness["services"]["caddy"]["ports"][0]["published"] == "8446"
+assert set(witness["services"]["witness"]["environment"]).isdisjoint({"FUNTI_ACCOUNT_KEY_FILE", "FUNTI_ACCOUNT_DATABASE"})
+with tempfile.TemporaryDirectory(prefix="funtidesk-witness-tls-check-") as temporary:
+    cert = pathlib.Path(temporary)
+    run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+        "-subj", "/CN=de.funti.cc", "-keyout", str(cert / "privkey.pem"), "-out", str(cert / "fullchain.pem"))
+    adapted = json.loads(run("docker", "run", "--rm", "-i", "--network", "none", "-v", str(cert) + ":/certs:ro", "--entrypoint", "sh",
+                             caddy_image, "-c", "cat > /tmp/Caddyfile; caddy adapt --config /tmp/Caddyfile --adapter caddyfile --validate",
+                             data=(infra / "Caddyfile.witness.proposed").read_text()))
+    assert adapted["apps"]["http"]["servers"]
+print("ACCOUNT_COMPOSE_CADDY_CHECK_OK: isolated API/mail/witness, relay without secrets, only witness TLS port, proposed Caddy blocks valid")

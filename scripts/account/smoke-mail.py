@@ -16,7 +16,8 @@ api_image = os.environ["FUNTI_ACCOUNT_IMAGE"]
 network = prefix
 mail = prefix + "-mail"
 api = prefix + "-api"
-volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-queue"]]
+witness = prefix + "-witness"
+volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-queue", "-witness"]]
 created_containers = []
 created_volumes = []
 network_created = False
@@ -65,15 +66,39 @@ try:
     network_created = True
     config = json.loads(docker("network", "inspect", network))[0]
     subnet = ipaddress.ip_network(config["IPAM"]["Config"][0]["Subnet"])
-    mail_ip, api_ip = str(subnet.network_address + 2), str(subnet.network_address + 3)
+    mail_ip, api_ip, witness_ip = [str(subnet.network_address + i) for i in [2, 3, 4]]
     for volume in volumes:
         docker("volume", "create", volume)
         created_volumes.append(volume)
     docker("run", "--rm", "--network", "none", "--entrypoint", "sh",
-           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", mail_image, "-c",
+           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", "-v", volumes[3] + ":/witness", mail_image, "-c",
            "umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /secrets/dkim.private 2>/dev/null; "
-           "openssl rand -hex 32 > /secrets/account.key; chown 10001:10001 /secrets/account.key /data; "
-           "chmod 0400 /secrets/account.key; chmod 0700 /data")
+           "openssl rand -hex 32 > /secrets/account.key; openssl rand -hex 32 > /secrets/witness.key; "
+           "chown 10001:10001 /secrets/account.key /secrets/witness.key /data /witness; "
+           "chmod 0400 /secrets/account.key /secrets/witness.key; chmod 0700 /data /witness")
+    witness_options = ["--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                       "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
+                       "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + "77" * 32,
+                       "-e", "FUNTI_WITNESS_DIRECTORY=/data/witness", "-e", "FUNTI_WITNESS_LISTEN=0.0.0.0:21802",
+                       "-v", volumes[0] + ":/secrets:ro", "-v", volumes[3] + ":/data"]
+    docker("run", "--rm", *witness_options, api_image, "witness-init")
+    created_containers.append(witness)
+    docker("run", "-d", "--name", witness, "--ip", witness_ip, "--network-alias", "funtidesk-account-witness-relay", *witness_options, api_image, "witness")
+    account_options = ["--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                       "-e", "FUNTI_ACCOUNT_LISTEN=0.0.0.0:21800", "-e", "FUNTI_ACCOUNT_DATABASE=/data/account.sqlite3",
+                       "-e", "FUNTI_ACCOUNT_KEY_FILE=/secrets/account.key", "-e", "FUNTI_ACCOUNT_SMTP_HOST=" + mail_ip,
+                       "-e", "FUNTI_ACCOUNT_SMTP_PORT=2525", "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
+                       "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + "77" * 32,
+                       "-e", "FUNTI_ACCOUNT_WITNESS_URL=http://funtidesk-account-witness-relay:21802/v1/witness",
+                       "-v", volumes[0] + ":/secrets:ro", "-v", volumes[1] + ":/data"]
+    for _ in range(60):
+        try:
+            docker("run", "--rm", *account_options, api_image, "initialize")
+            break
+        except RuntimeError:
+            time.sleep(0.25)
+    else:
+        raise RuntimeError("Independent state initialization failed")
     options = ["--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true"]
     for capability in ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "KILL"]:
         options += ["--cap-add", capability]
@@ -91,12 +116,7 @@ try:
         raise RuntimeError("SMTP startup failed")
     docker("exec", mail, "sh", "-c", "postconf -e defer_transports=smtp; postfix reload")
     created_containers.append(api)
-    docker("run", "-d", "--name", api, "--network", network, "--ip", api_ip,
-           "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-           "-e", "FUNTI_ACCOUNT_LISTEN=0.0.0.0:21800", "-e", "FUNTI_ACCOUNT_DATABASE=/data/account.sqlite3",
-           "-e", "FUNTI_ACCOUNT_KEY_FILE=/secrets/account.key", "-e", "FUNTI_ACCOUNT_SMTP_HOST=" + mail_ip,
-           "-e", "FUNTI_ACCOUNT_SMTP_PORT=2525", "-v", volumes[0] + ":/secrets:ro",
-           "-v", volumes[1] + ":/data", api_image)
+    docker("run", "-d", "--name", api, "--ip", api_ip, *account_options, api_image)
 
     def request(path, body=None, extra=None):
         headers = {"X-Funti-Client": "native", **(extra or {})}
@@ -146,6 +166,21 @@ try:
     token = json.loads(verified["body"])["token"]
     session = request(base + "/session", extra={"Authorization": "Bearer " + token})
     assert session["status"] == 200, "native session does not work"
+    docker("stop", api)
+    restored_options = account_options + ["-e", "FUNTI_ACCOUNT_DATABASE=/data/restored.sqlite3"]
+    receipt = docker("run", "--rm", *restored_options, api_image, "restore")
+    assert "ACCOUNT_RECOVERED" in receipt and "event_highwater=1" in receipt
+    docker("rm", api)
+    docker("run", "-d", "--name", api, "--ip", api_ip, *restored_options, api_image)
+    for _ in range(60):
+        try:
+            session = request(base + "/session", extra={"Authorization": "Bearer " + token})
+            assert session["status"] == 401, "old session survived actual CLI restore"
+            break
+        except RuntimeError:
+            time.sleep(0.25)
+    else:
+        raise RuntimeError("Restored API startup failed")
     refused = int(docker("exec", mail, "perl", "-e", smtp, mail_ip, "other@funti.cc"))
     assert 500 <= refused < 600, "unapproved sender was accepted"
     docker("exec", mail, "perl", "-e",
@@ -157,7 +192,7 @@ try:
         assert all(value not in logs for value in ["person@example.invalid", code, token, challenge, context]), "secret leaked to logs"
     assert docker("exec", mail, "postconf", "-h", "maillog_file") == "/dev/null"
     assert docker("exec", mail, "postconf", "-h", "inet_interfaces") == mail_ip
-    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private network, real queued code, native session, sender restriction, DKIM failure refused, log privacy")
+    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private network, real queued code, independent encrypted state, CLI restore invalidates session, sender/DKIM refusal, log privacy")
 finally:
     for container in reversed(created_containers):
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)
