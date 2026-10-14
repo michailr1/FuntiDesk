@@ -667,4 +667,56 @@ mod tests {
         fs::remove_file(dir.path().join("1.sealed")).unwrap();
         assert!(WitnessStore::open(dir.path(), KEY).is_err());
     }
+
+    #[tokio::test]
+    async fn fresh_head_rejects_replayed_or_forged_responses_and_untrusted_plaintext_transport() {
+        use std::sync::atomic::{AtomicU8, Ordering};
+        let mode = Arc::new(AtomicU8::new(0));
+        let endpoint = Router::new()
+            .route(
+                "/v1/witness",
+                post(
+                    |State(mode): State<Arc<AtomicU8>>, Json(request): Json<Request>| async move {
+                        let nonce = if mode.load(Ordering::SeqCst) == 0 {
+                            "00".repeat(32)
+                        } else {
+                            request.nonce
+                        };
+                        let reply = Reply::Head(Head::empty("33".repeat(32)).unwrap());
+                        let signed = serde_json::to_string(&(&nonce, &reply)).unwrap();
+                        let mac = if mode.load(Ordering::SeqCst) == 1 {
+                            "00".repeat(32)
+                        } else {
+                            crypto::tag(&KEY, "witness-response-v1", &[&signed])
+                        };
+                        Json(Response { nonce, reply, mac })
+                    },
+                ),
+            )
+            .with_state(mode.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1/witness", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            axum::serve(listener, endpoint).await.unwrap();
+        });
+        let client = Client::new(url, "33".repeat(32), KEY).unwrap();
+        assert!(client.head().await.is_err());
+        mode.store(1, Ordering::SeqCst);
+        assert!(client.head().await.is_err());
+        mode.store(2, Ordering::SeqCst);
+        assert!(client.head().await.unwrap() == Head::empty("33".repeat(32)).unwrap());
+        assert!(Client::new(
+            "http://untrusted.example.invalid/v1/witness".into(),
+            "33".repeat(32),
+            KEY
+        )
+        .is_err());
+        assert!(Client::new(
+            "https://de.funti.cc:8446/v1/witness?key=hidden".into(),
+            "33".repeat(32),
+            KEY
+        )
+        .is_err());
+        task.abort();
+    }
 }
