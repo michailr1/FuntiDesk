@@ -5,11 +5,12 @@ use crate::{
 use anyhow::{bail, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
-use std::{path::Path, time::Duration};
+use std::{fs::File, path::Path, time::Duration};
 
 pub struct Store {
     pub(crate) db: Connection,
     pub(crate) key: [u8; 32],
+    _file_lock: Option<File>,
 }
 
 #[derive(Clone)]
@@ -38,6 +39,15 @@ pub enum SessionRequest<'a> {
 
 impl Store {
     pub fn open(path: &Path, key: [u8; 32]) -> Result<Self> {
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).truncate(false).read(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let lock = options.open(path.with_extension("lock"))?;
+        fs2::FileExt::try_lock_exclusive(&lock)?;
         #[cfg(unix)]
         {
             use std::{
@@ -53,7 +63,9 @@ impl Store {
                 .open(path)?;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
         }
-        Self::from_connection(Connection::open(path)?, key)
+        let mut store = Self::from_connection(Connection::open(path)?, key)?;
+        store._file_lock = Some(lock);
+        Ok(store)
     }
 
     pub fn memory(key: [u8; 32]) -> Result<Self> {
@@ -66,11 +78,16 @@ impl Store {
             "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;",
         )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 1 {
+        if version > 2 {
             bail!("unsupported database version");
         }
         db.execute_batch(include_str!("schema.sql"))?;
-        Ok(Self { db, key })
+        db.execute_batch(include_str!("schema-recovery.sql"))?;
+        Ok(Self {
+            db,
+            key,
+            _file_lock: None,
+        })
     }
 
     pub fn begin_login(
