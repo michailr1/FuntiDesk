@@ -126,6 +126,18 @@ impl Recovery {
             key,
         });
         recovery.finish_pending(app.store.clone()).await?;
+        // Startup cannot prove freshness of non-mirrored, short-lived proofs.
+        // Keep legitimate sessions and rate limits, but never revive an old code/nonce.
+        let startup = app.store.clone();
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            startup
+                .lock()
+                .map_err(|_| anyhow::anyhow!("store lock failed"))?
+                .db
+                .execute_batch("BEGIN; DELETE FROM challenges; DELETE FROM nonces; COMMIT;")?;
+            Ok(())
+        })
+        .await??;
         app.recovery = Some(recovery);
         Ok(app)
     }
@@ -557,6 +569,65 @@ mod tests {
                 let (new_auth, _) = login(s, &crypto::token(), NOW + 61)?;
                 assert_eq!(new_auth.account, auth.account);
                 assert!(s.event_highwater()? > event);
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+    #[tokio::test]
+    async fn logout_advances_independent_head_and_startup_never_revives_short_lived_proofs() {
+        let f = Fixture::new().await;
+        let path = f.dir.path().join("primary.sqlite3");
+        let app = f.app(&path, "recovery", true).await.unwrap();
+        let (auth, token, source, _, _) = setup(&app).await;
+        let old = f.dir.path().join("before-logout.sqlite3");
+        let copy = old.clone();
+        app.db(move |s| s.backup_file(&copy)).await.unwrap();
+        let before = f.client.head().await.unwrap();
+        app.db(move |s| s.logout(&auth, true, NOW + 1))
+            .await
+            .unwrap();
+        let after = f.client.head().await.unwrap();
+        assert!(
+            after.revision > before.revision && after.event_highwater == before.event_highwater
+        );
+        assert!(f.app(&old, "stale-recovery", false).await.is_err());
+        let legitimate = app
+            .db(move |s| {
+                let (_, legitimate) = login(s, &crypto::token(), NOW + 61)?;
+                s.begin_login(
+                    "other@example.invalid",
+                    &crypto::token(),
+                    "192.0.2.2",
+                    "654321",
+                    NOW + 62,
+                )?
+                .unwrap();
+                let payload = SyncPayload { after: 0 };
+                s.source_nonce(
+                    &source,
+                    "sync",
+                    &payload_hash(&payload)?,
+                    None,
+                    "192.0.2.1",
+                    NOW + 62,
+                )?
+                .unwrap();
+                Ok(legitimate)
+            })
+            .await
+            .unwrap();
+        drop(app);
+        let restarted = f.app(&path, "recovery", false).await.unwrap();
+        restarted
+            .db(move |s| {
+                assert!(s.authenticate(&token, false, NOW + 63)?.is_none());
+                assert!(s.authenticate(&legitimate, false, NOW + 63)?.is_some());
+                for table in ["challenges", "nonces"] {
+                    let count: i64 =
+                        s.db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?;
+                    assert_eq!(count, 0);
+                }
                 Ok(())
             })
             .await
