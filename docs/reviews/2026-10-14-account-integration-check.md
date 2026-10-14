@@ -18,7 +18,7 @@ Chromium с этим binary прошёл `scripts/web/account-browser-test.mjs`:
 
 Артефакт `funtidesk-windows-x64-b66dbc75e7cba62cbfc966d5fbb8b8fc105b88d2`, ID `11912822882`, размер 34 563 959 байт. ZIP SHA-256 `8168fa3c7b2b97956f9369d78df9500fa8642ed90fb6557c1fef67ae76e545c7` проверен после скачивания через подключённый GitHub; все **91 файл** собственного `SHA256SUMS.txt` совпали.
 
-`git diff b66dbc75e7cba62cbfc966d5fbb8b8fc105b88d2 9ee56c273953dfade9e5586357086b83d181d541 -- client scripts/windows .github/workflows/r21-windows-clean-build.yml` пуст: клиент, инструменты и workflow этой сборки соответствуют общей ветке. Это подтверждение сборки/storage, а не проверки установленных служб, portable и реальных сеансов.
+`git diff b66dbc75e7cba62cbfc966d5fbb8b8fc105b88d2 790973891fa918cc82059c2c7560c56670491124 -- client scripts/windows .github/workflows/r21-windows-clean-build.yml` пуст: клиент, инструменты и workflow этой сборки соответствуют общей ветке. Это подтверждение сборки/storage, а не проверки установленных служб, portable и реальных сеансов.
 
 ## Чтение Core и DE через MCP
 
@@ -34,6 +34,24 @@ Compose/Caddy и настоящий локальный HTTPS smoke с новым
 
 ## CI и предел результата
 
-Итоговый `Account checks` собирает actual musl API и hbbs/hbbr, проверяет приватный resolver, Compose/Caddy, настоящий Postfix/OpenDKIM, CLI restore и HTTPS witness, затем сохраняет три образа с source/image/package manifests, AGPL и SHA-256. `FuntiDesk CI` проверяет серверные сценарии и ограничения безопасности. Точные выбранные успешные runs, исходный SHA и manifests итоговой поставки фиксируются в PR #43 перед разрешением запуска; старые API/infra-артефакты не используют для новой схемы. Проверочные workflows не публикуют release и не выполняют deploy.
+На исходном `790973891fa918cc82059c2c7560c56670491124` успешно завершились [Account checks 38605577237](https://github.com/michailr1/FuntiDesk/actions/runs/38605577237) и [FuntiDesk CI 38605577240](https://github.com/michailr1/FuntiDesk/actions/runs/38605577240). Первый workflow собрал настоящие musl API и hbbs/hbbr, проверил приватный resolver, Compose/Caddy, Postfix/OpenDKIM, CLI restore и HTTPS witness, затем сохранил три образа с source/image/package manifests, AGPL и SHA-256. Проверочные workflows не публикуют release и не выполняют deploy.
+
+Для пакета выбран именно push-run с исходным SHA ветки: отдельный успешный PR-run использует синтетический merge SHA и здесь не подменяет источник артефактов. Все три ZIP скачаны через подключённый GitHub; внешние digest и внутренние manifests совпали:
+
+| Артефакт | GitHub ID | ZIP SHA-256 |
+|---|---|---|
+| Account API | `11914604848` | `a7d87f17c41ed11a4cd7208fe6332eb66c285dc04fcb107b122288fc98403f54` |
+| hbbs/hbbr | `11915513905` | `269410365dc96c328739aa4bbaef854a7c2586e94a44ad9b3bbfcfec83793845` |
+| Три образа и manifests | `11915950598` | `bab6cecc7fa159c7635df384a34d2128591edea22d7af2369a6ddf599387d6e6` |
+
+Проверен `SOURCE_REVISION`, digest конфигурации каждого образа внутри Docker archive и совпадение API/server binary manifests с отдельными ELF-артефактами. Архив образов — 71 067 789 байт. Закреплённые image IDs:
+
+| Образ | Image ID |
+|---|---|
+| Account API | `sha256:f05b4a82a953467551128d63ffbfbc601cb7dfa81823eed161f4154fea6bf109` |
+| SMTP | `sha256:8623c42a7a264dcfcaba0768103116b7fbe3b0ac48ec5851f2de03152fa87f31` |
+| hbbs/hbbr | `sha256:e71f9a59ea4b9c2384a4d9d703df7deebee94176e54a1f6230b7ee0702fface5` |
+
+Это проверочные образы; рабочее обновление hbbs/hbbr после разрешения выполняют штатным серверным выпуском. Старые API/infra-артефакты для новой схемы не используют. Последующие изменения этого отчёта не меняют проверенный код и не требуют повторной Windows-сборки.
 
 До рабочего запуска нужны решения по ADR-010/011, хранению ключей и удалению/срокам аккаунта, TLS нового DE endpoint и DNS почты. До приёмки — входящие Gmail/Яндекса/Mail.ru, две реальные Windows-службы и portable, offline/restart/rollback/replay и сетевой захват. Уже открытый семейный сеанс сейчас не закрывается автоматически при удалении; предлагаемое изменение этого поведения требует отдельного решения ADR-010. Merge, выпуск и изменения серверов выполняются только после согласия владельца по [передаче](2026-10-13-handoff-account.md).
