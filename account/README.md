@@ -6,16 +6,29 @@
 
 Нужны Rust 1.90, отдельный persistent-каталог SQLite, секрет HMAC и собственный отправляющий SMTP. Пример ниже предназначен для отдельной тестовой среды; рабочий сервер им не изменяется.
 
+Для локального запуска нужны также независимый сервис и два разных ключа. Обычный запуск не создаёт пустую базу автоматически. Пример тестового окружения:
+
 ```sh
 umask 077
 mkdir -p /tmp/funtidesk-account-test
 openssl rand -hex 32 > /tmp/funtidesk-account-test/account.key
-FUNTI_ACCOUNT_KEY_FILE=/tmp/funtidesk-account-test/account.key \
-FUNTI_ACCOUNT_DATABASE=/tmp/funtidesk-account-test/account.sqlite3 \
-FUNTI_ACCOUNT_SMTP_HOST=127.0.0.1 \
-FUNTI_ACCOUNT_SMTP_PORT=2525 \
-cargo run --manifest-path account/Cargo.toml --locked
+openssl rand -hex 32 > /tmp/funtidesk-account-test/witness.key
+export FUNTI_ACCOUNT_KEY_FILE=/tmp/funtidesk-account-test/account.key
+export FUNTI_ACCOUNT_DATABASE=/tmp/funtidesk-account-test/account.sqlite3
+export FUNTI_ACCOUNT_WITNESS_KEY_FILE=/tmp/funtidesk-account-test/witness.key
+export FUNTI_ACCOUNT_WITNESS_NAMESPACE=$(openssl rand -hex 32)
+export FUNTI_WITNESS_DIRECTORY=/tmp/funtidesk-account-test/witness
+export FUNTI_ACCOUNT_WITNESS_URL=http://127.0.0.1:21802/v1/witness
+export FUNTI_ACCOUNT_SMTP_HOST=127.0.0.1
+export FUNTI_ACCOUNT_SMTP_PORT=2525
+cargo build --manifest-path account/Cargo.toml --locked
+account/target/debug/funtidesk-account witness-init
+account/target/debug/funtidesk-account witness &
+account/target/debug/funtidesk-account initialize
+account/target/debug/funtidesk-account
 ```
+
+После запуска witness нужно дождаться слушающего порта перед `initialize`. Подробный порядок, границы свежести и восстановление только последнего состояния — [ACCOUNT_RECOVERY.md](../docs/ACCOUNT_RECOVERY.md), проект архитектуры — [ADR-011](../docs/ADR-011-account-recovery.md). В production независимое состояние размещается на другой машине; локальный пример этого не доказывает.
 
 Секрет создаётся вне репозитория и хранится с правами `0600`. Нет встроенного секретного значения, SMTP-пароля, внешней отправки почты или запасного API. Без корректного файла ключа сервис не запускается. По умолчанию слушает `127.0.0.1:21800`; наружу API выдаётся только через HTTPS Caddy.
 
@@ -52,6 +65,8 @@ cargo run --manifest-path account/Cargo.toml --locked
 
 Копия загружается как `{name,version,members:[{id,name,pk}]}`. Поле `rights` и другие неизвестные поля не принимаются. Максимум 64 устройства аккаунта и 128 членов одной копии. Копии не преобразуются в локальное доверие.
 
+Выдача nonce ограничена 240 разрешёнными запросами в минуту с одного IP и 600 глобально. Это покрывает минутный sync/ack/family обмен 64 источников за одним NAT; отказ по локальному лимиту не расходует общий бюджет.
+
 Sync подписывает `{after:<локальный устойчивый курсор>}`, ack — `{events:[<номера>]}`. События хранятся независимо от подтверждений: восстановленный клиент с меньшим курсором может получить уже подтверждённое удаление. Новое привязанное устройство получает предыдущие удаления аккаунта. Служба применяет удаление и сохраняет отметку **до** продвижения курсора и ack. Серверный ack сам по себе не доказывает, что старая клиентская версия умеет менять локальную семью.
 
 Список `/family/removals` ограничен 4096 строками доставки. При `has_more: true` интерфейс обязан сообщить о неполном списке и не делать вывод о завершении всех удалений только по показанным строкам.
@@ -66,4 +81,4 @@ cargo test --manifest-path account/Cargo.toml --locked
 
 Проверяются настоящие маршруты API, Ed25519-подписи, одноразовость при гонках, Origin/CSRF, границы аккаунтов, смена ключа, выход из всех сессий, повторная доставка удалений и сохранение лимитов после перезапуска SQLite. Отдельные проверки используют локальный Unix socket. Письма тестовых запросов остаются в памяти; внешние почтовые ящики этими тестами не используются.
 
-До рабочего запуска нужны: завершённая интеграция службы и интерфейсов клиента, защищённое хранение его токена; воспроизводимые SMTP/DKIM и закрытая сеть; согласованный патч Caddy и DNS; зашифрованный согласованный снимок SQLite и журнал отзывов; восстановление с инвалидированием сессий/challenge/nonce и сохранением последних удалений; утверждённые сроки хранения и удаление аккаунта; реальные Windows-клиенты, браузер и доставка во входящие Gmail/Яндекса/Mail.ru. Эти свойства нельзя вывести из успешных API-тестов.
+До рабочего запуска нужны: завершённая интеграция службы и интерфейсов клиента, защищённое хранение его токена; воспроизводимые SMTP/DKIM и закрытая сеть; согласованный патч Caddy и DNS; утверждённая схема независимого состояния ADR-011 и проверка восстановления на отдельной машине; утверждённые сроки хранения и удаление аккаунта; реальные Windows-клиенты, браузер и доставка во входящие Gmail/Яндекса/Mail.ru. Эти свойства нельзя вывести из успешных API-тестов.

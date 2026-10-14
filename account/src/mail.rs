@@ -1,4 +1,7 @@
-use lettre::{message::Mailbox, AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
+use lettre::{
+    message::{header::ContentType, Mailbox},
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+};
 use tokio::sync::mpsc;
 
 pub struct MailJob {
@@ -37,6 +40,7 @@ pub async fn deliver(mut queue: mpsc::Receiver<MailJob>, host: String, port: u16
                 .from("FuntiDesk <no-reply@funti.cc>".parse::<Mailbox>()?)
                 .to(job.email.parse::<Mailbox>()?)
                 .subject("Код входа в FuntiDesk")
+                .header(ContentType::TEXT_PLAIN)
                 .body(format!("Код входа: {}\n\nКод действует 5 минут и подходит один раз.\nЕсли это не вы — ничего не делайте.\n", job.code))?;
             transport.send(message).await?;
             Ok::<_, anyhow::Error>(())
