@@ -1,6 +1,6 @@
 # Личный кабинет Windows: проверка реализации
 
-Дата: 2026-10-13. Статус: клиентский draft, **не E2E-приёмка первого этапа**.
+Дата: 2026-10-13; обновлено 2026-10-14. Статус: клиентский draft, **не E2E-приёмка первого этапа**.
 
 ## Реализованный путь
 
@@ -18,17 +18,19 @@ Cached Options/SyncConfig сохраняют служебную привязку
 
 Есть отдельная вкладка настроек, отдельный список на главном экране, уведомления о новых входах и удалениях, статусы ожидающей/подтверждённой доставки. Списки аккаунта не имеют кнопок подключения, добавления в семью и изменения прав. `has_more` показывается как неполный журнал. Изменение семейного доверия остаётся в существующей службе.
 
+Закреплённый flutter_rust_bridge 1.80 принимает обычную Rust-функцию и возвращает Future в Dart. В `initialize` запускается один собственный UI IPC runner на отдельном OS thread, с bounded queue и максимумом 8 задач. Его Tokio runtime создаётся при старте этого потока, вне Tokio/async-кода; вызов из bridge worker ждёт отдельный канал. Внутри Tokio такой blocking-вызов отклоняется. Служба использует прежний IPC runtime. Новый runner не перестраивает существующий Flutter online-query loop и не создаёт runtime на каждый запрос.
+
 ## Фактические проверки
 
 - 4 проверки actual client policy через `account/tests/native_policy.rs` прошли: совместимость signed bytes/hash с сервером, локальная проверка nonce, точное удаление ключа и replay после повторного сопряжения, отказ от частичного применения некорректного batch.
 - Форматирование новых Rust/Dart-модулей и `git diff --check` прошли.
 - Scoped Dart analysis с Flutter 3.24.5 проверяет новый widget и изменённые страницы; старые informational warnings остаются в settings. Сгенерированный мост ещё отсутствует в локальном checkout, поэтому этот запуск **не подтверждает** его интерфейс или полную сборку.
 - Новый packet Debug не выводит payload. Поверхность подписи и сохранения дополнительно проверена read-only review; найденные ошибки повторного контекста, размера ответа и пустого challenge исправлены.
-- Полная Windows-сборка с официальной генерацией flutter_rust_bridge 1.80.1, исполнение Windows storage test и артефакт проверяются workflow `R21 Windows clean build`; фактический результат записывается отдельно. Релиз этим workflow не публикуется.
+- Первый Windows run [`38478675815`](https://github.com/michailr1/FuntiDesk/actions/runs/38478675815) обнаружил два дефекта: DPAPI-функции импортировались из `wincrypt` вместо `dpapi`; Rust async-функция не поддерживается генератором 1.80. Исправлены feature/import и обычный FFI с отдельным UI runner. Повторная сборка [`38485099050`](https://github.com/michailr1/FuntiDesk/actions/runs/38485099050) успешно завершилась для `dfc01518d39b077b36539ab1d9ba79c8c15b6071`: официальный generated bridge, полный Windows runtime и реальный Windows storage test прошли. Артефакт `funtidesk-windows-x64-dfc01518d39b077b36539ab1d9ba79c8c15b6071` (34 557 303 байта), ZIP digest `sha256:76074f69e7def23d0d52dbcd3d840545af987c9eba307e52351bceb405129c6d`; внутри собственный runtime SHA256 manifest. Workflow не публикует релиз. Успешные [Account checks](https://github.com/michailr1/FuntiDesk/actions/runs/38485103573) и [FuntiDesk CI](https://github.com/michailr1/FuntiDesk/actions/runs/38485103582) относятся к тому же клиентскому коммиту.
 
 ## Регрессионная поверхность и границы
 
-Изменены существующие пути: `lib.rs` — объявления модулей; `flutter_ffi.rs` — одна async функция; `ipc.rs` — тип пакета, запуск actor после открытия main listener и один handler; `funti_family.rs` — mutex только Windows вокруг уже существующих локальных изменений. `config.rs` — отдельный checked commit семьи/ledger, атомарная запись после привязки, защита служебных опций от whole-map/SyncConfig. UI — только отдельные tab/list/notice; локальный `_FamilyList` и upstream account не включаются в новую модель. Переводы добавлены по правилам client AGENTS.
+Изменены существующие пути: `Cargo.toml` — feature `dpapi` существующего winapi; `lib.rs` — объявления модулей; `flutter_ffi.rs` — одна функция с Future для Dart и startup hook UI runner; `ipc.rs` — тип пакета, запуск actor после открытия main listener и один handler; `funti_family.rs` — mutex только Windows вокруг уже существующих локальных изменений. `config.rs` — отдельный checked commit семьи/ledger, атомарная запись после привязки, защита служебных опций от whole-map/SyncConfig. UI — только отдельные tab/list/notice; локальный `_FamilyList` и upstream account не включаются в новую модель. Переводы добавлены по правилам client AGENTS.
 
 Активные сеансы существующее удаление семьи не закрывает. Предложение о закрытии именно семейных сеансов и отмене разрешений помощи требует отдельного решения ADR-010; эта проверка такого поведения не заявляет. Обычный доступ по ID/паролю/локальной семье сохраняется при недоступности кабинета.
 
