@@ -1,0 +1,66 @@
+name: Account checks
+
+on:
+  pull_request:
+    paths:
+      - 'account/**'
+      - 'client/src/funti_account_protocol.rs'
+      - '.github/workflows/account-ci.yml'
+      - 'server/src/funti_account_identity.rs'
+  push:
+    paths:
+      - 'account/**'
+      - 'client/src/funti_account_protocol.rs'
+      - '.github/workflows/account-ci.yml'
+      - 'server/src/funti_account_identity.rs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hbbs-registry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: 1.90.0
+      - name: Test private resolver and existing rendezvous behavior
+        run: cargo test --manifest-path server/Cargo.toml --locked --test account_identity --test tcp_signaling
+  account:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+          targets: x86_64-unknown-linux-musl
+      - name: Check formatting
+        run: cargo fmt --manifest-path account/Cargo.toml -- --check
+      - name: Check account code
+        run: cargo clippy --manifest-path account/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Test account isolation and authentication
+        run: cargo test --manifest-path account/Cargo.toml --locked
+      - name: Build account artifact
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo build --manifest-path account/Cargo.toml --release --locked --target x86_64-unknown-linux-musl
+          mkdir -p account-dist
+          cp account/target/x86_64-unknown-linux-musl/release/funtidesk-account account-dist/
+          cd account-dist
+          sha256sum funtidesk-account > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: funtidesk-account-${{ github.sha }}
+          path: account-dist/
+          retention-days: 14
+          if-no-files-found: error

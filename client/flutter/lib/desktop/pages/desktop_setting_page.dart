@@ -18,6 +18,8 @@ import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
 import 'package:flutter_hbb/common/funti_quotes.dart';
 import 'package:flutter_hbb/common/funti_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/funti_family.dart';
+// FUNTIDESK (ADR-009/010): own account panel; upstream account stays disabled.
+import 'package:flutter_hbb/desktop/widgets/funti_account.dart';
 import 'package:flutter_hbb/desktop/widgets/funti_home_scene.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
@@ -69,6 +71,7 @@ enum SettingsTabKey {
   family,
   calls,
   advanced,
+  funtiAccount,
 }
 
 // FUNTIDESK: security, network, display and printer now live under
@@ -88,7 +91,7 @@ SettingsTabKey funtiSettingsTab(SettingsTabKey key) {
 
 class DesktopSettingPage extends StatefulWidget {
   final SettingsTabKey initialTabkey;
-  // FUNTIDESK: no account server (R-14), so no "Account" tab.
+  // FUNTIDESK: the own Windows panel is separate from the disabled upstream tab.
   static final List<SettingsTabKey> tabKeys = [
     if (bind.mainGetBuildinOption(key: kOptionHideGeneralSetting) != 'Y')
       SettingsTabKey.general,
@@ -99,6 +102,7 @@ class DesktopSettingPage extends StatefulWidget {
       SettingsTabKey.access,
     if (!isWeb && !bind.isOutgoingOnly()) SettingsTabKey.family,
     if (!isWeb && !bind.isOutgoingOnly()) SettingsTabKey.calls,
+    if (!isWeb && isWindows) SettingsTabKey.funtiAccount,
     SettingsTabKey.about,
     if (!isWeb) SettingsTabKey.advanced,
   ];
@@ -229,6 +233,9 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           settingTabs.add(
               _TabInfo(tab, 'Account', Icons.person_outline, Icons.person));
           break;
+        case SettingsTabKey.funtiAccount:
+          settingTabs.add(_TabInfo(tab, 'funti-account-title', Icons.person_outline, Icons.person));
+          break;
         case SettingsTabKey.printer:
           settingTabs
               .add(_TabInfo(tab, 'Printer', Icons.print_outlined, Icons.print));
@@ -276,6 +283,9 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           break;
         case SettingsTabKey.account:
           children.add(const _Account());
+          break;
+        case SettingsTabKey.funtiAccount:
+          children.add(const FuntiAccountPanel());
           break;
         case SettingsTabKey.printer:
           children.add(const _Printer());

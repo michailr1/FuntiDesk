@@ -45,7 +45,14 @@
 | Интерфейс | `funti_home_view.dart`, `funti_home_scene.dart`, `funti_theme.dart`, `funti_quotes.dart` | `desktop_home_page.dart`, `desktop_setting_page.dart` («О программе»; окно настроек по макету 2026-10-12: вкладки `access`/`family`/`calls`/`advanced`, старые вкладки показываются частями через `_FuntiPart`, `funtiSettingsTab` переводит старые ключи `safety`/`network`/`display`/`printer` на новые), `server_page.dart`, `common.dart`, `consts.dart` |
 | Нет сервера аккаунтов (R-14) | — | `flutter_ffi.rs` (`is_disable_account` всегда `true`: скрыты «Аккаунт», «Заметка», аудит), `common.rs` (`get_api_server` пустой) |
 | Переводы | ключи `funti-*` | `src/lang/ru.rs`, `en.rs`, `template.rs` |
+| Собственный личный кабинет | `funti_account.rs`, `funti_account_windows.rs`, `funti_account_ui.rs`, `funti_account_protocol.rs`, `funti_account.dart` | `lib.rs` (модули), `ipc.rs` (один actor в main IPC и redacted пакет), `flutter_ffi.rs` (FFI с Future в Dart и UI runner), `Cargo.toml` (feature `dpapi` существующего winapi), `desktop_setting_page.dart` (своя вкладка Windows), `funti_home_view.dart` (отдельный список и уведомления); upstream-аккаунт выключен |
+
+`client/libs/hbb_common/src/config.rs` и новый `config/funti_account_storage.rs`: после привязки кабинета Windows сохраняет семью и ledger одним атомарно заменяемым документом; последующие записи настроек сохраняют этот порядок. Whole-map и SyncConfig не перезаписывают служебную привязку/ledger и семью устаревшим кэшем. До привязки прежняя запись настроек сохраняется. Секрет сессии защищён user-scoped DPAPI в службе и не включён в FFI/IPC-ответ. `funti_family.rs` сериализует изменения семьи с применением отзыва под отдельным Windows mutex; других платформ это не меняет.
+
+Ключи `funti-account-*` добавлены в en/ru/template; в остальных языках — пустые значения по `client/AGENTS.md`. Windows IPC/DPAPI и реальные сеансы требуют отдельной проверки: локальные тесты policy не являются E2E-приёмкой.
 
 ## Сервер (`server/`)
 
 `rendezvous_server.rs` — сигнализация по TCP (ADR-004), поиск по коду (`funti_pair.rs`, ADR-008); сборка и развёртывание — `docs/SERVER_DEPLOYMENT.md`.
+
+`server/src/lib.rs` и `server/src/rendezvous_server.rs` — тонкие хуки необязательного внутреннего resolver `funti_account_identity.rs` (проект ADR-010). Он выдаёт account-сервису только зарегистрированный открытый ключ указанного ID через отдельный Unix socket. Без явного `FUNTI_ACCOUNT_IDENTITY_SOCKET` прежний путь не меняется; ошибка resolver не останавливает hbbs. Account не получает базу или приватный ключ hbbs. Проверки account — `.github/workflows/account-ci.yml`; реальные клиенты и production ещё не проверены.

@@ -116,6 +116,7 @@ qrcode-generator = "4.1"
 winapi = { version = "0.3", features = [
     "winuser",
     "wincrypt",
+    "dpapi", # FUNTIDESK (ADR-009): user-scoped account session protection.
     "shellscalingapi",
     "pdh",
     "synchapi",
