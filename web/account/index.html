@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://desk.funti.cc; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="theme-color" content="#f4f1ec">
+  <title>Личный кабинет — FuntiDesk</title>
+  <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/account/account.css">
+  <script src="/account/account.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img src="/mark.svg" width="32" height="32" alt=""><span>FuntiDesk</span></a>
+    <a class="back-link" href="/">На главную</a>
+  </header>
+  <main id="main">
+    <div class="page-heading">
+      <p class="eyebrow">ВАШИ УСТРОЙСТВА</p>
+      <h1>Личный кабинет</h1>
+      <p class="lead">Свои компьютеры и семья — в одном месте.</p>
+    </div>
+    <div id="message" class="message" role="status" aria-live="polite">Проверяем вход…</div>
+    <noscript><p class="message">Для входа в кабинет включите JavaScript.</p></noscript>
+    <section id="login" class="card login-card" aria-labelledby="login-title" hidden>
+      <p class="eyebrow">ВХОД ПО ПОЧТЕ</p>
+      <h2 id="login-title">Войти в FuntiDesk</h2>
+      <p>Отправим шестизначный код на вашу почту. Пароль не нужен.</p>
+      <form id="email-form">
+        <label for="email">Почта</label>
+        <input id="email" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" placeholder="you@example.com" required>
+        <button id="send-code" class="primary" type="submit" disabled>Получить код</button>
+      </form>
+      <form id="code-form" hidden>
+        <p id="code-sent"></p>
+        <label for="code">Код из письма</label>
+        <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required aria-describedby="code-help">
+        <p id="code-help" class="muted">Код действует 5 минут с отправки. Новый код заменяет предыдущий.</p>
+        <button class="primary" type="submit">Войти</button>
+        <div class="inline-actions">
+          <button id="resend-code" class="text-button" type="button">Отправить новый код</button>
+          <button id="change-email" class="text-button" type="button">Другая почта</button>
+        </div>
+      </form>
+      <button id="retry-login" class="text-button" type="button" hidden>Проверить доступность</button>
+      <p class="login-note">Почтовый вход позволяет посмотреть списки и убрать устройство из семьи. Подключение и добавление в семью подтверждаются в программе на доверенном компьютере.</p>
+    </section>
+    <section id="account" aria-label="Устройства аккаунта" hidden>
+      <div class="account-toolbar">
+        <div><p id="account-email" class="account-email"></p><p id="session-expiry" class="muted"></p></div>
+        <div class="inline-actions">
+          <button id="refresh" type="button">Обновить списки</button>
+          <button id="logout" type="button">Выйти</button>
+          <button id="logout-all" class="danger-outline" type="button">Выйти везде</button>
+        </div>
+      </div>
+      <p class="boundary-note">Права семьи хранятся на каждом компьютере. Кабинет показывает их списки, но не даёт доступ к компьютерам и не меняет права.</p>
+      <section class="card" aria-labelledby="devices-title">
+        <div class="section-heading"><h2 id="devices-title">Свои устройства</h2><span id="device-count" class="count"></span></div>
+        <p class="muted">Устройства появляются здесь после входа в FuntiDesk на компьютере. Время последнего обмена не означает, что компьютер сейчас в сети.</p>
+        <ul id="devices" class="rows"></ul>
+      </section>
+      <section class="card" aria-labelledby="family-title">
+        <h2 id="family-title">Семья на компьютерах</h2>
+        <p class="muted">Копии списков для просмотра. Устройства вне сети могут ещё не передать изменения.</p>
+        <div id="family"></div>
+      </section>
+      <section class="card" aria-labelledby="removals-title">
+        <h2 id="removals-title">Удаления из семьи</h2>
+        <p class="muted">Компьютеры вне сети применят удаление при следующем обмене. Обновите списки, чтобы проверить подтверждения.</p>
+        <div id="removals"></div>
+      </section>
+    </section>
+  </main>
+  <footer>FuntiDesk · связь со своими</footer>
+</body>
+</html>

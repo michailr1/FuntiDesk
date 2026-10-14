@@ -25,6 +25,11 @@ pub mod common;
 /// FUNTIDESK (ADR-006): family access.
 pub mod funti_family;
 /// cbindgen:ignore
+/// FUNTIDESK (ADR-009/010): own account, independent of the upstream API.
+pub mod funti_account;
+#[cfg(windows)]
+mod funti_account_protocol;
+/// cbindgen:ignore
 /// FUNTIDESK (ADR-005): incoming call ring.
 pub mod funti_ring;
 /// cbindgen:ignore

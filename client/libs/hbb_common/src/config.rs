@@ -20,6 +20,9 @@ use sodiumoxide::base64;
 use sodiumoxide::crypto::sign;
 
 mod permanent_password;
+// FUNTIDESK (ADR-009/010): used only after binding an account on Windows.
+#[cfg(windows)]
+mod funti_account_storage;
 
 pub use permanent_password::{
     compute_permanent_password_h1, decode_permanent_password_h1_from_storage,
@@ -537,6 +540,14 @@ impl Config2 {
         }
         config.unlock_pin =
             keep_encrypted_storage_if_plaintext_unchanged(&config.unlock_pin, &stored.unlock_pin);
+        // FUNTIDESK: subsequent settings writes must preserve an atomic removal marker.
+        #[cfg(windows)]
+        if config.options.contains_key("funti-account-state-v1") {
+            if funti_account_storage::store(&Self::file(), &config).is_err() {
+                log::error!("FuntiDesk account: configuration storage failed");
+            }
+            return;
+        }
         Config::store_(&config, "2");
     }
 
@@ -546,12 +557,57 @@ impl Config2 {
 
     pub fn set(cfg: Config2) -> bool {
         let mut lock = CONFIG2.write().unwrap();
+        // FUNTIDESK: a user-process snapshot cannot replace service-owned account state.
+        #[cfg(windows)]
+        let cfg = {
+            let mut cfg = cfg;
+            funti_account_keep_options(&mut cfg.options, &lock.options);
+            cfg
+        };
         if *lock == cfg {
             return false;
         }
         *lock = cfg;
         lock.store();
         true
+    }
+
+    // FUNTIDESK: only the account actor may commit its ledger with a family reduction.
+    #[cfg(windows)]
+    pub fn funti_account_update(
+        update: impl FnOnce(&mut HashMap<String, String>) -> Result<()>,
+    ) -> Result<()> {
+        let mut current = CONFIG2.write().unwrap();
+        let mut next = current.clone();
+        update(&mut next.options)?;
+        let mut disk = next.clone();
+        let stored = Config::load_::<Config2>("2");
+        if let Some(ref mut socks) = disk.socks {
+            let old = stored.socks.as_ref().map(|s| s.password.as_str()).unwrap_or_default();
+            socks.password = keep_encrypted_storage_if_plaintext_unchanged(&socks.password, old);
+        }
+        disk.unlock_pin = keep_encrypted_storage_if_plaintext_unchanged(&disk.unlock_pin, &stored.unlock_pin);
+        if let Err(error) = funti_account_storage::store(&Self::file(), &disk) {
+            // Retain the access reduction in memory, but never advance its durable marker.
+            if let Some(family) = next.options.get("funti-family") {
+                current.options.insert("funti-family".into(), family.clone());
+            }
+            return Err(error);
+        }
+        *current = next;
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn funti_account_keep_options(incoming: &mut HashMap<String, String>, current: &HashMap<String, String>) {
+    incoming.remove("funti-account-state-v1");
+    if let Some(state) = current.get("funti-account-state-v1") {
+        incoming.insert("funti-account-state-v1".into(), state.clone());
+        incoming.remove("funti-family");
+        if let Some(family) = current.get("funti-family") {
+            incoming.insert("funti-family".into(), family.clone());
+        }
     }
 }
 
@@ -1407,6 +1463,9 @@ impl Config {
     pub fn set_options(mut v: HashMap<String, String>) {
         Self::purify_options(&mut v);
         let mut config = CONFIG2.write().unwrap();
+        // FUNTIDESK: preserve service state under the same lock as the whole-map write.
+        #[cfg(windows)]
+        funti_account_keep_options(&mut v, &config.options);
         if config.options == v {
             return;
         }

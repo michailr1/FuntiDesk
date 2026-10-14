@@ -16,6 +16,7 @@
 | `stun.cloudflare.com:3478` | STUN | public address discovery fallback |
 | `stun.nextcloud.com:3478` | STUN | public address discovery fallback |
 | `github.com:443`, `*.githubusercontent.com:443` | HTTPS | обновление и «что нового» (ADR-007): только релизы `michailr1/FuntiDesk`, при запуске и раз в 6 часов; редиректы только внутри GitHub |
+| `desk.funti.cc:443/api/account/v1/` | HTTPS | свой личный кабинет (ADR-009/010): явно по действию пользователя; привязанный Windows-клиент опрашивает отзывы раз в минуту и после запуска; без прокси из настроек, редиректов и fallback |
 
 Third-party STUN is explicitly allowed for NAT/address discovery; remote-control payload, authentication secrets and relay traffic must not be sent to these STUN services.
 
@@ -29,7 +30,7 @@ Production code must not perform background requests to:
 - `admin.rustdesk.com`;
 - public RustDesk rendezvous/relay infrastructure.
 
-The upstream update checker is a no-op until FuntiDesk owns an update channel (R-30). The API-server resolver returns an empty string because no FuntiDesk account/API service exists in M2.
+The upstream update checker remains a no-op; the own update channel is implemented separately in ADR-007. The upstream API-server resolver returns an empty string. The own account service uses a separate fixed HTTPS path and does not enable upstream accounts.
 
 Documentation/help URLs that a user explicitly opens in an external browser are not background FuntiDesk network dependencies; they remain subject to later branding cleanup.
 
@@ -47,9 +48,15 @@ Before Family Release, capture DNS/TCP/UDP from a clean Windows VM for:
 4. server unavailable;
 5. wrong server key;
 6. network switch/reconnect.
+7. свой кабинет: вход, запуск с привязкой, отзыв всех почтовых сессий, получение удаления после выхода и недоступность API. Код кабинета подготовлен; сетевой захват реального Windows-клиента ещё нужен до приёмки.
 
 Any FuntiDesk process destination outside this allowlist requires a documented decision before release.
 
 ## Планируется
 
-- Личный кабинет (ADR-009): HTTPS к сервису аккаунтов на `desk.funti.cc` (маршрут — на решение владельца, `docs/reviews/2026-10-13-handoff-account.md`). Добавить в таблицу выше, когда появится в клиенте.
+- Почту кабинета отправляет сервер: клиент не обращается к SMTP или внешним почтовым API. HTTPS-маршрут согласован владельцем и добавлен в таблицу; проверка реального сетевого захвата и развёртывание остаются частью приёмки.
+
+
+## Предлагаемый серверный канал независимого состояния
+
+ADR-011: отдельный контейнер-переходник без секретов соединяется только с `de.funti.cc:8447/v1/witness` по HTTPS, без proxy/редиректов/fallback. Порт 8446 занят другим действующим сайтом; проект использует свободный при read-only проверке 8447. API остаётся во внутренних Docker-сетях и обращается только к переходнику; Windows и браузер на DE не обращаются. Новая серверная конфигурация пока не запущена; требует утверждения схемы, собственного TLS и проверки внешней доступности. Действующий MCP на `de.funti.cc:8445` используется только для инженерной работы и не является runtime-зависимостью кабинета.

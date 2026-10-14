@@ -29,6 +29,7 @@ import '../../models/state_model.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_home_scene.dart';
 import '../widgets/funti_update_notice.dart';
+import '../widgets/funti_account.dart';
 import 'desktop_home_page.dart' show setPasswordDialog;
 import 'desktop_setting_page.dart' show DesktopSettingPage, SettingsTabKey;
 
@@ -168,6 +169,7 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
                             ],
                             widget.notices,
                             const FuntiUpdateNotice(),
+                            if (isWindows) const FuntiAccountNotice(),
                           ],
                         ),
                         SizedBox(
@@ -1010,7 +1012,7 @@ class _MyDevicesCard extends StatefulWidget {
 }
 
 class _MyDevicesCardState extends State<_MyDevicesCard> {
-  // 0: recent, 1: favorites, 2: family (ADR-006).
+  // 0: recent, 1: favorites, 2: family (ADR-006), 3: account copies (ADR-009).
   int _tab = 0;
   bool get _favorites => _tab == 1;
   Timer? _onlineTimer;
@@ -1095,6 +1097,7 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
                     translate('funti-tab-recent'),
                     translate('funti-tab-favorites'),
                     translate('funti-tab-family'),
+                    if (isWindows) translate('funti-account-tab'),
                   ],
                   selected: _tab,
                   onSelected: (i) => setState(() {
@@ -1105,7 +1108,10 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
               ],
             ),
           ),
-          if (_tab == 2)
+          if (_tab == 3)
+            Expanded(child: FuntiAccountPanel(compact: true,
+              onOpen: () => DesktopSettingPage.switch2page(SettingsTabKey.funtiAccount)))
+          else if (_tab == 2)
             Expanded(
               child: _FamilyList(
                 members: _family,

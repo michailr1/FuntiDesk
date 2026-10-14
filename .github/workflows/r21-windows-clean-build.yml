@@ -56,6 +56,8 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build-baseline.ps1
 
       - name: Write runtime SHA256 manifest
+        # FUNTIDESK (ADR-009/010): test the actual Windows atomic replacement helper.
+        # The build above generates the bridge; this workflow publishes no release.
         shell: powershell
         run: |
           $release = Resolve-Path 'client/flutter/build/windows/x64/runner/Release'
@@ -69,6 +71,10 @@ jobs:
               "$hash  $relative"
             } | Set-Content -Encoding ascii $manifest
           Get-Content $manifest
+
+      - name: Test account storage on Windows
+        shell: powershell
+        run: cargo test --manifest-path client/Cargo.toml -p hbb_common --lib --locked funti_account_storage
 
       - name: Upload Windows runtime
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

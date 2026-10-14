@@ -42,6 +42,9 @@ const PAIR_CODE_TTL: Duration = Duration::from_secs(300);
 const HELP_TTL: Duration = Duration::from_secs(600);
 
 lazy_static::lazy_static! {
+    // FUNTIDESK (ADR-009): synchronize local edits with the account's atomic removal.
+    #[cfg(windows)]
+    static ref MUTATION: Mutex<()> = Default::default();
     static ref PAIR_CODE: Mutex<Option<(String, Instant)>> = Default::default();
     // Family members asked for help from this computer: their next family
     // login here is accepted without "Accept" (the person asked themselves).
@@ -66,6 +69,8 @@ pub fn keep_family(
 }
 /// Renames family member `id` (the name is local to this device).
 pub fn rename(id: &str, name: &str) {
+    #[cfg(windows)]
+    let _mutation = mutation_lock();
     let name = name.trim();
     if name.is_empty() {
         return;
@@ -151,6 +156,8 @@ pub fn rights(id: &str) -> Rights {
 /// Sets the rights of member `id` (JSON of `Rights`). False when the member
 /// is unknown or the JSON is not valid: nothing is changed then.
 pub fn set_rights(id: &str, json: &str) -> bool {
+    #[cfg(windows)]
+    let _mutation = mutation_lock();
     let Ok(rights) = serde_json::from_str::<Rights>(json) else {
         return false;
     };
@@ -195,6 +202,8 @@ pub fn member(id: &str) -> Option<Member> {
 
 /// Adds or replaces the member with this id.
 pub fn add(id: &str, name: &str, pk: &[u8]) {
+    #[cfg(windows)]
+    let _mutation = mutation_lock();
     // Pairing again keeps the rights the owner set here.
     let rights = member(id).map(|m| m.rights).unwrap_or_default();
     let mut list: Vec<Member> = members().into_iter().filter(|m| m.id != id).collect();
@@ -229,9 +238,16 @@ pub fn is_leaving(id: &str) -> bool {
 
 /// Removes the member with this id.
 pub fn remove(id: &str) {
+    #[cfg(windows)]
+    let _mutation = mutation_lock();
     let list: Vec<Member> = members().into_iter().filter(|m| m.id != id).collect();
     store(&list);
     log::info!("FuntiDesk family: {} removed", id);
+}
+
+#[cfg(windows)]
+pub fn mutation_lock() -> std::sync::MutexGuard<'static, ()> {
+    MUTATION.lock().unwrap()
 }
 
 /// The message a device signs: bound to one connection (challenge), to the
