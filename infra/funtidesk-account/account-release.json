@@ -8,5 +8,10 @@
     "funtidesk-account": "sha256:52191851a9a35fb1570eedbb94bdeabdcf76afff66897ff9fef6b51398a43b56",
     "funtidesk-account-mail": "sha256:d31469b4eb04722423ceec12b6b0f6749a8bd3481b3d1a996d558af50bf5d495",
     "funtidesk-account-server": "sha256:916627693dfde53c0ff8b27a9ae7f63416aa7093deea6d26ff9076dd3899baa5"
+  },
+  "oci_images": {
+    "funtidesk-account": "sha256:a930fcfea6283e992756661bea78550ebb848d1955af36bfe9e2988848358641",
+    "funtidesk-account-mail": "sha256:6797debf4de8eb62776467b89cfbc1e5d1a41e14338ec68f52566d1ee9af3af7",
+    "funtidesk-account-server": "sha256:e3b6baf873405e60d89565da8162adc692861d536fcbc0abb85160141addf5a1"
   }
 }

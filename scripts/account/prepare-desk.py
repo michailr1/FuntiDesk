@@ -55,6 +55,12 @@ def verify_archive(archive, directory):
     if actual != RELEASE['images'] or any(
             i['Config']['Labels'].get('org.opencontainers.image.revision') != RELEASE['source'] for i in images):
         raise RuntimeError('Image provenance mismatch')
+    with tarfile.open(directory / 'account-images.tar.gz', 'r:gz') as archive:
+        index = json.load(archive.extractfile('index.json'))
+    oci = {item['annotations']['io.containerd.image.name'].rsplit(':', 1)[0].rsplit('/', 1)[-1]:
+           item['digest'] for item in index['manifests']}
+    if oci != RELEASE['oci_images']:
+        raise RuntimeError('OCI image identity mismatch')
     return images
 
 
@@ -64,16 +70,24 @@ def source_qualified_archive(directory):
         manifest = json.load(incoming.extractfile('manifest.json'))
         for image in manifest:
             image['RepoTags'] = [tag.split(':')[0] + ':' + RELEASE['source'][:12] for tag in image['RepoTags']]
-        content = json.dumps(manifest).encode()
+        metadata={'manifest.json':json.dumps(manifest).encode()}
+        index=json.load(incoming.extractfile('index.json'))
+        for image in index['manifests']:
+            annotations=image['annotations']
+            name=annotations['io.containerd.image.name']
+            annotations['io.containerd.image.name']=name.rsplit(':',1)[0]+':'+RELEASE['source'][:12]
+            annotations['org.opencontainers.image.ref.name']=RELEASE['source'][:12]
+        metadata['index.json']=json.dumps(index).encode()
         import io
         with tarfile.open(destination, 'w') as outgoing:
             for member in incoming:
-                if member.name in ['manifest.json', 'repositories']:
+                if member.name in [*metadata, 'repositories']:
                     continue
                 outgoing.addfile(member, incoming.extractfile(member) if member.isfile() else None)
-            member = tarfile.TarInfo('manifest.json')
-            member.size = len(content)
-            outgoing.addfile(member, io.BytesIO(content))
+            for name,content in metadata.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(content)
+                outgoing.addfile(member, io.BytesIO(content))
     return destination
 
 
@@ -98,18 +112,21 @@ def prepare(archive):
     for name, expected in RELEASE['images'].items():
         existing = subprocess.run(['docker','image','inspect','--format','{{.Id}}',
                                    name+':'+RELEASE['source'][:12]],capture_output=True,text=True)
-        if existing.returncode == 0 and existing.stdout.strip() != expected:
+        if existing.returncode == 0 and existing.stdout.strip() not in [expected,RELEASE['oci_images'][name]]:
             raise RuntimeError('Source-qualified image tag already refers to another image')
     with tempfile.TemporaryDirectory(prefix='funtidesk-account-delivery-') as temporary:
         directory = Path(temporary)
         verify_archive(archive, directory)
         qualified = source_qualified_archive(directory)
         run('docker', '--host=unix:///var/run/docker.sock', 'load', '--input', str(qualified))
+    loaded={}
     for name, expected in RELEASE['images'].items():
         tag = name + ':' + RELEASE['source'][:12]
-        actual = run('docker', 'image', 'inspect', '--format', '{{.Id}}', tag).decode().strip()
-        if actual != expected:
+        info=json.loads(run('docker','image','inspect',tag))[0]
+        actual=info['Id']
+        if actual not in [expected,RELEASE['oci_images'][name]] or info['Config']['Labels'].get('org.opencontainers.image.revision')!=RELEASE['source']:
             raise RuntimeError('Loaded image ID mismatch')
+        loaded[name]=actual
     ROOT.mkdir(mode=0o750)
     (ROOT / 'PREPARED').write_text(MARKER + '\n' + run('git','-C',str(REPO),'rev-parse','HEAD').decode())
     for name, mode, uid, gid in [('data',0o700,10001,10001),('secrets',0o700,0,0),
@@ -128,7 +145,7 @@ def prepare(archive):
     environment=(REPO/'infra/funtidesk-account/.env.example').read_text()
     for name,image in [('FUNTI_ACCOUNT_IMAGE','funtidesk-account'),('FUNTI_ACCOUNT_MAIL_IMAGE','funtidesk-account-mail')]:
         lines=environment.splitlines()
-        environment='\n'.join(name+'='+RELEASE['images'][image] if line.startswith(name+'=') else line for line in lines)+'\n'
+        environment='\n'.join(name+'='+loaded[image] if line.startswith(name+'=') else line for line in lines)+'\n'
     environment=environment.replace('7777777777777777777777777777777777777777777777777777777777777777',namespace)
     (ROOT/'account.env').write_text(environment)
     (ROOT/'account.env').chmod(0o600)
