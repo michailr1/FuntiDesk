@@ -12,7 +12,7 @@ use axum::{
 };
 use std::{sync::Arc, time::Duration};
 
-const REMOTE: &str = "https://de.funti.cc:8446/v1/witness";
+const REMOTE: &str = "https://de.funti.cc:8447/v1/witness";
 #[derive(Clone)]
 struct Relay {
     http: reqwest::Client,
