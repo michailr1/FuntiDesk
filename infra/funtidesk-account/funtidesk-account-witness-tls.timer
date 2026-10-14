@@ -1,0 +1,12 @@
+# Managed by FuntiDesk scripts/account/install-witness-tls.sh
+[Unit]
+Description=FuntiDesk witness TLS synchronization every hour
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1h
+RandomizedDelaySec=2min
+Unit=funtidesk-account-witness-tls.service
+
+[Install]
+WantedBy=timers.target

@@ -1,3 +1,4 @@
 .tools/
 build-logs/
 artifacts/
+scripts/account/__pycache__/

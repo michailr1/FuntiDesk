@@ -1,0 +1,18 @@
+# Managed by FuntiDesk scripts/account/install-witness-tls.sh
+[Unit]
+Description=FuntiDesk witness TLS certificate synchronization
+After=caddy.service docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/etc/funtidesk-account-witness-tls.env
+ExecStart=/usr/bin/python3 /usr/local/libexec/funtidesk-account-sync-witness-tls.py --certificate ${FUNTI_WITNESS_TLS_SOURCE_CERTIFICATE} --key ${FUNTI_WITNESS_TLS_SOURCE_KEY} --directory /opt/funtidesk-account-witness/secrets/tls
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/funtidesk-account-witness/secrets/tls
+

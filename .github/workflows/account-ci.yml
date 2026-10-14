@@ -113,6 +113,8 @@ jobs:
           docker build --build-arg SOURCE_REVISION -f infra/funtidesk-account/Dockerfile.server -t funtidesk-account-server:ci account-server-dist
       - name: Check Compose isolation and proposed Caddy block
         run: python3 scripts/account/check-config.py
+      - name: Test TLS certificate publication and reload failure
+        run: python3 scripts/account/test-witness-tls.py
       - name: Test real queued mail, authentication and SMTP refusal
         env:
           FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci

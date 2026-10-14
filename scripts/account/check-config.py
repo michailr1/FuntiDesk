@@ -81,4 +81,5 @@ with tempfile.TemporaryDirectory(prefix="funtidesk-witness-tls-check-") as tempo
                              caddy_image, "-c", "cat > /tmp/Caddyfile; caddy adapt --config /tmp/Caddyfile --adapter caddyfile --validate",
                              data=(infra / "Caddyfile.witness.proposed").read_text()))
     assert adapted["apps"]["http"]["servers"]
+    assert adapted["admin"]["listen"] == "127.0.0.1:2019"
 print("ACCOUNT_COMPOSE_CADDY_CHECK_OK: isolated API/mail/witness, relay without secrets, only witness TLS port, proposed Caddy blocks valid")

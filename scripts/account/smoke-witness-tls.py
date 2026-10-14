@@ -2,10 +2,12 @@
 """Настоящий HTTPS Caddy → witness во временной внутренней Docker-сети."""
 import hashlib
 import hmac
+import importlib.util
 import json
 import os
 from pathlib import Path
 import subprocess
+import re
 import tempfile
 import time
 import uuid
@@ -13,6 +15,9 @@ import uuid
 image = os.environ["FUNTI_ACCOUNT_IMAGE"]
 caddy_image = "caddy@sha256:748016f285ed8c43a9ce6e3aed6d92d3009d90ca41157950880f40beaf3ff62b"
 root = Path(__file__).resolve().parents[2]
+spec = importlib.util.spec_from_file_location("witness_tls", root / "scripts/account/sync-witness-tls.py")
+tls_sync = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tls_sync)
 prefix = "funti-witness-tls-check-" + uuid.uuid4().hex[:10]
 containers = []
 network_created = False
@@ -53,9 +58,21 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
     tls = base / "tls"
     tls.mkdir(mode=0o700)
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-                    "-subj", "/CN=de.funti.cc", "-addext", "subjectAltName=DNS:de.funti.cc",
-                    "-keyout", str(tls / "privkey.pem"), "-out", str(tls / "fullchain.pem")],
+                    "-subj", "/CN=FuntiDesk local TLS check CA",
+                    "-keyout", str(base / "ca.key"), "-out", str(base / "ca.pem")],
                    check=True, capture_output=True)
+    def issue_certificate(name):
+        private, certificate = base / (name + ".key"), base / (name + ".crt")
+        subprocess.run(["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=de.funti.cc",
+                        "-addext", "subjectAltName=DNS:de.funti.cc", "-keyout", str(private),
+                        "-out", str(base / (name + ".csr"))], check=True, capture_output=True)
+        private.chmod(0o600)
+        subprocess.run(["openssl", "x509", "-req", "-in", str(base / (name + ".csr")), "-days", "2",
+                        "-CA", str(base / "ca.pem"), "-CAkey", str(base / "ca.key"), "-CAcreateserial",
+                        "-copy_extensions", "copy", "-out", str(certificate)], check=True, capture_output=True)
+        return certificate, private
+    first_certificate, first_private = issue_certificate("first")
+    tls_sync.synchronize(first_certificate, first_private, tls, project=prefix, ca_file=base / "ca.pem")
     options = ["--network", prefix, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
                "--user", f"{os.getuid()}:{os.getgid()}", "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
                "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + namespace, "-e", "FUNTI_WITNESS_DIRECTORY=/data/witness",
@@ -73,6 +90,7 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
         caddy = prefix + "-caddy"
         containers.append(caddy)
         docker("run", "-d", "--name", caddy, "--network", prefix + "-ingress", "--read-only", "--cap-drop", "ALL",
+               "--label", "com.docker.compose.project=" + prefix, "--label", "com.docker.compose.service=caddy",
                "--cap-add", "NET_BIND_SERVICE",
                "-e", "NO_PROXY=funtidesk-account-witness,127.0.0.1,localhost",
                "-e", "no_proxy=funtidesk-account-witness,127.0.0.1,localhost",
@@ -96,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
             client=prefix+"-client"
             try:
                 result=subprocess.run(["docker","run","--rm","--name",client,"-i","--network","host","--entrypoint","openssl",
-                "-v",str(tls / "fullchain.pem")+":/CA.pem:ro",os.environ["FUNTI_ACCOUNT_MAIL_IMAGE"],"s_client",
+                "-v",str(base / "ca.pem")+":/CA.pem:ro",os.environ["FUNTI_ACCOUNT_MAIL_IMAGE"],"s_client",
                 "-quiet","-verify_return_error","-verify_hostname","de.funti.cc","-CAfile","/CA.pem",
                 "-servername","de.funti.cc","-connect",f"127.0.0.1:{port}"],input=raw,capture_output=True,timeout=5)
             finally:
@@ -138,7 +156,31 @@ with tempfile.TemporaryDirectory(prefix=prefix) as temporary:
         frame["mac"] = "00" * 32
         assert request("/v1/witness", frame)[0] == 401, "unsigned witness access accepted"
         assert request("/private", frame)[0] == 404, "extra public route accepted"
-        print("ACCOUNT_WITNESS_TLS_OK: verified certificate/hostname, published TLS port, private Caddy→witness, fresh signed head, invalid HMAC refused")
+        def peer_certificate():
+            client = prefix + "-certificate-client"
+            try:
+                result = subprocess.run(["docker", "run", "--rm", "--name", client, "-i", "--network", "host",
+                    "--entrypoint", "openssl", "-v", str(base / "ca.pem") + ":/CA.pem:ro",
+                    os.environ["FUNTI_ACCOUNT_MAIL_IMAGE"], "s_client", "-showcerts", "-no_ticket",
+                    "-verify_return_error", "-verify_hostname", "de.funti.cc", "-CAfile", "/CA.pem",
+                    "-servername", "de.funti.cc", "-connect", f"127.0.0.1:{port}"],
+                    input=b"", capture_output=True, timeout=5)
+            finally:
+                subprocess.run(["docker", "rm", "-f", client], capture_output=True)
+            assert result.returncode == 0, "verified TLS handshake failed"
+            certificate = re.search(b"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", result.stdout, re.S)
+            assert certificate, "missing peer certificate"
+            return subprocess.run(["openssl", "x509", "-outform", "DER"], input=certificate[0],
+                                  capture_output=True, check=True).stdout
+        original_peer = peer_certificate()
+        rotated, rotated_private = issue_certificate("rotated")
+        assert tls_sync.synchronize(rotated, rotated_private, tls, project=prefix, ca_file=base / "ca.pem") == "updated and reloaded"
+        expected = subprocess.run(["openssl", "x509", "-in", str(rotated), "-outform", "DER"],
+                                  capture_output=True, check=True).stdout
+        assert peer_certificate() == expected and expected != original_peer, "Caddy kept cached old certificate"
+        assert request("/private", frame)[0] == 404
+        assert len(list(tls.glob("generation-*"))) == 2
+        print("ACCOUNT_WITNESS_TLS_OK: verified hostname/CA, private signed witness, invalid HMAC refused, atomic certificate rotation and forced graceful reload")
     finally:
         for container in reversed(containers):
             subprocess.run(["docker", "rm", "-f", container], capture_output=True)
