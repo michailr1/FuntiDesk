@@ -139,6 +139,7 @@ try:
         time.sleep(0.25)
     assert message is not None, "signed API mail was not queued"
     assert "d=funti.cc" in signature and "s=funtidesk202610" in signature, "wrong DKIM identity"
+    assert "Код входа:" in message.get_content(), "mail does not declare readable UTF-8 text"
     code = re.search(r"\b\d{6}\b", message.get_content()).group()
     verified = request(base + "/auth/verify", {"challenge_id": challenge, "code": code}, {"X-Funti-Login": context})
     assert verified["status"] == 200, "queued code does not verify"
