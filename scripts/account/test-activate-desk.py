@@ -355,6 +355,15 @@ class CaddyPreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'existing networks'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
+    def test_short_network_attachment_and_empty_mapping_are_equivalent(self):
+        self.original['services']['caddy']['networks']['remnawave-network'] = None
+        activation.verify_caddy(self.record, self.base, self.proposed)
+
+    def test_existing_network_attachment_options_are_still_preserved(self):
+        self.original['services']['caddy']['networks']['remnawave-network'] = {'aliases': ['existing-caddy']}
+        with self.assertRaisesRegex(RuntimeError, 'existing networks'):
+            activation.verify_caddy(self.record, self.base, self.proposed)
+
     def test_override_cannot_redirect_existing_network_definition(self):
         self.candidate['networks']['remnawave-network']['name'] = 'other-network'
         with self.assertRaisesRegex(RuntimeError, 'existing network definition'):

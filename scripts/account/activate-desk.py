@@ -104,7 +104,10 @@ def verify_caddy(record, base, proposed):
         raise RuntimeError('Caddy override changes fields other than networks')
     old_networks, new_networks = original.get('networks', {}), candidate.get('networks', {})
     if (set(new_networks) != set(old_networks) | {'funtidesk-account-front'}
-            or any(new_networks[name] != settings for name, settings in old_networks.items())):
+            # Compose renders a short network attachment as null and the same
+            # explicit empty attachment as {}; both preserve default settings.
+            or any((new_networks[name] or {}) != (settings or {})
+                   for name, settings in old_networks.items())):
         raise RuntimeError('Caddy override changes existing networks')
     live_networks = info.get('NetworkSettings', {}).get('Networks', {})
     network_names = set()
