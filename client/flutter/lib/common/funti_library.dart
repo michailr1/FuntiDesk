@@ -1,5 +1,6 @@
 // Account lists contain addresses and labels, never peer configuration or trust.
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../common.dart';
 import '../models/platform_model.dart';
 
@@ -14,6 +15,11 @@ Future<List<String>> getFuntiFavoriteIds() async {
   if (state['library_enabled'] != true) return (await bind.mainGetFav()).toList();
   final rows = state['data']?['library']?['favorites'] as List? ?? [];
   return rows.map((row) => row['funti_id'] as String).toList();
+}
+
+Future<void> refreshFuntiFavorites(Set<String> displayedIds) async {
+  final ids = (await getFuntiFavoriteIds()).toSet();
+  if (!setEquals(ids, displayedIds)) await bind.mainLoadFavPeers();
 }
 
 Future<bool> changeFuntiFavorites({List<String> add = const [], List<String> remove = const []}) async {

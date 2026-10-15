@@ -1032,6 +1032,8 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
     gFFI.favoritePeersModel.addListener(_onPeers);
     _onlineTimer = periodic_immediate(const Duration(seconds: 20), () async {
       _queryOnlines();
+      if (isWindows) await refreshFuntiFavorites(
+          gFFI.favoritePeersModel.peers.map((p) => p.id).toSet());
     });
     // The family list is changed by the service (pairing on the other side).
     _familyTimer = Timer.periodic(const Duration(seconds: 3), (_) {
