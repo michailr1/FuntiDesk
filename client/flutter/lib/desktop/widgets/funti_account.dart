@@ -191,11 +191,7 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
   }
 
   List<Widget> _libraryWidgets() => [
-    SwitchListTile(contentPadding: EdgeInsets.zero,
-      title: Text(translate('funti-account-sync-label')),
-      subtitle: Text(translate('funti-account-sync-tip')),
-      value: snapshot['library_enabled'] == true,
-      onChanged: busy ? null : (enabled) async { await command('library_enable', {'enabled': enabled}); await bind.mainLoadFavPeers(); }),
+    Text(translate('funti-account-sync-tip')),
     if (snapshot['library_enabled'] == true) ...[
       _heading('funti-tab-favorites'),
       for (final row in _rows(library['favorites'])) ListTile(

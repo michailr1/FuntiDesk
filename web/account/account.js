@@ -353,6 +353,11 @@
   });
   $('retry-login').addEventListener('click', () => run(prepareLogin));
   $('refresh').addEventListener('click', () => run(showAccount));
+  function refreshSignedInLists() {
+    if (sessionCsrf && !busy && !document.hidden) run(loadLists);
+  }
+  window.setInterval(refreshSignedInLists, 30000);
+  document.addEventListener('visibilitychange', refreshSignedInLists);
   for (const [id, path] of [['logout', '/logout'], ['logout-all', '/logout-all']]) {
     $(id).addEventListener('click', () => {
       if (busy || (id === 'logout-all' && !window.confirm('Выйти из кабинета во всех браузерах и программах? Семейные подключения останутся самостоятельными.'))) return;

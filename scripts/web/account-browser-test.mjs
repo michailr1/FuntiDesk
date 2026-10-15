@@ -55,10 +55,12 @@ try{
   await request('/test/advance-minute',{});
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const removeIds=[];let loseRemove=true;let bootstrapDown=false;let partial=false;
+  await page.clock.install();
+  const removeIds=[];let loseRemove=true;let bootstrapDown=false;let partial=false;let libraryReads=0;
   await context.route('**/*',async route=>{
     const req=route.request();const url=new URL(req.url());assert.equal(url.origin,'https://desk.funti.cc','Unexpected browser destination');
     if(url.pathname.startsWith(apiPath)){
+      if(url.pathname===apiPath+'/library'&&req.method()==='GET')libraryReads++;
       assert.ok(!req.headers()['authorization']&&!req.headers()['x-funti-client'],'Browser must use cookie');
       if(req.method()==='POST'){assert.equal(req.headers().origin,'https://desk.funti.cc');assert.ok(req.headers()['x-funti-csrf']);}
       if(bootstrapDown){await route.fulfill({status:503,contentType:'application/json',body:'{"error":"service_unavailable"}'});return;}
@@ -100,9 +102,12 @@ try{
   assert.match(await page.locator('#message').textContent(),/другом устройстве/);
   library=await request(apiPath+'/library',undefined,native);assert.equal(library.favorites.length,0);
   await page.locator('#refresh:enabled').click();await page.locator('#favorites .empty').waitFor();
+  library=await request(apiPath+'/library',undefined,native);
+  await request(apiPath+'/library/favorites',{revision:library.revision,favorites:[{funti_id:'333333333',name:'Automatically synchronized'}]},native);
+  await page.clock.fastForward(30000);await page.locator('#favorites .row-name').getByText('Automatically synchronized',{exact:true}).waitFor();
   const historyEvent={history_epoch:0,entry:{event_id:randomBytes(32).toString('hex'),source_device_id:firstId,funti_id:'333333333',name:hostile,connected_at:Math.floor(Date.now()/1000)}};
   await request(apiPath+'/library/history',historyEvent,native);await request(apiPath+'/library/history',historyEvent,native);
-  await page.locator('#refresh:enabled').click();await page.locator('#history .row-name').getByText(hostile,{exact:true}).waitFor();
+  await page.locator('#refresh:enabled').waitFor();await page.clock.fastForward(30000);await page.locator('#history .row-name').getByText(hostile,{exact:true}).waitFor();
   assert.equal(await page.locator('#history .row').count(),1);assert.equal(await page.locator('#history img').count(),0);
   await page.locator('#clear-history:enabled').click();await page.locator('#history .empty').waitFor();
   const staleHistory=await fetch(base+apiPath+'/library/history',{method:'POST',headers:{...native,'content-type':'application/json'},body:JSON.stringify(historyEvent)});
@@ -115,6 +120,7 @@ try{
   await signed(firstId,'ack',{events:[event]},first);await page.locator('#refresh').click();await page.getByText('Подтверждено: 1 из 2 показанных компьютеров',{exact:true}).waitFor();
   await signed(secondId,'ack',{events:[event]},second);partial=true;await page.locator('#refresh').click();await page.getByText('Показана последняя часть журнала удалений.',{exact:true}).waitFor();
   await page.locator('#logout-all').click();await page.locator('#send-code:enabled').waitFor();assert.equal(await page.locator('#devices .row').count(),0);assert.equal(await page.locator('#account-email').textContent(),'');
+  const readsAfterLogout=libraryReads;await page.clock.fastForward(60000);assert.equal(libraryReads,readsAfterLogout);assert.equal(await page.locator('#favorites .row').count(),0);
   const invalidNative=await fetch(base+apiPath+'/session',{headers:native});assert.equal(invalidNative.status,401);
   await page.locator('#email').fill('another@example.invalid');await page.locator('#send-code').click();await page.locator('#code-form:not([hidden])').waitFor();await page.locator('#code').fill(await inbox('another@example.invalid'));await page.locator('#code-form button[type=submit]').click();await page.locator('#account:not([hidden])').waitFor();await page.locator('#logout:enabled').click();await page.locator('#send-code:enabled').waitFor();
   bootstrapDown=true;await page.reload();await page.locator('#retry-login:not([hidden])').waitFor();assert.equal(await page.locator('#send-code').isDisabled(),true);

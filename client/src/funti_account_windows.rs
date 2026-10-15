@@ -36,8 +36,9 @@ struct Command {
 struct Stored {
     binding: Option<Binding>,
     protected_session: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    library_account: String,
+    // Accept the previous opt-in setting when restoring an existing login.
+    #[serde(default, rename = "library_account", skip_serializing)]
+    _legacy_library_account: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     history_queue: Vec<Value>,
 }
@@ -99,7 +100,6 @@ pub async fn execute(packet: Packet) -> Value {
         "logout_all",
         "remove",
         "dismiss",
-        "library_enable",
         "favorites_set",
         "history_append",
         "history_clear",
@@ -456,23 +456,6 @@ impl Actor {
                 .await?;
                 self.tick().await?;
             }
-            "library_enable" => {
-                let account = self
-                    .session
-                    .as_ref()
-                    .ok_or("funti-account-session-expired")?
-                    .account_id
-                    .clone();
-                let mut next = self.stored.clone();
-                next.library_account = if payload["enabled"].as_bool() == Some(true) {
-                    account
-                } else {
-                    String::new()
-                };
-                next.history_queue.clear();
-                self.save(next).await?;
-                self.tick().await?;
-            }
             "favorites_set" | "history_clear" | "history_append" => {
                 self.library_command(&packet.action, payload).await?;
             }
@@ -675,9 +658,7 @@ impl Actor {
     }
 
     fn library_enabled(&self) -> bool {
-        self.session.as_ref().map(|s| s.account_id.as_str())
-            == Some(self.stored.library_account.as_str())
-            && !self.stored.library_account.is_empty()
+        self.session.is_some()
     }
 
     async fn library_command(&mut self, action: &str, payload: Value) -> Outcome<()> {

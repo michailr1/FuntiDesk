@@ -108,8 +108,9 @@ pub fn favorite_ids() -> Option<Vec<String>> {
     }
     Some(
         state["data"]["library"]["favorites"]
-            .as_array()?
-            .iter()
+            .as_array()
+            .into_iter()
+            .flatten()
             .filter_map(|row| row["funti_id"].as_str().map(str::to_owned))
             .collect(),
     )
