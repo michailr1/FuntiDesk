@@ -193,6 +193,9 @@ lazy_static::lazy_static! {
     static ref SESSIONS: Arc::<Mutex<HashMap<SessionKey, Session>>> = Default::default();
     static ref ALIVE_CONNS: Arc::<Mutex<Vec<i32>>> = Default::default();
     pub static ref AUTHED_CONNS: Arc::<Mutex<Vec<AuthedConn>>> = Default::default();
+    // FUNTIDESK: connections of family members allowed to use the FuntiDesk
+    // window here (Rights::settings, owner's decision 2026-10-15).
+    static ref FUNTI_FAMILY_SETTINGS: Arc::<Mutex<std::collections::HashSet<i32>>> = Default::default();
     pub static ref CONTROL_PERMISSIONS_ARRAY: Arc::<Mutex<Vec<(i32, ControlPermissions)>>> = Default::default();
     static ref WAKELOCK_SENDER: Arc::<Mutex<std::sync::mpsc::Sender<(usize, usize)>>> = Arc::new(Mutex::new(start_wakelock_thread()));
     static ref WAKELOCK_KEEP_AWAKE_OPTION: Arc::<Mutex<Option<bool>>> = Default::default();
@@ -2554,6 +2557,9 @@ impl Connection {
         }
         if !rights.files {
             self.file = false;
+        }
+        if rights.settings {
+            FUNTI_FAMILY_SETTINGS.lock().unwrap().insert(self.inner.id());
         }
         let confirm = rights.confirm && !help_answer;
         if (help_answer || !self.view_camera) && !confirm {
@@ -7083,6 +7089,22 @@ impl Retina {
 
 /// Get control permission state from CONTROL_PERMISSIONS_ARRAY.
 /// Returns: Some(false) if any disable, Some(true) if any enable (and no disable), None if not set.
+/// FUNTIDESK: the FuntiDesk window here is not dimmed when every session
+/// that controls this computer belongs to a family member with
+/// Rights::settings. Anyone else connected keeps the upstream rules.
+pub fn funti_family_remote_modify_state() -> Option<bool> {
+    let authed: Vec<i32> = AUTHED_CONNS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|c| matches!(c.conn_type, AuthConnType::Remote))
+        .map(|c| c.conn_id)
+        .collect();
+    let mut allowed = FUNTI_FAMILY_SETTINGS.lock().unwrap();
+    allowed.retain(|id| authed.contains(id));
+    (!authed.is_empty() && authed.iter().all(|id| allowed.contains(id))).then_some(true)
+}
+
 pub fn get_control_permission_state(
     permission: hbb_common::rendezvous_proto::control_permissions::Permission,
     disable_if_has_disabled: bool,

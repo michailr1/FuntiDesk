@@ -128,6 +128,10 @@ pub struct Rights {
     pub files: bool,
     #[serde(default = "yes")]
     pub terminal: bool,
+    /// Click in the FuntiDesk window of this computer during the session
+    /// (otherwise it is dimmed while someone controls the computer).
+    #[serde(default = "yes")]
+    pub settings: bool,
 }
 
 impl Default for Rights {
@@ -138,6 +142,7 @@ impl Default for Rights {
             control: true,
             files: true,
             terminal: true,
+            settings: true,
         }
     }
 }
@@ -150,6 +155,7 @@ pub fn rights(id: &str) -> Rights {
         control: false,
         files: false,
         terminal: false,
+        settings: false,
     })
 }
 

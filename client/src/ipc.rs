@@ -1386,8 +1386,14 @@ async fn handle(data: Data, stream: &mut Connection) {
         },
         Data::ControlPermissionsRemoteModify(_) => {
             use hbb_common::rendezvous_proto::control_permissions::Permission;
-            let state =
+            let mut state =
                 crate::server::get_control_permission_state(Permission::remote_modify, true);
+            // FUNTIDESK: family members with the "settings" right.
+            if state != Some(false) {
+                if let Some(family) = crate::server::funti_family_remote_modify_state() {
+                    state = Some(family);
+                }
+            }
             allow_err!(
                 stream
                     .send(&Data::ControlPermissionsRemoteModify(state))
