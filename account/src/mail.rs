@@ -52,7 +52,8 @@ pub async fn deliver(mut queue: mpsc::Receiver<MailJob>, host: String, port: u16
             let message = login_message(&job.email, &job.code)?;
             transport.send(message).await?;
             Ok::<_, anyhow::Error>(())
-        }.await;
+        }
+        .await;
         if result.is_err() {
             // Never print the transport error: it can contain the recipient.
             let challenge = job.challenge;
