@@ -47,3 +47,22 @@ Mail bootstrap монтируется read-only из `infra/funtidesk-account/ma
 Первую инициализацию пустой базы выполняют явно после проверки независимого состояния. Восстановление и откат интерфейса не возвращают старые отзывы. Аккаунты первого этапа хранятся без автоматического удаления; код входа действует 5 минут, сессия — 30 дней по текущей реализации. Политику удаления данных расширяют отдельным решением, без очистки действующих отзывов.
 
 Фактические результаты включения, состояние DNS, проверка браузера и реальные клиентские сценарии фиксируются в отчёте после выполнения. Успешная подготовка не означает успешный вход или завершённую M3-приёмку.
+
+## Действующие серверные конфигурации
+
+После обновления 2026-10-15 `/opt/funtidesk/repo` оставлен на прежнем commit и не является source действующего resolver release. Штатный build helper выполнен из `/opt/funtidesk-account-source`, release `funtidesk-server-a42f05faa3c4`. Identity/data mount, порты и прежняя сеть сохранены. Для последующих операций hbbs/hbbr использовать весь набор:
+
+```sh
+docker compose -p funtidesk-server \
+  --env-file /opt/funtidesk/server.env \
+  --env-file /opt/funtidesk-account-source/infra/funtidesk-server/server-release.env \
+  -f /opt/funtidesk-account-source/infra/funtidesk-server/compose.yaml \
+  -f /opt/funtidesk-account/integration/hbbs-identity.override.yaml \
+  up -d --no-deps --pull never hbbs hbbr
+```
+
+Старый default deploy без этого override может потерять resolver mount или вернуть прежний release. `/opt/funtidesk/DEPLOYED_COMMIT` фиксирует source tools `cf51dda4` на момент обновления; source server binaries — `a42f05fa`. Предыдущее состояние image IDs сохранено в закрытом `/opt/funtidesk-account/integration/server-before.json`.
+
+Account project использует `/opt/funtidesk-account/account.env` и `/opt/funtidesk-account-source/infra/funtidesk-account/compose.yaml`. Для изменения mail выполнять `up -d --no-deps --pull never mail` с этим project/env/Compose; проверять readonly executable bootstrap и pinned package image. Не повторять подготовку и инициализацию существующих хранилищ.
+
+DE witness использует project `funtidesk-account-witness`, env `/opt/funtidesk-account-witness/witness.env` и Compose из `/opt/funtidesk-account-witness-tls-source/infra/funtidesk-account/compose.witness.yaml` (`6316cd27`). Установленный hourly TLS sync проверен на работающем сервисе и требует сохранённого loopback admin. Основной account key на DE не переносится.
