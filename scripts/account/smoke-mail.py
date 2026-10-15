@@ -2,25 +2,30 @@
 """Проверка Postfix/DKIM и собственного API только во внутренней Docker-сети."""
 import email
 import email.policy
+import importlib.util
 import ipaddress
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
+import tempfile
 import time
 import uuid
 
 prefix = "funti-account-check-" + uuid.uuid4().hex[:10]
 mail_image = os.environ["FUNTI_ACCOUNT_MAIL_IMAGE"]
 api_image = os.environ["FUNTI_ACCOUNT_IMAGE"]
+caddy_image = "caddy@sha256:748016f285ed8c43a9ce6e3aed6d92d3009d90ca41157950880f40beaf3ff62b"
 network = prefix
 mail = prefix + "-mail"
 api = prefix + "-api"
 witness = prefix + "-witness"
-volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-queue", "-witness"]]
+volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-witness"]]
 created_containers = []
 created_volumes = []
 network_created = False
+queue_root = None
 
 
 def docker(*arguments, data=None):
@@ -62,6 +67,21 @@ print $status;
 '''
 
 try:
+    prepare_spec = importlib.util.spec_from_file_location("prepare_desk", Path(__file__).with_name("prepare-desk.py"))
+    preparation = importlib.util.module_from_spec(prepare_spec)
+    prepare_spec.loader.exec_module(preparation)
+    queue_root = Path(tempfile.mkdtemp(prefix=prefix + "-queue-"))
+    queue_path = queue_root / "queue"
+    previous_umask = os.umask(0o077)
+    try:
+        preparation.create_mail_queue(queue_path, os.getuid(), os.getgid())
+    finally:
+        os.umask(previous_umask)
+    assert queue_path.stat().st_mode & 0o777 == 0o755, "queue inherited restrictive umask"
+    assert not list(queue_path.iterdir()), "queue fixture must start empty"
+    # The test runner need not be root; the disposable mount matches production ownership.
+    docker("run", "--rm", "--network", "none", "--entrypoint", "chown",
+           "--mount", "type=bind,source=" + str(queue_path) + ",target=/queue", mail_image, "0:0", "/queue")
     docker("network", "create", "--internal", "--subnet", os.environ.get("FUNTI_ACCOUNT_TEST_SUBNET", "172.31.249.0/29"), network)
     network_created = True
     config = json.loads(docker("network", "inspect", network))[0]
@@ -71,7 +91,7 @@ try:
         docker("volume", "create", volume)
         created_volumes.append(volume)
     docker("run", "--rm", "--network", "none", "--entrypoint", "sh",
-           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", "-v", volumes[3] + ":/witness", mail_image, "-c",
+           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", "-v", volumes[2] + ":/witness", mail_image, "-c",
            "umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /secrets/dkim.private 2>/dev/null; "
            "openssl rand -hex 32 > /secrets/account.key; openssl rand -hex 32 > /secrets/witness.key; "
            "chown 10001:10001 /secrets/account.key /secrets/witness.key /data /witness; "
@@ -80,7 +100,7 @@ try:
                        "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
                        "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + "77" * 32,
                        "-e", "FUNTI_WITNESS_DIRECTORY=/data/witness", "-e", "FUNTI_WITNESS_LISTEN=0.0.0.0:21802",
-                       "-v", volumes[0] + ":/secrets:ro", "-v", volumes[3] + ":/data"]
+                       "-v", volumes[0] + ":/secrets:ro", "-v", volumes[2] + ":/data"]
     docker("run", "--rm", *witness_options, api_image, "witness-init")
     created_containers.append(witness)
     docker("run", "-d", "--name", witness, "--ip", witness_ip, "--network-alias", "funtidesk-account-witness-relay", *witness_options, api_image, "witness")
@@ -107,13 +127,16 @@ try:
     created_containers.append(mail)
     docker("run", "-d", "--name", mail, "--network", network, "--ip", mail_ip,
            *options, "-e", "FUNTI_MAIL_BIND_IP=" + mail_ip, "-e", "FUNTI_MAIL_SUBNET=" + str(subnet),
-           "-v", volumes[0] + ":/secrets:ro", "-v", volumes[2] + ":/var/spool/postfix", mail_image)
+           "-v", volumes[0] + ":/secrets:ro",
+           "--mount", "type=bind,source=" + str(queue_path) + ",target=/var/spool/postfix", mail_image)
     for _ in range(60):
         if subprocess.run(["docker", "exec", mail, "postfix", "status"], capture_output=True).returncode == 0:
             break
         time.sleep(0.25)
     else:
         raise RuntimeError("SMTP startup failed")
+    assert docker("exec", mail, "stat", "-c", "%a %u:%g", "/var/spool/postfix") == "755 0:0"
+    assert docker("exec", mail, "stat", "-c", "%a", "/var/spool/postfix/private") == "700"
     docker("exec", mail, "sh", "-c", "postconf -e defer_transports=smtp; postfix reload")
     created_containers.append(api)
     docker("run", "-d", "--name", api, "--ip", api_ip, *account_options, api_image)
@@ -133,6 +156,13 @@ try:
             time.sleep(0.25)
     else:
         raise RuntimeError("API startup failed")
+    # Exercise the activation client's actual shell/nc against a running API.
+    spec = importlib.util.spec_from_file_location("activate_desk", Path(__file__).with_name("activate-desk.py"))
+    activation = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(activation)
+    activation.private_request(caddy_image, "/health", 200, b"ok", network=network, host=api_ip)
+    activation.private_request(caddy_image, "/api/account/v1/session", 401, b"authentication_required",
+                               network=network, host=api_ip)
     base = "/api/account/v1"
     boot = request(base + "/auth/bootstrap")
     context = json.loads(boot["body"])["login_context"]
@@ -200,3 +230,8 @@ finally:
         subprocess.run(["docker", "volume", "rm", volume], capture_output=True)
     if network_created:
         subprocess.run(["docker", "network", "rm", network], capture_output=True)
+    if queue_root is not None:
+        docker("run", "--rm", "--network", "none", "--entrypoint", "sh",
+               "--mount", "type=bind,source=" + str(queue_root) + ",target=/fixture", mail_image,
+               "-c", "find /fixture -mindepth 1 -delete")
+        queue_root.rmdir()

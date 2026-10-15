@@ -27,6 +27,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-tools:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Test activation preflight, readiness and rollback
+        run: python3 scripts/account/test-activate-desk.py
+
   hbbs-registry:
     runs-on: ubuntu-24.04
     timeout-minutes: 45

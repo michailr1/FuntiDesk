@@ -102,6 +102,13 @@ def create_secret(path, uid, value):
     os.chown(path, uid, uid)
 
 
+def create_mail_queue(path, uid=0, gid=0):
+    # Postfix drops privileges while scanning the queue; its root must be traversable.
+    path.mkdir(mode=0o755)
+    os.chown(path, uid, gid)
+    path.chmod(0o755)  # mkdir alone inherits a possibly restrictive deployment umask.
+
+
 def prepare(archive):
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc':
         raise RuntimeError('Preparation must run as root on Core')
@@ -130,10 +137,11 @@ def prepare(archive):
     ROOT.mkdir(mode=0o750)
     (ROOT / 'PREPARED').write_text(MARKER + '\n' + run('git','-C',str(REPO),'rev-parse','HEAD').decode())
     for name, mode, uid, gid in [('data',0o700,10001,10001),('secrets',0o700,0,0),
-                                  ('identity',0o750,0,10001),('mail-queue',0o700,0,0),('backups',0o700,0,0)]:
+                                  ('identity',0o750,0,10001),('backups',0o700,0,0)]:
         path=ROOT/name
         path.mkdir(mode=mode)
         os.chown(path,uid,gid)
+    create_mail_queue(ROOT/'mail-queue')
     create_secret(ROOT/'secrets/account.key',10001,secrets.token_hex(32))
     create_secret(ROOT/'secrets/witness.key',10001,secrets.token_hex(32))
     private=ROOT/'secrets/funtidesk202610.private'
