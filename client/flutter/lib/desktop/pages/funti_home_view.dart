@@ -19,6 +19,7 @@ import 'package:provider/provider.dart';
 import '../../common.dart';
 import '../../common/formatter/id_formatter.dart';
 import '../../common/funti_theme.dart';
+import '../../common/funti_library.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../common/widgets/dialog.dart';
 import '../../consts.dart';
@@ -1067,13 +1068,7 @@ class _MyDevicesCardState extends State<_MyDevicesCard> {
   }
 
   Future<void> _toggleFavorite(Peer peer, bool isFav) async {
-    final favs = (await bind.mainGetFav()).toList();
-    if (isFav) {
-      favs.remove(peer.id);
-    } else if (!favs.contains(peer.id)) {
-      favs.add(peer.id);
-    }
-    await bind.mainStoreFav(favs: favs);
+    if (!await changeFuntiFavorites(add: isFav ? [] : [peer.id], remove: isFav ? [peer.id] : [])) return;
     bind.mainLoadFavPeers();
   }
 
@@ -1436,8 +1431,7 @@ class _DeviceRow extends StatelessWidget {
         final name = peer.alias.isEmpty ? formatID(peer.id) : peer.alias;
         deleteConfirmDialog(() async {
           if (inFavorites) {
-            final favs = (await bind.mainGetFav()).toList();
-            if (favs.remove(peer.id)) await bind.mainStoreFav(favs: favs);
+            if (!await changeFuntiFavorites(remove: [peer.id])) return;
           } else {
             await bind.mainRemovePeer(id: peer.id);
           }

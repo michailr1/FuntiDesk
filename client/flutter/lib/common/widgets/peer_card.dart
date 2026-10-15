@@ -1,3 +1,4 @@
+import '../funti_library.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -808,11 +809,8 @@ abstract class BasePeerCard extends StatelessWidget {
               bind.mainLoadRecentPeers();
               break;
             case PeerTabIndex.fav:
-              final favs = (await bind.mainGetFav()).toList();
-              if (favs.remove(id)) {
-                await bind.mainStoreFav(favs: favs);
-                bind.mainLoadFavPeers();
-              }
+              if (!await changeFuntiFavorites(remove: [id])) return;
+              bind.mainLoadFavPeers();
               break;
             case PeerTabIndex.lan:
               await bind.mainRemoveDiscovered(id: id);
@@ -882,11 +880,7 @@ abstract class BasePeerCard extends StatelessWidget {
       ),
       proc: () {
         () async {
-          final favs = (await bind.mainGetFav()).toList();
-          if (!favs.contains(id)) {
-            favs.add(id);
-            await bind.mainStoreFav(favs: favs);
-          }
+          if (!await changeFuntiFavorites(add: [id])) return;
           showToast(translate('Successful'));
         }();
       },
@@ -917,11 +911,8 @@ abstract class BasePeerCard extends StatelessWidget {
       ),
       proc: () {
         () async {
-          final favs = (await bind.mainGetFav()).toList();
-          if (favs.remove(id)) {
-            await bind.mainStoreFav(favs: favs);
-            await reloadFunc();
-          }
+          if (!await changeFuntiFavorites(remove: [id])) return;
+          await reloadFunc();
           showToast(translate('Successful'));
         }();
       },
@@ -977,7 +968,7 @@ class RecentPeerCard extends BasePeerCard {
       menuItems.add(_terminalRunAsAdminAction(context));
     }
 
-    final List favs = (await bind.mainGetFav()).toList();
+    final List favs = (await getFuntiFavoriteIds()).toList();
 
     if (isDesktop && peer.platform != kPeerPlatformAndroid) {
       menuItems.add(_tcpTunnelingAction(context));
@@ -1102,7 +1093,7 @@ class DiscoveredPeerCard extends BasePeerCard {
       menuItems.add(_terminalRunAsAdminAction(context));
     }
 
-    final List favs = (await bind.mainGetFav()).toList();
+    final List favs = (await getFuntiFavoriteIds()).toList();
 
     if (isDesktop && peer.platform != kPeerPlatformAndroid) {
       menuItems.add(_tcpTunnelingAction(context));

@@ -1,6 +1,6 @@
 use crate::{
     config::{self, LOGIN_COOKIE, SESSION_COOKIE},
-    crypto, devices, mail,
+    crypto, devices, library, mail,
     store::{Auth, SessionRequest},
     App,
 };
@@ -47,6 +47,7 @@ pub fn router(app: App) -> Router {
         .route("/logout", post(logout))
         .route("/logout-all", post(logout_all))
         .merge(devices::routes())
+        .merge(library::routes())
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(middleware::from_fn_with_state(app.clone(), perimeter));
     Router::new()

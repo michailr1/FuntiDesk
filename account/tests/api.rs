@@ -922,3 +922,110 @@ fn limits_and_code_hashes_survive_service_restart() {
         .unwrap()
         .is_some());
 }
+
+#[tokio::test]
+async fn library_favorites_are_account_scoped_and_stale_writes_do_not_restore_removals() {
+    let mut f = Fixture::new();
+    let a = f.login("library-a@example.test").await;
+    f.advance(61);
+    let b = f.login("library-b@example.test").await;
+    let read = f.call(Method::GET, "/library", &auth(&a), json!({})).await;
+    assert_eq!(read.body["revision"], 0);
+    let update =
+        json!({"revision":0,"favorites":[{"funti_id":"111111","name":"<img onerror=alert(1)>"}]});
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/library/favorites",
+            &auth(&a),
+            update.clone()
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        f.call(Method::GET, "/library", &auth(&b), json!({}))
+            .await
+            .body["favorites"],
+        json!([])
+    );
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/library/favorites",
+            &auth(&a),
+            json!({"revision":1,"favorites":[]})
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        f.call(Method::POST, "/library/favorites", &auth(&a), update)
+            .await
+            .status,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call(Method::GET, "/library", &auth(&a), json!({}))
+            .await
+            .body["favorites"],
+        json!([])
+    );
+    assert_eq!(f.call(Method::POST,"/library/favorites",&auth(&a),json!({"revision":2,"favorites":[{"funti_id":"111111","name":"PC","password":"secret"}]})).await.status,StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        f.call(Method::GET, "/library", &[], json!({})).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
+async fn library_history_retries_clear_and_foreign_sources() {
+    let mut f = Fixture::new();
+    let a = f.login("history-a@example.test").await;
+    let key = f.key("123456");
+    let device = f.bind(&a, "123456", &key).await;
+    f.advance(61);
+    let b = f.login("history-b@example.test").await;
+    let payload = json!({"history_epoch":0,"entry":{"event_id":"a".repeat(64),"source_device_id":device,"funti_id":"654321","name":"PC","connected_at":f.clock.load(Ordering::SeqCst)}});
+    assert_eq!(
+        f.call(Method::POST, "/library/history", &auth(&b), payload.clone())
+            .await
+            .status,
+        StatusCode::BAD_REQUEST
+    );
+    for _ in 0..2 {
+        assert_eq!(
+            f.call(Method::POST, "/library/history", &auth(&a), payload.clone())
+                .await
+                .status,
+            StatusCode::OK
+        );
+    }
+    let read = f.call(Method::GET, "/library", &auth(&a), json!({})).await;
+    assert_eq!(read.body["history"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/library/history/clear",
+            &auth(&a),
+            json!({"history_epoch":0})
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        f.call(Method::POST, "/library/history", &auth(&a), payload)
+            .await
+            .status,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        f.call(Method::GET, "/library", &auth(&a), json!({}))
+            .await
+            .body["history"],
+        json!([])
+    );
+}

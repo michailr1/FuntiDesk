@@ -8,14 +8,14 @@
     },
     {
       "file": "account/account.js",
-      "bytes": 13495,
-      "sha256": "56cb7efafe69bcd8c777804976033fe2abe75f1e818e5f71843cd70694bca445",
+      "bytes": 17130,
+      "sha256": "344034c4cf264777bed44b4e87246ecf0884f7a88233c054b15f8e66ac265bc3",
       "content_type": "text/javascript"
     },
     {
       "file": "account/index.html",
-      "bytes": 5605,
-      "sha256": "d4255a3b6631d40d2060ea6d930afd80029f68217afa26f2952f2f12880e8e52",
+      "bytes": 6988,
+      "sha256": "f051e23c4fc093a22af62a7f91737260396bf14aef339514293eeaa15e4b8439",
       "content_type": "text/html"
     },
     {
@@ -29,6 +29,36 @@
       "bytes": 47734,
       "sha256": "f5fbc4b41a9797db658e61cab4b7466a9c46153ec6900b9474f47cabefd20dfa",
       "content_type": "image/jpeg"
+    },
+    {
+      "file": "connect/index.html",
+      "bytes": 2461,
+      "sha256": "2c4a1f35dddcdf4928dc845ecc4b974bd6fb93de10e74a54d14a65fed34a9d59",
+      "content_type": "text/html"
+    },
+    {
+      "file": "connect/licenses.html",
+      "bytes": 15319,
+      "sha256": "b447bf128d1a2ab6516bb7f8aa044911d8351574c08769a25a66c1b15ecc7614",
+      "content_type": "text/html"
+    },
+    {
+      "file": "connect/session.css",
+      "bytes": 292,
+      "sha256": "8420eb8c8c7f9ed52d5ddca390fcb632e6dae356b9cd5b95681d4e5060af5334",
+      "content_type": "text/css"
+    },
+    {
+      "file": "connect/session.js",
+      "bytes": 1075253,
+      "sha256": "b7edf481f92b4933ff96de2f503116aaf8e0abdc5182d3162b22d3dd4cdf975e",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "connect/source.html",
+      "bytes": 1576,
+      "sha256": "e8e2c62b86584b032ab36e163aeb18526259693e5044c3c49405528c9f904afc",
+      "content_type": "text/html"
     },
     {
       "file": "family.css",

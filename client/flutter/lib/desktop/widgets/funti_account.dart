@@ -1,4 +1,4 @@
-// FUNTIDESK (ADR-009/010): account copies have no connection or pairing actions.
+// FUNTIDESK: account lists never grant trust or bypass native authentication.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../../common.dart';
 import '../../common/funti_theme.dart';
+import '../../common/funti_library.dart';
 import '../../models/platform_model.dart';
 
 abstract class _AccountState<T extends StatefulWidget> extends State<T> {
@@ -44,11 +45,14 @@ abstract class _AccountState<T extends StatefulWidget> extends State<T> {
       final raw = await bind.mainFuntiAccount(action: 'status', payload: '{}');
       final value = Map<String, dynamic>.from(jsonDecode(raw));
       if (mounted) {
+        final before = jsonEncode([snapshot['account_id'], snapshot['library_enabled'], data['library']?['favorites']]);
+        final after = jsonEncode([value['account_id'], value['library_enabled'], value['data']?['library']?['favorites']]);
         setState(() {
           snapshot = value;
           if (localError == 'funti-account-service-unavailable')
             localError = '';
         });
+        if (before != after) await bind.mainLoadFavPeers();
       }
     } catch (_) {
       if (mounted) {
@@ -116,12 +120,14 @@ class FuntiAccountPanel extends StatefulWidget {
 class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
   final _email = TextEditingController();
   final _code = TextEditingController();
+  final _favoriteId = TextEditingController();
   final Map<String, String> _removeRequests = {};
 
   @override
   void dispose() {
     _email.clear();
     _code.clear();
+    _favoriteId.dispose();
     _email.dispose();
     _code.dispose();
     super.dispose();
@@ -158,6 +164,61 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
       _removeRequests.remove(pk);
     }
   }
+
+  Map<String, dynamic> get library => data['library'] is Map ? Map<String, dynamic>.from(data['library']) : {};
+
+  Future<void> _importFavorites() async {
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: Text(translate('funti-account-import-favorites')),
+      content: Text(translate('funti-account-sync-tip')),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(translate('Cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(translate('Add')))],
+    ));
+    if (accepted != true || !mounted) return;
+    final ids = await bind.mainGetFav();
+    if (!await changeFuntiFavorites(add: ids)) return;
+    await readStatus();
+  }
+
+  Future<void> _clearHistory() async {
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: Text(translate('funti-account-clear-history')),
+      content: Text(translate('funti-account-clear-history-tip')),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(translate('Cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(translate('Clear')))],
+    ));
+    if (accepted == true && mounted) await command('history_clear', {'account_id': snapshot['account_id'], 'history_epoch': library['history_epoch']});
+  }
+
+  List<Widget> _libraryWidgets() => [
+    SwitchListTile(contentPadding: EdgeInsets.zero,
+      title: Text(translate('funti-account-sync-label')),
+      subtitle: Text(translate('funti-account-sync-tip')),
+      value: snapshot['library_enabled'] == true,
+      onChanged: busy ? null : (enabled) async { await command('library_enable', {'enabled': enabled}); await bind.mainLoadFavPeers(); }),
+    if (snapshot['library_enabled'] == true) ...[
+      _heading('Favorites'),
+      for (final row in _rows(library['favorites'])) ListTile(
+        title: Text(row['name'] as String? ?? ''), subtitle: Text('ID: ${row['funti_id']}'),
+        onTap: () => connect(context, row['funti_id'] as String),
+        trailing: IconButton(icon: const Icon(Icons.star), tooltip: translate('Remove from Favorites'), onPressed: busy ? null : () async {
+          if (await changeFuntiFavorites(remove: [row['funti_id'] as String])) await readStatus();
+        })),
+      TextField(controller: _favoriteId, decoration: const InputDecoration(labelText: 'ID'), maxLength: 64),
+      Wrap(spacing: 12, children: [
+        TextButton(onPressed: busy ? null : () async {
+          if (await changeFuntiFavorites(add: [_favoriteId.text.trim()])) { _favoriteId.clear(); await readStatus(); }
+        }, child: Text(translate('Add'))),
+        TextButton(onPressed: busy ? null : _importFavorites, child: Text(translate('funti-account-import-favorites'))),
+      ]),
+      _heading('Recent sessions'),
+      for (final row in _rows(library['history'])) ListTile(
+        title: Text('${row['name']} · ${row['funti_id']}'),
+        subtitle: Text(_date(row['connected_at'])),
+        onTap: () => connect(context, row['funti_id'] as String)),
+      TextButton(onPressed: busy ? null : _clearHistory, child: Text(translate('funti-account-clear-history'))),
+    ],
+  ];
 
   Future<void> _logout(bool all) async {
     if (all) {
@@ -355,6 +416,7 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
                 onPressed: widget.onOpen,
                 child: Text(translate('funti-account-open')))
           else ...[
+            ..._libraryWidgets(),
             _heading('funti-account-family-copies'),
             Text(translate('funti-account-copy-tip'),
                 style: TextStyle(color: t.muted)),

@@ -487,5 +487,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-account-not-bound", "This computer is not bound to your account yet. Sign in by email."),
         ("funti-account-key-changed", "This computer’s key changed. Sign in by email again."),
         ("funti-account-key-already-bound", "This computer is bound to another account. You can view the new account’s data."),
+        ("funti-account-sync-label", "Sync favorites and connection history"),
+        ("funti-account-sync-tip", "Account favorites and new connections will appear on your other computers and in the account. Passwords are not synced. Existing local records are not uploaded automatically."),
+        ("funti-account-import-favorites", "Add local favorites to account"),
+        ("funti-account-clear-history", "Clear account connection history"),
+        ("funti-account-clear-history-tip", "Clear history on all clients of this account? Old queued entries will not return."),
+        ("funti-account-sync-conflict", "Another device changed the list. Data refreshed; please repeat the action."),
     ].iter().cloned().collect();
 }

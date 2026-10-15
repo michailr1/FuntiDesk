@@ -837,5 +837,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-account-not-bound", ""),
         ("funti-account-key-changed", ""),
         ("funti-account-key-already-bound", ""),
+        ("funti-account-sync-label", ""),
+        ("funti-account-sync-tip", ""),
+        ("funti-account-import-favorites", ""),
+        ("funti-account-clear-history", ""),
+        ("funti-account-clear-history-tip", ""),
+        ("funti-account-sync-conflict", ""),
     ].iter().cloned().collect();
 }

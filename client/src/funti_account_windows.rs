@@ -36,6 +36,10 @@ struct Command {
 struct Stored {
     binding: Option<Binding>,
     protected_session: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    library_account: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    history_queue: Vec<Value>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -81,7 +85,7 @@ pub fn start() {
 }
 
 pub async fn execute(packet: Packet) -> Value {
-    if packet.payload.len() > 2048 {
+    if packet.payload.len() > 60 * 1024 {
         return failure("funti-account-invalid-request");
     }
     if packet.action == "status" {
@@ -95,6 +99,10 @@ pub async fn execute(packet: Packet) -> Value {
         "logout_all",
         "remove",
         "dismiss",
+        "library_enable",
+        "favorites_set",
+        "history_append",
+        "history_clear",
     ]
     .contains(&packet.action.as_str())
     {
@@ -182,6 +190,7 @@ impl Actor {
                 || !protocol::token(&binding.device_id)
                 || binding.ledger.after < 0
                 || binding.ledger.pending_ack.len() > 128
+                || stored.history_queue.len() > 128
             {
                 return Err(anyhow!("invalid account state"));
             }
@@ -222,6 +231,9 @@ impl Actor {
             "needs_code":self.pending.as_ref().map(|p| protocol::token(&p.challenge) && p.expires_at > now()).unwrap_or(false),
             "code_expires_at":self.pending.as_ref().map(|p| p.expires_at),
             "last_refresh":self.last_refresh,"data":self.cache,"error":self.error,
+            "account_id":self.session.as_ref().map(|s| &s.account_id),
+            "library_enabled":self.library_enabled(),
+            "pending_history":self.stored.history_queue.len(),
             "notices":binding.map(|b| &b.ledger.notices),
         });
     }
@@ -251,6 +263,7 @@ impl Actor {
             .map_err(|_| "funti-account-unavailable")?;
         match response.status().as_u16() {
             401 => return Err("funti-account-session-expired"),
+            409 => return Err("funti-account-sync-conflict"),
             429 => return Err("funti-account-try-later"),
             400 => return Err("funti-account-request-rejected"),
             200 | 202 | 204 => {}
@@ -302,6 +315,7 @@ impl Actor {
         self.last_refresh = 0;
         let mut next = self.stored.clone();
         next.protected_session.clear();
+        next.history_queue.clear();
         self.save(next).await
     }
 
@@ -389,6 +403,7 @@ impl Actor {
                     .map_err(|_| "funti-account-storage-error")?;
                 let mut next = self.stored.clone();
                 next.protected_session = protected;
+                next.history_queue.clear();
                 self.save(next).await?;
                 self.session = Some(session);
                 self.pending = None;
@@ -440,6 +455,26 @@ impl Actor {
                 )
                 .await?;
                 self.tick().await?;
+            }
+            "library_enable" => {
+                let account = self
+                    .session
+                    .as_ref()
+                    .ok_or("funti-account-session-expired")?
+                    .account_id
+                    .clone();
+                let mut next = self.stored.clone();
+                next.library_account = if payload["enabled"].as_bool() == Some(true) {
+                    account
+                } else {
+                    String::new()
+                };
+                next.history_queue.clear();
+                self.save(next).await?;
+                self.tick().await?;
+            }
+            "favorites_set" | "history_clear" | "history_append" => {
+                self.library_command(&packet.action, payload).await?;
             }
             "dismiss" => {
                 let mut next = self.stored.clone();
@@ -639,6 +674,113 @@ impl Actor {
         delivered.and(result)
     }
 
+    fn library_enabled(&self) -> bool {
+        self.session.as_ref().map(|s| s.account_id.as_str())
+            == Some(self.stored.library_account.as_str())
+            && !self.stored.library_account.is_empty()
+    }
+
+    async fn library_command(&mut self, action: &str, payload: Value) -> Outcome<()> {
+        let session = self
+            .session
+            .as_ref()
+            .ok_or("funti-account-session-expired")?;
+        if !self.library_enabled()
+            || payload["account_id"].as_str() != Some(session.account_id.as_str())
+        {
+            return Err("funti-account-request-rejected");
+        }
+        let token = session.token.clone();
+        if action == "history_append" {
+            if self.stored.history_queue.len() >= 128 {
+                return Err("funti-account-try-later");
+            }
+            let Some(binding) = self
+                .stored
+                .binding
+                .as_ref()
+                .filter(|b| b.account_id == session.account_id)
+            else {
+                return Err("funti-account-not-bound");
+            };
+            if !payload["funti_id"]
+                .as_str()
+                .map(|id| {
+                    !id.is_empty()
+                        && id.len() <= 64
+                        && id
+                            .bytes()
+                            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+                })
+                .unwrap_or(false)
+                || payload["name"]
+                    .as_str()
+                    .map(|name| name.len() > 256 || name.chars().any(char::is_control))
+                    .unwrap_or(true)
+                || payload["history_epoch"].as_i64()
+                    != self.cache["library"]["history_epoch"].as_i64()
+            {
+                return Err("funti-account-request-rejected");
+            }
+            let mut next = self.stored.clone();
+            next.history_queue.push(json!({"history_epoch":payload["history_epoch"],"entry":{
+                "event_id":hex::encode(sodiumoxide::randombytes::randombytes(32)),
+                "source_device_id":binding.device_id,"funti_id":payload["funti_id"],"name":payload["name"],"connected_at":now()
+            }}));
+            self.save(next).await?;
+            return self.flush_history(&token).await;
+        }
+        let (route, body) = if action == "favorites_set" {
+            (
+                "/library/favorites",
+                json!({"revision":payload["revision"],"favorites":payload["favorites"]}),
+            )
+        } else {
+            (
+                "/library/history/clear",
+                json!({"history_epoch":payload["history_epoch"]}),
+            )
+        };
+        match self.api(route, Some(body), Some(&token), None).await {
+            Ok(library) => {
+                self.cache["library"] = library;
+            }
+            Err("funti-account-sync-conflict") => {
+                self.cache["library"] = self.api("/library", None, Some(&token), None).await?;
+                return Err("funti-account-sync-conflict");
+            }
+            Err(error) => return Err(error),
+        }
+        Ok(())
+    }
+
+    async fn flush_history(&mut self, token: &str) -> Outcome<()> {
+        for _ in 0..2 {
+            let Some(queued) = self.stored.history_queue.first().cloned() else {
+                break;
+            };
+            if queued["history_epoch"] == self.cache["library"]["history_epoch"] {
+                match self
+                    .api("/library/history", Some(queued), Some(token), None)
+                    .await
+                {
+                    Ok(library) => self.cache["library"] = library,
+                    Err("funti-account-sync-conflict") => {
+                        self.cache["library"] =
+                            self.api("/library", None, Some(token), None).await?;
+                        // A remote clear invalidates old events; never retag them with the new epoch.
+                    }
+                    Err("funti-account-request-rejected") => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            let mut next = self.stored.clone();
+            next.history_queue.remove(0);
+            self.save(next).await?;
+        }
+        Ok(())
+    }
+
     async fn refresh_account(&mut self, token: &str) -> Outcome<()> {
         let session = self.api("/session", None, Some(token), None).await?;
         let account = field(&session, "account_id")?;
@@ -651,6 +793,10 @@ impl Actor {
             .api("/family/removals", None, Some(token), None)
             .await?;
         self.cache = json!({"session":session,"devices":devices["devices"],"sources":copies["sources"],"deliveries":removals["deliveries"],"has_more":removals["has_more"]});
+        if self.library_enabled() {
+            self.cache["library"] = self.api("/library", None, Some(token), None).await?;
+            self.flush_history(token).await?;
+        }
         self.last_refresh = now();
         let needs_bind = self
             .stored

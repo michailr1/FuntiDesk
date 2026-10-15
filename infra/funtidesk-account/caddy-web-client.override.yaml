@@ -1,0 +1,10 @@
+# Optional next-stage overlay, AFTER the base and caddy-account.override.yaml.
+# No host ports or server identities change. Do not deploy before browser acceptance.
+services:
+  caddy:
+    networks:
+      funtidesk-server: {}
+networks:
+  funtidesk-server:
+    external: true
+    name: funtidesk-server

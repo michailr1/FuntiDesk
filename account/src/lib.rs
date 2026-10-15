@@ -1,6 +1,7 @@
 pub mod config;
 pub mod crypto;
 pub mod devices;
+pub mod library;
 pub mod mail;
 pub mod recovery;
 pub mod registry;
