@@ -88,13 +88,22 @@ docker compose -p caddy \
   up -d --no-deps --pull never caddy
 ```
 
-Вызов одного исходного Compose потеряет frontend-сеть; отсутствие browser overlay отключит веб-сеансы. Текущий webroot — `/opt/funtidesk-web/releases/508b1d0e99f0046a97b5f46f74d92ed2aaa31d40-browser`: кабинет и основной сайт взяты без изменений из прежнего `a42f05fa`, только `/connect/` — из нового source. API остаётся `2051ad38`, схема DB — v2. Синхронизация новых списков пока не включена. Предыдущее состояние и полный кандидат Caddyfile сохранены в закрытом `integration`; `ACTIVATED` защищает от повторного первого включения. Откат Caddy/webroot не откатывает account DB, независимое состояние и отзывы. Точную версию hotfix API подтверждает `api-mime-update.json`, а не прежний source исходного stage.
+Вызов одного исходного Compose потеряет frontend-сеть; отсутствие browser overlay отключит веб-сеансы. Текущий webroot — `/opt/funtidesk-web/releases/8aec8df11cfaa45b7966b26db41e91b9d2fdf94a-account-sync`: полный сайт, кабинет с избранным/историей и `/connect/`. Действующий API — source `508b1d0e99f0046a97b5f46f74d92ed2aaa31d40`, OCI image `sha256:b1d0ad554d67b7097412420c7ff89b95d03cb587f5f0c02f8ff13771579740e4`, схема DB — v3. Версии подтверждает закрытый `integration/api-library-update.json`; исходные stage и MIME receipts описывают прежние этапы. `ACTIVATED` защищает от повторного первого включения. Откат Caddy/webroot не откатывает account DB, независимое состояние и отзывы.
 
 
-## Кандидат браузерного клиента для живой проверки, 2026-10-15
+## Первое browser-only включение, 2026-10-15 (история)
 
 На `https://desk.funti.cc/connect/` включён отдельный кандидат из source `508b1d0e99f0046a97b5f46f74d92ed2aaa31d40`. Штатный `scripts/account/update-browser-desk.py` сверил прежний и новый manifest, сохранил страницы кабинета и изменил только desk-блок Caddy/добавил одну существующую сеть. API, его DB v2, mail, relay, hbbs/hbbr, остальные контейнеры и ключи сохранены. Ни initialize, ни restore не выполнялись.
 
 Публичные HTML/JS совпадают с проверенной сборкой, ответы `no-store`. HTTPS/WebSocket upgrade на обоих `/ws/rendezvous` и `/ws/relay` даёт `101` для нашего Origin и `403` для чужого. Cookie/Authorization не передаются в hbbs/hbbr. Настоящий Windows-сеанс ещё требует приёмки; пользователь подтвердил наличие двух компьютеров.
 
-Закрытая запись — `/opt/funtidesk-account/updates/browser-508b1d0e99f0/receipt.json`, полный прежний и кандидатный Caddyfile рядом. Откат этого кандидата возвращает прежний Caddyfile/webroot и запускает Caddy только с base + account overlay; DB и независимое состояние не откатываются. Повторный запуск helper поверх уже включённого кандидата намеренно отклоняется для проверки текущего состояния. Новый полный кабинет с избранным/историей можно включать только после совместимого API v3; текущая смешанная поставка его страниц не заменяла.
+Закрытая запись — `/opt/funtidesk-account/updates/browser-508b1d0e99f0/receipt.json`, полный прежний и кандидатный Caddyfile рядом. Откат этого кандидата возвращает прежний Caddyfile/webroot и запускает Caddy только с base + account overlay; DB и независимое состояние не откатываются. Повторный запуск helper поверх уже включённого кандидата намеренно отклоняется для проверки текущего состояния. Этот receipt описывает прежнюю смешанную поставку. После обновления ниже нельзя применять её старую процедуру отката как описание текущего состояния.
+
+
+## Действующее обновление API v3 и полного кабинета, 2026-10-15
+
+`infra/funtidesk-account/account-library-release.json` закрепляет успешный push run [38732381862](https://github.com/michailr1/FuntiDesk/actions/runs/38732381862), source `508b1d0e99f0`, artifact `11971128815`, SHA256 ZIP `fe5a6d7be5de94e968a2d9daff8baa7b3a35e31c5f9779ef62fc17dc1053905b`. Базовый relay/witness остаётся `a42f05fa`; другие образы из нового archive не включались.
+
+Штатный `scripts/account/update-library-desk.py <artifact.zip>` проверяет archive и готовит source-qualified image без переключения. Однократное `--apply` из чистого source `8aec8df11cfa` выполнило миграцию существующей v2 DB, заменило только API image в env, проверило signed witness Head и private health/session/library, затем переключило полный webroot и пересоздало только Caddy с обоими override. Ключи, namespace, mail/relay/hbbs/hbbr, остальные контейнеры, SSL volume и Caddy image сохранены. Initialize/restore не выполнялись; receipt — `/opt/funtidesk-account/integration/api-library-update.json`. Публичные страницы вернули `200`, неавторизованная library — `401`.
+
+После миграции запрещено запускать прежний API v2 на новой DB или восстанавливать старую SQLite/witness для отката. При отказе нужен совместимый v3 image; helper откатывает только webroot, а прежний API возвращает исключительно если DB осталась v2. `APPLY_STARTED` запрещает слепой повтор. Приёмка синхронизации на двух Windows-службах и настоящего браузерного сеанса остаётся открытой: [отчёт](reviews/2026-10-15-account-sync-browser-check.md).
