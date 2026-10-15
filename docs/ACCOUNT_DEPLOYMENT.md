@@ -30,7 +30,7 @@ Mail bootstrap монтируется read-only из `infra/funtidesk-account/ma
 
 Скрипт пересоздаёт только Caddy через исходный Compose и account override, без загрузки нового образа. После переключения ждёт HTTPS страницы и ответа `401` API в ограниченный срок. Ошибка до попытки recreate возвращает изменённые файлы без перезапуска Caddy; ошибка после начала recreate возвращает исходные Caddyfile, webroot и Compose, затем проверяет HTTPS прежнего сайта. Отказ самого отката выводится отдельно. Account DB и независимое состояние не откатываются. Отдельные unit tests проверяют сбои этих фаз без серверов; приватный HTTP-клиент дополнительно проверяется `smoke-mail.py` на настоящем API.
 
-Активация на Core пока не выполнена. Локальные проверки не заменяют чтение текущего состояния, backup, fresh witness, проверку SMTP/Origin/CSRF/fail closed и реальную приёмку.
+Активация на Core выполнена 2026-10-15 07:59 UTC после backup/fresh witness/DNS/реальной почты. Настоящий публичный Chromium вход/выход и security checks прошли; [текущий отчёт](reviews/2026-10-15-account-deploy-continuation.md). Реальная M3-приёмка Windows остаётся отдельным условием готовности продукта.
 
 ## Условия включения
 
@@ -74,3 +74,17 @@ DE witness использует project `funtidesk-account-witness`, env `/opt/f
 Для обновления существующего Core: сверить успешный run/source/artifact digest, проверить ZIP, все внутренние SHA256 и classic/OCI IDs helper-функциями `verify_archive`/`source_qualified_archive` с API manifest. Загрузить образы с тегами исходного SHA; не запускать `prepare`, `initialize`, `restore` или `witness-init`. Сохранить закрытый `account.env.before`, проверить fresh signed witness Head, заменить в `account.env` только `FUNTI_ACCOUNT_IMAGE` на проверенный API image ID и выполнить существующим Compose/env `up -d --no-deps --pull never account`.
 
 Проверить health/session, UID/сети/публичные порты, точный image/source, неизменность keys/namespace и остальных контейнеров; повторить signed Head. При неуспешной готовности вернуть только прежнее значение image/env и API container. DB/witness не откатываются. Hotfix меняет только `account/src/mail.rs`, без миграции данных/протокола. Публичный web остаётся исходного `a42f05fa`.
+
+## Действующий публичный Caddy
+
+После включения 2026-10-15 сохранить account override при последующем recreate Caddy: он добавляет frontend-сеть кабинета к прежней сети и сохраняет SSL volume. Действующая команда (base `.env` отсутствует на момент запуска):
+
+```sh
+docker compose -p caddy \
+  --env-file /opt/funtidesk-account/account.env \
+  -f /opt/remnawave/caddy/docker-compose.yml \
+  -f /opt/funtidesk-account/integration/caddy-account.override.yaml \
+  up -d --no-deps --pull never caddy
+```
+
+Вызов одного исходного Compose потеряет frontend-сеть. Новый webroot — `/opt/funtidesk-web/releases/a42f05faa3c4e277f4eef7e05fa2bac9abbc4387-account`. Предыдущее состояние и полный кандидат Caddyfile сохранены в закрытом `integration`; `ACTIVATED` защищает от повторного первого включения. Откат Caddy/webroot не откатывает account DB, независимое состояние и отзывы. Точную версию hotfix API подтверждает `api-mime-update.json`, а не прежний source исходного stage.
