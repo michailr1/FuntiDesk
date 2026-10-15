@@ -73,18 +73,28 @@ DE witness использует project `funtidesk-account-witness`, env `/opt/f
 
 Для обновления существующего Core: сверить успешный run/source/artifact digest, проверить ZIP, все внутренние SHA256 и classic/OCI IDs helper-функциями `verify_archive`/`source_qualified_archive` с API manifest. Загрузить образы с тегами исходного SHA; не запускать `prepare`, `initialize`, `restore` или `witness-init`. Сохранить закрытый `account.env.before`, проверить fresh signed witness Head, заменить в `account.env` только `FUNTI_ACCOUNT_IMAGE` на проверенный API image ID и выполнить существующим Compose/env `up -d --no-deps --pull never account`.
 
-Проверить health/session, UID/сети/публичные порты, точный image/source, неизменность keys/namespace и остальных контейнеров; повторить signed Head. При неуспешной готовности вернуть только прежнее значение image/env и API container. DB/witness не откатываются. Hotfix меняет только `account/src/mail.rs`, без миграции данных/протокола. Публичный web остаётся исходного `a42f05fa`.
+Проверить health/session, UID/сети/публичные порты, точный image/source, неизменность keys/namespace и остальных контейнеров; повторить signed Head. При неуспешной готовности вернуть только прежнее значение image/env и API container. DB/witness не откатываются. Hotfix меняет только `account/src/mail.rs`, без миграции данных/протокола. На этом этапе публичный web оставался исходного `a42f05fa`; добавление отдельного браузерного кандидата описано ниже.
 
 ## Действующий публичный Caddy
 
-После включения 2026-10-15 сохранить account override при последующем recreate Caddy: он добавляет frontend-сеть кабинета к прежней сети и сохраняет SSL volume. Действующая команда (base `.env` отсутствует на момент запуска):
+После включения 2026-10-15 сохранять оба override при последующем recreate Caddy: account добавляет frontend-сеть кабинета, web-client — существующую сеть hbbs/hbbr. SSL volume и исходные сети сохраняются. Действующая команда (base `.env` отсутствует на момент запуска):
 
 ```sh
 docker compose -p caddy \
   --env-file /opt/funtidesk-account/account.env \
   -f /opt/remnawave/caddy/docker-compose.yml \
   -f /opt/funtidesk-account/integration/caddy-account.override.yaml \
+  -f /opt/funtidesk-account/integration/caddy-web-client.override.yaml \
   up -d --no-deps --pull never caddy
 ```
 
-Вызов одного исходного Compose потеряет frontend-сеть. Новый webroot — `/opt/funtidesk-web/releases/a42f05faa3c4e277f4eef7e05fa2bac9abbc4387-account`. Предыдущее состояние и полный кандидат Caddyfile сохранены в закрытом `integration`; `ACTIVATED` защищает от повторного первого включения. Откат Caddy/webroot не откатывает account DB, независимое состояние и отзывы. Точную версию hotfix API подтверждает `api-mime-update.json`, а не прежний source исходного stage.
+Вызов одного исходного Compose потеряет frontend-сеть; отсутствие browser overlay отключит веб-сеансы. Текущий webroot — `/opt/funtidesk-web/releases/508b1d0e99f0046a97b5f46f74d92ed2aaa31d40-browser`: кабинет и основной сайт взяты без изменений из прежнего `a42f05fa`, только `/connect/` — из нового source. API остаётся `2051ad38`, схема DB — v2. Синхронизация новых списков пока не включена. Предыдущее состояние и полный кандидат Caddyfile сохранены в закрытом `integration`; `ACTIVATED` защищает от повторного первого включения. Откат Caddy/webroot не откатывает account DB, независимое состояние и отзывы. Точную версию hotfix API подтверждает `api-mime-update.json`, а не прежний source исходного stage.
+
+
+## Кандидат браузерного клиента для живой проверки, 2026-10-15
+
+На `https://desk.funti.cc/connect/` включён отдельный кандидат из source `508b1d0e99f0046a97b5f46f74d92ed2aaa31d40`. Штатный `scripts/account/update-browser-desk.py` сверил прежний и новый manifest, сохранил страницы кабинета и изменил только desk-блок Caddy/добавил одну существующую сеть. API, его DB v2, mail, relay, hbbs/hbbr, остальные контейнеры и ключи сохранены. Ни initialize, ни restore не выполнялись.
+
+Публичные HTML/JS совпадают с проверенной сборкой, ответы `no-store`. HTTPS/WebSocket upgrade на обоих `/ws/rendezvous` и `/ws/relay` даёт `101` для нашего Origin и `403` для чужого. Cookie/Authorization не передаются в hbbs/hbbr. Настоящий Windows-сеанс ещё требует приёмки; пользователь подтвердил наличие двух компьютеров.
+
+Закрытая запись — `/opt/funtidesk-account/updates/browser-508b1d0e99f0/receipt.json`, полный прежний и кандидатный Caddyfile рядом. Откат этого кандидата возвращает прежний Caddyfile/webroot и запускает Caddy только с base + account overlay; DB и независимое состояние не откатываются. Повторный запуск helper поверх уже включённого кандидата намеренно отклоняется для проверки текущего состояния. Новый полный кабинет с избранным/историей можно включать только после совместимого API v3; текущая смешанная поставка его страниц не заменяла.
