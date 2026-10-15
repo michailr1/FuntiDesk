@@ -35,6 +35,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y age
       - name: Test activation preflight, readiness and rollback
         run: python3 scripts/account/test-activate-desk.py
+      - name: Test browser candidate preserves existing account and other Caddy sites
+        run: python3 scripts/account/test-update-browser-desk.py
       - name: Test encrypted backups and live SQLite WAL snapshot
         run: python3 scripts/account/test-backup-desk.py
       - name: Test fresh witness Head authentication and relay inspection

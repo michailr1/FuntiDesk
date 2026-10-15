@@ -20,7 +20,7 @@ python3 scripts/web/package.py --output /tmp/funtidesk-web.tar
 
 ## Развёртывание и приёмка
 
-Техническое решение: [ADR-012](../docs/ADR-012-account-sync-and-browser.md). Отдельный WSS-фрагмент — `infra/funtidesk-account/Caddyfile.web-client.fragment`, дополнительная сеть Caddy — `caddy-web-client.override.yaml`. Они не применены в production. До применения сохранить обе действующие конфигурации Caddy и повторить проверку нового полного Caddyfile и Compose; сохранять account overlay и остальные сайты.
+Техническое решение: [ADR-012](../docs/ADR-012-account-sync-and-browser.md). Отдельный WSS-фрагмент — `infra/funtidesk-account/Caddyfile.web-client.fragment`, дополнительная сеть Caddy — `caddy-web-client.override.yaml`. Для живой приёмки подготовлен отдельный `scripts/account/update-browser-desk.py`: он сохраняет текущие API и страницы кабинета, проверяет оба manifest, изменяет только desk-блок и добавляет только сеть серверов. При неуспешной готовности возвращает прежние Caddyfile, webroot и сети. При последующих recreate сохранять оба overlay из закрытого integration-каталога и остальные сайты. Это кандидат для проверки Windows, а не принятый релиз.
 
 Проверки криптографии сопоставляют побайтовые контрольные значения текущего нативного Rust-клиента: подписи обеих идентичностей, ID, запечатанный ключ, отдельные ключи направлений и парольный challenge. Протокольный тест с синтетическим компьютером не заменяет реальную Windows-приёмку: временный пароль, постоянный пароль, отказ пароля/ключа, запрет ввода, отзыв подтверждения, обрыв сети и существующие native-native подключения.
 

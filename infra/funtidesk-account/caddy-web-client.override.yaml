@@ -1,5 +1,5 @@
 # Optional next-stage overlay, AFTER the base and caddy-account.override.yaml.
-# No host ports or server identities change. Do not deploy before browser acceptance.
+# No host ports or server identities change. A candidate still needs live Windows acceptance.
 services:
   caddy:
     networks:
