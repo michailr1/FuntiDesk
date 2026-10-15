@@ -66,3 +66,11 @@ docker compose -p funtidesk-server \
 Account project использует `/opt/funtidesk-account/account.env` и `/opt/funtidesk-account-source/infra/funtidesk-account/compose.yaml`. Для изменения mail выполнять `up -d --no-deps --pull never mail` с этим project/env/Compose; проверять readonly executable bootstrap и pinned package image. Не повторять подготовку и инициализацию существующих хранилищ.
 
 DE witness использует project `funtidesk-account-witness`, env `/opt/funtidesk-account-witness/witness.env` и Compose из `/opt/funtidesk-account-witness-tls-source/infra/funtidesk-account/compose.witness.yaml` (`6316cd27`). Установленный hourly TLS sync проверен на работающем сервисе и требует сохранённого loopback admin. Основной account key на DE не переносится.
+
+## Обновление только API без повторной инициализации
+
+`account-release.json` остаётся базовой поставкой `a42f05fa`, включая relay/witness. `account-api-release.json` отдельно закрепляет проверенную CI-поставку SMTP/MIME hotfix `2051ad38`; из этого archive для работающего API применяется только image `funtidesk-account`. Остальные образы этой поставки не объявляются действующими. Это сохраняет проверку точного image/source уже установленного relay и отдельного witness.
+
+Для обновления существующего Core: сверить успешный run/source/artifact digest, проверить ZIP, все внутренние SHA256 и classic/OCI IDs helper-функциями `verify_archive`/`source_qualified_archive` с API manifest. Загрузить образы с тегами исходного SHA; не запускать `prepare`, `initialize`, `restore` или `witness-init`. Сохранить закрытый `account.env.before`, проверить fresh signed witness Head, заменить в `account.env` только `FUNTI_ACCOUNT_IMAGE` на проверенный API image ID и выполнить существующим Compose/env `up -d --no-deps --pull never account`.
+
+Проверить health/session, UID/сети/публичные порты, точный image/source, неизменность keys/namespace и остальных контейнеров; повторить signed Head. При неуспешной готовности вернуть только прежнее значение image/env и API container. DB/witness не откатываются. Hotfix меняет только `account/src/mail.rs`, без миграции данных/протокола. Публичный web остаётся исходного `a42f05fa`.
