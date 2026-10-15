@@ -22,6 +22,10 @@ account = json.loads(run("docker", "compose", "--env-file", str(infra / ".env.ex
 assert all(not service.get("ports") for service in account["services"].values())
 assert set(account["services"]["account"]["networks"]) == {"frontend", "smtp", "witness"}
 assert set(account["services"]["mail"]["networks"]) == {"smtp", "outbound"}
+mail_mounts = {mount["target"]: mount for mount in account["services"]["mail"]["volumes"]}
+assert mail_mounts["/usr/local/bin/funtidesk-mail"]["read_only"]
+assert mail_mounts["/usr/local/bin/funtidesk-mail"]["source"] == str(infra / "mail-entrypoint.sh")
+assert (infra / "mail-entrypoint.sh").stat().st_mode & 0o111
 assert account["networks"]["frontend"]["internal"] and account["networks"]["smtp"]["internal"]
 assert account["networks"]["witness"]["internal"]
 relay = account["services"]["witness-relay"]

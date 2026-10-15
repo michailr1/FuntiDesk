@@ -69,6 +69,8 @@ services:
     volumes:
       - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/funtidesk202610.private:/secrets/dkim.private:ro
       - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/mail-queue:/var/spool/postfix
+      # Bootstrap comes from the pinned deploy checkout; package image stays pinned.
+      - ./mail-entrypoint.sh:/usr/local/bin/funtidesk-mail:ro
     tmpfs:
       - /run:mode=0755
       - /tmp:mode=1777

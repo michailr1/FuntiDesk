@@ -18,6 +18,12 @@ python3 scripts/account/prepare-desk.py --artifact-url-stdin
 
 Корень bind-каталога `mail-queue` создаётся как root:root `0755`, с явным `chmod` после `mkdir`: deployment umask `077` не должен лишать Postfix права прохода. Права закрытых подкаталогов очереди сохраняются. В исходной подготовке был `0700`; на закреплённом образе это воспроизведено как аварийная остановка Postfix при обходе очереди. Для уже подготовленного Core сначала прочитать статус/права и безопасные категории ошибок, затем исправить **только корень** `/opt/funtidesk-account/mail-queue` на `0755` и запустить только mail. Не повторять `prepare-desk.py`, не менять права рекурсивно и не пересоздавать ключи. Регрессия `smoke-mail.py` использует пустой настоящий bind mount, подготовленный тем же helper под umask `077`.
 
+Почтовое имя и HELO — `desk.funti.cc` (решение владельца 2026-10-15). PTR исходящего `173.249.195.36` должен возвращать это имя; A уже указывает на тот же IP. Системный hostname `core.funti.cc` сохраняется. SPF/DKIM относятся к домену отправителя `funti.cc`, смена HELO не требует нового DKIM-ключа.
+
+Postfix явно получает `smtp_bind_address=0.0.0.0`: маршрут выбирает исходящий адрес, тогда как `inet_interfaces` остаётся приватным. Без этого Postfix использовал единственный приватный listener IP как source исходящего соединения, что на реальном Core приводило к timeout. Smoke проверяет настоящий Postfix transport через вторую изолированную сеть и отказывает до MAIL/DATA.
+
+Mail bootstrap монтируется read-only из `infra/funtidesk-account/mail-entrypoint.sh` чистого закреплённого deploy checkout, с executable bit из Git. Проверенный image `a42f05fa` сохраняет пакеты и provenance; актуальная конфигурация bootstrap имеет отдельный source commit и SHA256 файла. При обновлении сверить image, source/hash и readonly mount; пересоздать только mail через тот же Compose/env. Не приписывать обновлённый скрипт содержимому старого image.
+
 ## Переключение Caddy и откат
 
 `python3 scripts/account/activate-desk.py` предназначен для отдельного шага после выполнения условий включения ниже. Он сверяет staged backup/candidate, исходный webroot, действующий Caddy и его Compose, образ, mounts и сети до изменения файлов. Проверяет приватные HTTP `/health` и unauthenticated session; эти два запроса сами по себе не подтверждают SMTP, свежесть witness или готовность resolver к привязке устройства.

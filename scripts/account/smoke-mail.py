@@ -18,6 +18,7 @@ mail_image = os.environ["FUNTI_ACCOUNT_MAIL_IMAGE"]
 api_image = os.environ["FUNTI_ACCOUNT_IMAGE"]
 caddy_image = "caddy@sha256:748016f285ed8c43a9ce6e3aed6d92d3009d90ca41157950880f40beaf3ff62b"
 network = prefix
+outbound_network = prefix + "-outbound"
 mail = prefix + "-mail"
 api = prefix + "-api"
 witness = prefix + "-witness"
@@ -25,6 +26,7 @@ volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-witness"]]
 created_containers = []
 created_volumes = []
 network_created = False
+outbound_created = False
 queue_root = None
 
 
@@ -128,6 +130,7 @@ try:
     docker("run", "-d", "--name", mail, "--network", network, "--ip", mail_ip,
            *options, "-e", "FUNTI_MAIL_BIND_IP=" + mail_ip, "-e", "FUNTI_MAIL_SUBNET=" + str(subnet),
            "-v", volumes[0] + ":/secrets:ro",
+           "--mount", "type=bind,source=" + str(Path(__file__).resolve().parents[2] / "infra/funtidesk-account/mail-entrypoint.sh") + ",target=/usr/local/bin/funtidesk-mail,readonly",
            "--mount", "type=bind,source=" + str(queue_path) + ",target=/var/spool/postfix", mail_image)
     for _ in range(60):
         if subprocess.run(["docker", "exec", mail, "postfix", "status"], capture_output=True).returncode == 0:
@@ -211,6 +214,45 @@ try:
             time.sleep(0.25)
     else:
         raise RuntimeError("Restored API startup failed")
+    # A single inet_interfaces address otherwise also becomes the SMTP client's
+    # source address. Exercise the real Postfix transport across a second network.
+    # This fake MX refuses before MAIL/DATA; both test networks have no Internet.
+    docker("network", "create", "--internal", "--subnet",
+           os.environ.get("FUNTI_ACCOUNT_TEST_OUTBOUND_SUBNET", "172.31.248.0/29"), outbound_network)
+    outbound_created = True
+    outbound_config = json.loads(docker("network", "inspect", outbound_network))[0]
+    outbound_subnet = ipaddress.ip_network(outbound_config["IPAM"]["Config"][0]["Subnet"])
+    outbound_ip, mx_ip = [str(outbound_subnet.network_address + i) for i in [2, 3]]
+    docker("network", "connect", "--ip", outbound_ip, outbound_network, mail)
+    mx = prefix + "-mx"
+    created_containers.append(mx)
+    mx_server = r'''use IO::Socket::INET;
+alarm 20;
+my $server=IO::Socket::INET->new(LocalAddr=>'0.0.0.0',LocalPort=>2526,Listen=>1,ReuseAddr=>1) or die "MX fixture listen failed";
+my $client=$server->accept() or die "MX fixture accept failed";
+$client->autoflush(1); print $client "421 fixture stops before mail data\r\n";
+print $client->peerhost; close $client;
+'''
+    docker("run", "-d", "--name", mx, "--network", outbound_network, "--ip", mx_ip,
+           "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+           "--entrypoint", "perl", mail_image, "-e", mx_server)
+    docker("exec", mail, "postconf", "-e", "defer_transports=", "smtp_connect_timeout=3s",
+           "transport_maps=static:smtp:[" + mx_ip + "]:2526")
+    docker("exec", mail, "postfix", "reload")
+    docker("exec", mail, "postqueue", "-f")
+    for _ in range(60):
+        state = json.loads(docker("inspect", mx))[0]["State"]
+        if state["Status"] == "exited":
+            assert state["ExitCode"] == 0, "Postfix did not reach the isolated MX"
+            break
+        time.sleep(0.25)
+    else:
+        raise RuntimeError("Postfix outbound source check timed out")
+    assert docker("logs", mx) == outbound_ip, "SMTP used the private listener address as its outbound source"
+    assert docker("exec", mail, "postconf", "-h", "smtp_bind_address") == "0.0.0.0"
+    assert docker("exec", mail, "postconf", "-h", "smtp_tls_security_level") == "verify"
+    assert docker("exec", mail, "postconf", "-h", "myhostname") == "desk.funti.cc"
+    assert docker("exec", mail, "postconf", "-h", "smtp_helo_name") == "desk.funti.cc"
     refused = int(docker("exec", mail, "perl", "-e", smtp, mail_ip, "other@funti.cc"))
     assert 500 <= refused < 600, "unapproved sender was accepted"
     docker("exec", mail, "perl", "-e",
@@ -222,7 +264,7 @@ try:
         assert all(value not in logs for value in ["person@example.invalid", code, token, challenge, context]), "secret leaked to logs"
     assert docker("exec", mail, "postconf", "-h", "maillog_file") == "/dev/null"
     assert docker("exec", mail, "postconf", "-h", "inet_interfaces") == mail_ip
-    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private network, real queued code, independent encrypted state, CLI restore invalidates session, sender/DKIM refusal, log privacy")
+    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private listener, outbound source, desk HELO, real queued code, independent encrypted state, CLI restore invalidates session, sender/DKIM refusal, log privacy")
 finally:
     for container in reversed(created_containers):
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)
@@ -230,6 +272,8 @@ finally:
         subprocess.run(["docker", "volume", "rm", volume], capture_output=True)
     if network_created:
         subprocess.run(["docker", "network", "rm", network], capture_output=True)
+    if outbound_created:
+        subprocess.run(["docker", "network", "rm", outbound_network], capture_output=True)
     if queue_root is not None:
         docker("run", "--rm", "--network", "none", "--entrypoint", "sh",
                "--mount", "type=bind,source=" + str(queue_root) + ",target=/fixture", mail_image,
