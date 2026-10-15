@@ -55,6 +55,7 @@ class BackupTests(unittest.TestCase):
         self.write(self.server / 'data/id_ed25519', base64.b64encode(os.urandom(32) + public))
         self.write(self.server / 'data/id_ed25519.pub', base64.b64encode(public))
         self.write(self.server / 'server.env', b'FUNTIDESK_FQDN=fixture.invalid\n')
+        (self.server / 'server.env').chmod(0o640)
         self.writer = sqlite3.connect(self.server / 'data/db_v2.sqlite3')
         self.addCleanup(self.writer.close)
         self.writer.execute('PRAGMA journal_mode=WAL')
@@ -113,7 +114,22 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(connection.execute('SELECT value FROM fixture').fetchall(), [('row in WAL',)])
         self.assertEqual(connection.execute('PRAGMA integrity_check').fetchall(), [('ok',)])
         self.assertEqual(members['data/id_ed25519'], (self.server / 'data/id_ed25519').read_bytes())
+        self.assertEqual((self.server / 'server.env').stat().st_mode & 0o777, 0o640)
         self.assertEqual(set(self.outputs.iterdir()), {artifact, Path(str(artifact) + '.sha256')})
+
+    def test_server_metadata_group_write_and_world_read_are_rejected(self):
+        for mode in [0o660, 0o644]:
+            with self.subTest(mode=oct(mode)):
+                (self.server / 'server.env').chmod(mode)
+                with self.assertRaisesRegex(backup.BackupError, 'permissions are too broad'):
+                    backup.backup('server', self.outputs / 'invalid.tar.gz.age', self.recipient)
+                self.assertEqual(list(self.outputs.iterdir()), [])
+
+    def test_server_private_key_group_read_is_still_rejected(self):
+        (self.server / 'data/id_ed25519').chmod(0o640)
+        with self.assertRaisesRegex(backup.BackupError, 'permissions are too broad'):
+            backup.backup('server', self.outputs / 'invalid.tar.gz.age', self.recipient)
+        self.assertEqual(list(self.outputs.iterdir()), [])
 
     def test_existing_artifact_is_never_overwritten(self):
         artifact = self.outputs / 'existing.tar.gz.age'

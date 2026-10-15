@@ -34,13 +34,14 @@ def signature(info):
             info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
 
-def read_file(path, private=False, limit=1024 * 1024):
+def read_file(path, private=False, limit=1024 * 1024, allow_group_read=False):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(descriptor, 'rb') as source:
         info = os.fstat(source.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
             raise BackupError('Invalid backup input file')
-        if private and info.st_mode & 0o077:
+        forbidden_permissions = 0o037 if allow_group_read else 0o077
+        if private and info.st_mode & forbidden_permissions:
             raise BackupError('Backup secret file permissions are too broad')
         content = source.read(limit + 1)
         if len(content) > limit or signature(os.fstat(source.fileno())) != signature(info):
@@ -100,7 +101,10 @@ def collect(component):
     entries = {}
     for name, private in files + [(name, False) for name in optional
                                   if (root / name).exists() or (root / name).is_symlink()]:
-        entries[name] = read_file(root / name, private)
+        # Existing deploy.sh installs server.env as root:root 0640. It is
+        # encrypted operational metadata; private key permissions stay strict.
+        entries[name] = read_file(root / name, private,
+                                  allow_group_read=component == 'server' and name == 'server.env')
     if component == 'account-secrets':
         for name in ['secrets/account.key', 'secrets/witness.key']:
             if not re.fullmatch(rb'[0-9a-fA-F]{64}', entries[name][0].strip()):
