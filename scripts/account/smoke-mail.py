@@ -191,6 +191,9 @@ try:
             break
         time.sleep(0.25)
     assert message is not None, "signed API mail was not queued"
+    assert message["MIME-Version"] == "1.0", "mail lacks MIME version"
+    assert len(message.get_all("Message-ID", [])) == 1
+    assert re.fullmatch(r"<[0-9a-f]{32}@desk[.]funti[.]cc>", str(message["Message-ID"])), "mail lacks its own unique sender Message-ID"
     assert "d=funti.cc" in signature and "s=funtidesk202610" in signature, "wrong DKIM identity"
     assert "Код входа:" in message.get_content(), "mail does not declare readable UTF-8 text"
     code = re.search(r"\b\d{6}\b", message.get_content()).group()
