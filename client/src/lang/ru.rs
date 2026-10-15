@@ -830,6 +830,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-right-files-tip", "В обе стороны, в том числе через буфер обмена"),
         ("funti-right-terminal", "Открывать терминал"),
         ("funti-right-terminal-tip", "Командная строка этого компьютера"),
+        ("funti-right-settings", "Менять настройки FuntiDesk"),
+        ("funti-right-settings-tip", "Нажимать в окне FuntiDesk этого компьютера во время сеанса; иначе оно затемнено"),
         ("funti-call-declined", "Абонент отклонил звонок."),
         ("funti-show-home-banner", "Показывать картинку на главном экране"),
         ("funti-settings-access", "Доступ к компьютеру"),
