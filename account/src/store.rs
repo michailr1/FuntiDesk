@@ -81,9 +81,15 @@ impl Store {
         if version > 3 {
             bail!("unsupported database version");
         }
-        db.execute_batch(include_str!("schema.sql"))?;
-        db.execute_batch(include_str!("schema-recovery.sql"))?;
-        db.execute_batch(include_str!("schema-library.sql"))?;
+        if version == 0 {
+            db.execute_batch(include_str!("schema.sql"))?;
+        }
+        if version < 2 {
+            db.execute_batch(include_str!("schema-recovery.sql"))?;
+        }
+        if version < 3 {
+            db.execute_batch(include_str!("schema-library.sql"))?;
+        }
         Ok(Self {
             db,
             key,
