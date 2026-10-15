@@ -2,7 +2,8 @@ import { Session, errorText } from './session.js';
 import { controls } from './protocol.js';
 const $ = (id) => document.getElementById(id);
 const canvas = $('screen'); let active;
-const target = decodeURIComponent(location.hash.slice(1));
+let target = '';
+try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
 if (location.hash) history.replaceState(null, '', location.pathname);
 function stop() { active?.close(); active = null; $('connect').disabled = false; $('disconnect').disabled = true; }

@@ -5,13 +5,14 @@ const ORIGIN = 'wss://desk.funti.cc';
 export class Session {
   constructor(canvas, onState) {
     this.canvas = canvas; this.onState = onState; this.closed = false;
-    this.sockets = []; this.keys = null; this.decoder = null; this.connected = false;
+    this.sockets = []; this.keys = null; this.decoder = null; this.connected = false; this.firstFrame = false;
     this.keyboard = null; this.screen = { x: 0, y: 0 }; this.pendingFrames = 0;
   }
   async start(id, password) {
     await ready;
     if (this.closed) return;
     if (!/^[0-9]{6,16}$/.test(id) || !password || password.length > 256) throw new Error('invalid_credentials');
+    if (typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined') throw new Error('unsupported_browser');
     const capability = await VideoDecoder.isConfigSupported({ codec: 'vp09.00.10.08' });
     if (!capability.supported || this.closed) throw new Error('unsupported_browser');
     this.decoder = new VideoDecoder({ output: (frame) => this.draw(frame), error: () => this.fail('video_error') });
@@ -81,10 +82,15 @@ export class Session {
       if (w <= 0 || h <= 0 || w > 8192 || h > 8192 || w * h > 33554432) { this.fail('invalid_video'); return; }
       this.canvas.width = w; this.canvas.height = h;
       this.canvas.getContext('2d', { alpha: false }).drawImage(frame, 0, 0);
+      this.firstFrame = true;
       if (--this.pendingFrames === 0) this.socket.send({ misc: { video_received: true } });
-    } finally { frame.close(); }
+    } catch { this.fail('video_error'); } finally { frame.close(); }
   }
-  input(value) { if (!this.closed && this.connected && this.keyboard) this.socket.send(value); }
+  input(value) {
+    if (!this.closed && this.connected && this.firstFrame && this.keyboard) {
+      try { this.socket.send(value); } catch { this.fail('connection_closed'); }
+    }
+  }
   fail(code) { this.close(); this.onState(errorText(code)); }
   close() {
     if (this.closed) return;

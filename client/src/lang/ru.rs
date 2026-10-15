@@ -1002,5 +1002,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-account-clear-history", "Очистить историю аккаунта"),
         ("funti-account-clear-history-tip", "Удалить историю на всех клиентах этого аккаунта? Старые отложенные записи не вернутся."),
         ("funti-account-sync-conflict", "Список изменён на другом устройстве. Данные обновлены — повторите действие."),
+        ("funti-account-history", "История подключений"),
     ].iter().cloned().collect();
 }

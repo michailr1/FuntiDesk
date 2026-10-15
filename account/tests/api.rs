@@ -397,6 +397,22 @@ async fn browser_uses_protected_cookie_and_requires_origin_and_csrf_for_changes(
         .next()
         .unwrap()
         .to_owned();
+    for (route, body) in [
+        ("/library/favorites", json!({"revision":0,"favorites":[]})),
+        ("/library/history/clear", json!({"history_epoch":0})),
+    ] {
+        assert_eq!(
+            f.call(
+                Method::POST,
+                route,
+                &[("cookie", session_cookie.clone())],
+                body
+            )
+            .await
+            .status,
+            StatusCode::FORBIDDEN
+        );
+    }
     assert_eq!(
         f.call(
             Method::POST,

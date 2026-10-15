@@ -858,4 +858,77 @@ mod tests {
         assert!(event > head.event_highwater);
         assert_eq!(f.client.head().await.unwrap().event_highwater, event);
     }
+    #[tokio::test]
+    async fn library_clear_and_favorites_survive_latest_witness_restore() {
+        use crate::library::{
+            Change, Favorite, FavoritesUpdate, HistoryClear, HistoryEntry, HistoryUpdate,
+        };
+        let f = Fixture::new().await;
+        let primary = f.dir.path().join("library.sqlite3");
+        let app = f.app(&primary, "library-recovery", true).await.unwrap();
+        let (auth, _, source, _, _) = setup(&app).await;
+        let saved = auth.clone();
+        app.db(move |store| {
+            assert!(matches!(
+                store.favorites_update(
+                    &saved,
+                    FavoritesUpdate {
+                        revision: 0,
+                        favorites: vec![Favorite {
+                            funti_id: "333333333".into(),
+                            name: "Favorite".into()
+                        }]
+                    },
+                    NOW
+                )?,
+                Change::Applied(_)
+            ));
+            assert!(matches!(
+                store.history_append(
+                    &saved,
+                    HistoryUpdate {
+                        history_epoch: 0,
+                        entry: HistoryEntry {
+                            event_id: "a".repeat(64),
+                            source_device_id: source,
+                            funti_id: "333333333".into(),
+                            name: "Favorite".into(),
+                            connected_at: NOW
+                        }
+                    },
+                    NOW
+                )?,
+                Change::Applied(_)
+            ));
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let before = f.client.head().await.unwrap();
+        app.db(move |store| {
+            assert!(matches!(
+                store.history_clear(&auth, HistoryClear { history_epoch: 0 }, NOW)?,
+                Change::Applied(_)
+            ));
+            Ok(())
+        })
+        .await
+        .unwrap();
+        assert!(f.client.head().await.unwrap().revision > before.revision);
+        drop(app);
+        let restored = f.dir.path().join("library-restored.sqlite3");
+        restore(&f.client, KEY, &restored).await.unwrap();
+        let recovered = f.app(&restored, "library-recovered", false).await.unwrap();
+        recovered
+            .db(move |store| {
+                let (auth, _) = login(store, &crypto::token(), NOW + 61)?;
+                let library = store.library(&auth, NOW + 61)?.unwrap();
+                assert_eq!(library.history_epoch, 1);
+                assert!(library.history.is_empty());
+                assert_eq!(library.favorites[0].funti_id, "333333333");
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
 }

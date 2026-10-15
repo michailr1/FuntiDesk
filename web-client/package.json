@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:browser": "node test/browser.mjs"
   },
   "dependencies": {
     "libsodium-wrappers": "0.8.4",

@@ -1,0 +1,33 @@
+name: Browser client checks
+on:
+  push:
+    paths: ['web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
+  pull_request:
+    paths: ['web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
+permissions:
+  contents: read
+jobs:
+  browser-client:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-client/package-lock.json
+      - name: Install locked build and test dependencies
+        run: npm ci --prefix web-client --ignore-scripts
+      - name: Rebuild static browser files and verify native crypto vectors
+        run: |
+          npm --prefix web-client run build
+          npm --prefix web-client test
+          git diff --exit-code -- web/connect/session.js web/connect/licenses.html
+          python3 scripts/web/package.py
+      - name: Install Chromium for protocol acceptance
+        working-directory: web-client
+        run: npx playwright install --with-deps chromium
+      - name: Run encrypted browser session against protocol fixture
+        working-directory: web-client
+        run: CHROMIUM_PATH="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')" npm run test:browser

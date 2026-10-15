@@ -197,9 +197,9 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
       value: snapshot['library_enabled'] == true,
       onChanged: busy ? null : (enabled) async { await command('library_enable', {'enabled': enabled}); await bind.mainLoadFavPeers(); }),
     if (snapshot['library_enabled'] == true) ...[
-      _heading('Favorites'),
+      _heading('funti-tab-favorites'),
       for (final row in _rows(library['favorites'])) ListTile(
-        title: Text(row['name'] as String? ?? ''), subtitle: Text('ID: ${row['funti_id']}'),
+        title: Text((row['name'] as String? ?? '').isEmpty ? row['funti_id'] as String : row['name'] as String), subtitle: Text('ID: ${row['funti_id']}'),
         onTap: () => connect(context, row['funti_id'] as String),
         trailing: IconButton(icon: const Icon(Icons.star), tooltip: translate('Remove from Favorites'), onPressed: busy ? null : () async {
           if (await changeFuntiFavorites(remove: [row['funti_id'] as String])) await readStatus();
@@ -211,7 +211,7 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
         }, child: Text(translate('Add'))),
         TextButton(onPressed: busy ? null : _importFavorites, child: Text(translate('funti-account-import-favorites'))),
       ]),
-      _heading('Recent sessions'),
+      _heading('funti-account-history'),
       for (final row in _rows(library['history'])) ListTile(
         title: Text('${row['name']} · ${row['funti_id']}'),
         subtitle: Text(_date(row['connected_at'])),

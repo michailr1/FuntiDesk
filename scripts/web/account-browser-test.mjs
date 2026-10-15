@@ -91,6 +91,23 @@ try{
   assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
   await page.reload();await page.getByText(hostile,{exact:true}).waitFor();
   page.on('dialog',dialog=>dialog.accept());
+  await page.locator('#favorite-id').fill('333333333');await page.locator('#favorite-name').fill(hostile);
+  await page.locator('#favorite-form button').click();await page.locator('#favorites .row-name').getByText(hostile,{exact:true}).waitFor();
+  assert.equal(await page.locator('#favorites img').count(),0);
+  let library=await request(apiPath+'/library',undefined,native);assert.equal(library.favorites.length,1);
+  await request(apiPath+'/library/favorites',{revision:library.revision,favorites:[]},native);
+  await page.locator('#favorites button:enabled').click();await page.locator('#message[data-kind=error]').waitFor();
+  assert.match(await page.locator('#message').textContent(),/другом устройстве/);
+  library=await request(apiPath+'/library',undefined,native);assert.equal(library.favorites.length,0);
+  await page.locator('#refresh:enabled').click();await page.locator('#favorites .empty').waitFor();
+  const historyEvent={history_epoch:0,entry:{event_id:randomBytes(32).toString('hex'),source_device_id:firstId,funti_id:'333333333',name:hostile,connected_at:Math.floor(Date.now()/1000)}};
+  await request(apiPath+'/library/history',historyEvent,native);await request(apiPath+'/library/history',historyEvent,native);
+  await page.locator('#refresh:enabled').click();await page.locator('#history .row-name').getByText(hostile,{exact:true}).waitFor();
+  assert.equal(await page.locator('#history .row').count(),1);assert.equal(await page.locator('#history img').count(),0);
+  await page.locator('#clear-history:enabled').click();await page.locator('#history .empty').waitFor();
+  const staleHistory=await fetch(base+apiPath+'/library/history',{method:'POST',headers:{...native,'content-type':'application/json'},body:JSON.stringify(historyEvent)});
+  assert.equal(staleHistory.status,409);assert.equal((await request(apiPath+'/library',undefined,native)).history.length,0);
+
   await page.locator('#family .row button').click();await page.locator('#message[data-kind=error]').waitFor();
   await page.locator('#family .row button:enabled').click();await page.getByText('Подтверждено: 0 из 2 показанных компьютеров',{exact:true}).waitFor();
   assert.equal(removeIds.length,2);assert.equal(removeIds[0],removeIds[1]);

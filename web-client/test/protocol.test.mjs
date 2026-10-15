@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import sodium from 'libsodium-wrappers';
-import { ready, splitKeys, passwordProof, verifyIdentity, handshake, encode, decrypt, encrypt, wire, rendezvous } from '../src/protocol.js';
+import { ready, SERVER_KEY, splitKeys, passwordProof, verifyIdentity, handshake, encode, decrypt, encrypt, wire, rendezvous } from '../src/protocol.js';
 import { hbb } from '../src/schema.generated.js';
 await ready;
 const hex = (bytes) => Buffer.from(bytes).toString('hex');
@@ -49,4 +50,10 @@ test('current protobuf schemas preserve the secure relay and disabled optional c
   const msg=wire.decode(encode(wire,{login_request:{username:'123456789',password:new Uint8Array([1,2]),option:{disable_clipboard:2,disable_audio:2,enable_file_transfer:1}}}));
   assert.equal(msg.login_request.option.disable_clipboard,2);
   assert.equal(msg.login_request.option.enable_file_transfer,1);
+});
+
+
+test('the browser trust anchor is identical to the pinned native client key', async () => {
+  const config = await readFile(new URL('../../client/libs/hbb_common/src/config.rs',import.meta.url),'utf8');
+  assert.equal(config.match(/FUNTIDESK_SERVER_PUBLIC_KEY: &str = "([^"]+)"/)[1],SERVER_KEY);
 });

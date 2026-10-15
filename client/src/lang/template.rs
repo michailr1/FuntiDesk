@@ -1001,5 +1001,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-account-clear-history", ""),
         ("funti-account-clear-history-tip", ""),
         ("funti-account-sync-conflict", ""),
+        ("funti-account-history", ""),
     ].iter().cloned().collect();
 }

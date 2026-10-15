@@ -724,7 +724,7 @@ impl Actor {
             }
             let mut next = self.stored.clone();
             next.history_queue.push(json!({"history_epoch":payload["history_epoch"],"entry":{
-                "event_id":hex::encode(sodiumoxide::randombytes::randombytes(32)),
+                "event_id":hex::encode(hbb_common::sodiumoxide::randombytes::randombytes(32)),
                 "source_device_id":binding.device_id,"funti_id":payload["funti_id"],"name":payload["name"],"connected_at":now()
             }}));
             self.save(next).await?;
