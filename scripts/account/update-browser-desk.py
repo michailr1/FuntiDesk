@@ -116,6 +116,22 @@ def update():
     network_only(base_model, model)
     if run(*compose, 'config', '--hash', 'caddy').decode().split() != ['caddy', live['Config']['Labels']['com.docker.compose.config-hash']]:
         raise RuntimeError('Base Compose differs from the live Caddy configuration')
+    configured = {v['target']: v for v in base_model['services']['caddy']['volumes']}
+    mounted = {v['Destination']: v for v in live['Mounts']}
+    if set(configured) != set(mounted) or not {'/data', '/etc/caddy/Caddyfile', '/usr/share/caddy'} <= set(mounted):
+        raise RuntimeError('Unexpected live Caddy mounts')
+    for target, desired in configured.items():
+        actual = mounted[target]
+        if actual['Type'] != desired['type'] or actual['RW'] != (not desired.get('read_only', False)):
+            raise RuntimeError('Caddy mount type or permissions differ from Compose')
+        if desired['type'] == 'bind':
+            if Path(actual['Source']).resolve() != Path(desired['source']).resolve():
+                raise RuntimeError('Caddy bind source differs from Compose')
+        elif desired['type'] == 'volume':
+            if actual.get('Name') != base_model.get('volumes', {}).get(desired['source'], {}).get('name'):
+                raise RuntimeError('Caddy SSL or other volume identity differs from Compose')
+        else:
+            raise RuntimeError('Unsupported Caddy mount type')
     if json.loads(run('docker', 'image', 'inspect', model['services']['caddy']['image']))[0]['Id'] != live['Image']:
         raise RuntimeError('Browser update would change the Caddy image')
     if set(live['NetworkSettings']['Networks']) != {base_model['networks'][name]['name'] for name in base_model['services']['caddy']['networks']}:
