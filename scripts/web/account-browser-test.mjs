@@ -126,7 +126,7 @@ try{
   bootstrapDown=true;await page.reload();await page.locator('#retry-login:not([hidden])').waitFor();assert.equal(await page.locator('#send-code').isDisabled(),true);
   bootstrapDown=false;await page.locator('#retry-login').click();await page.locator('#send-code:enabled').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('ACCOUNT_BROWSER_API_OK: independent encrypted state, login, invalid/resend code, HttpOnly cookie restore, safe text, no storage, idempotent retry, pending/ack/partial deliveries, logout/all, outage retry');
+  console.log('ACCOUNT_BROWSER_API_OK: independent encrypted state, login, invalid/resend code, HttpOnly cookie restore, safe text, automatic favorites/history refresh and stop on logout, no storage, idempotent retry, pending/ack/partial deliveries, logout/all, outage retry');
 }finally{
   await browser?.close();
   for(const child of [service,witness,fixture].filter(Boolean)){if(child.exitCode===null){const ended=once(child,'exit');child.kill();await ended;}}

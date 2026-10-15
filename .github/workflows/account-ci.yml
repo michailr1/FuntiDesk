@@ -39,6 +39,8 @@ jobs:
         run: python3 scripts/account/test-update-browser-desk.py
       - name: Test exact API image update without changing other environment fields
         run: python3 scripts/account/test-update-library-desk.py
+      - name: Test static web updates preserve API and restore the previous release on failure
+        run: python3 scripts/account/test-update-web-desk.py
       - name: Test encrypted backups and live SQLite WAL snapshot
         run: python3 scripts/account/test-backup-desk.py
       - name: Test fresh witness Head authentication and relay inspection
