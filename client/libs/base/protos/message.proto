@@ -898,6 +898,12 @@ message Misc {
     uint64 request_cursor_data = 39;
     // FUNTIDESK: numbers from 1000 are reserved for FuntiDesk messages.
     FuntiCallBackRequest funti_call_back_request = 1001;
+    // ADR-007, stage 3: the controlling side asks this computer to install
+    // the latest FuntiDesk release; the answer is funti_update_result.
+    bool funti_update_request = 1002;
+    // "ok:<version>" (the update is staged, FuntiDesk restarts) or
+    // "err:<reason>".
+    string funti_update_result = 1003;
   }
 }
 

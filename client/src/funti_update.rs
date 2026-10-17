@@ -451,6 +451,45 @@ pub fn cleanup_service() {
     });
 }
 
+/// Peer info of a session (ADR-007, stage 3): the controlling side offers
+/// the update when this build is older than the latest release.
+pub fn add_peer_info(additions: &mut serde_json::Map<String, serde_json::Value>) {
+    additions.insert("funti_build".into(), crate::FUNTI_BUILD.into());
+    additions.insert("funti_updatable".into(), this_copy().is_ok().into());
+}
+
+/// Remote update (ADR-007, stage 3), run by the `--server` process that
+/// serves the session: the service installs it in installed mode, otherwise
+/// the same steps as "Update" in this copy, then this process exits and the
+/// new copy starts. `reply` gets "ok:<version>" or "err:<reason>".
+pub fn start_remote(reply: impl FnOnce(String) + Send + 'static) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static BUSY: AtomicBool = AtomicBool::new(false);
+    if BUSY.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let service = crate::platform::is_installed();
+        let res = if service { start_service() } else { start() };
+        match res {
+            Ok(version) => {
+                log::info!("remote update to {version} started");
+                reply(format!("ok:{version}"));
+                if !service {
+                    // Let the answer leave before the session drops.
+                    std::thread::sleep(Duration::from_millis(500));
+                    exit_for_update();
+                }
+            }
+            Err(e) => {
+                log::warn!("remote update failed: {e}");
+                BUSY.store(false, Ordering::SeqCst);
+                reply(format!("err:{e}"));
+            }
+        }
+    });
+}
+
 /// Exit after `start()`: close the other FuntiDesk processes of this copy
 /// (connection manager, tray), then this one.
 pub fn exit_for_update() {
