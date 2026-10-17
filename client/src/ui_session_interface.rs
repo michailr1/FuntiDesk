@@ -1653,6 +1653,15 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::NewVoiceCall);
     }
 
+    /// FUNTIDESK (ADR-007, stage 3): the answer comes as funti_update_result.
+    pub fn funti_update_peer(&self) {
+        let mut misc = Misc::new();
+        misc.set_funti_update_request(true);
+        let mut msg_out = Message::new();
+        msg_out.set_misc(misc);
+        self.send(Data::Message(msg_out));
+    }
+
     #[inline]
     pub fn close_voice_call(&self) {
         self.send(Data::CloseVoiceCall);

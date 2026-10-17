@@ -2044,6 +2044,8 @@ impl Connection {
         {
             platform_additions.insert("support_view_camera".into(), json!(true));
         }
+        #[cfg(windows)]
+        crate::funti_update::add_peer_info(&mut platform_additions);
 
         #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         if !platform_additions.is_empty() {
@@ -4183,6 +4185,27 @@ impl Connection {
                             self.audio_sender
                                 .as_ref()
                                 .map(|a| allow_err!(a.send(MediaData::AudioFormat(format))));
+                        }
+                    }
+                    #[cfg(windows)]
+                    Some(misc::Union::FuntiUpdateRequest(_)) => {
+                        // FUNTIDESK (ADR-007, stage 3): only whoever may control
+                        // this computer; no question here (owner's decision
+                        // 2026-10-09), but the person sees it in the window.
+                        if self.is_remote() && self.peer_keyboard_enabled() {
+                            self.send_to_cm(ipc::Data::ChatMessage {
+                                text: crate::client::translate(
+                                    "funti-update-remote-notice".to_owned(),
+                                ),
+                            });
+                            let mut inner = self.inner.clone();
+                            crate::funti_update::start_remote(move |answer| {
+                                let mut misc = Misc::new();
+                                misc.set_funti_update_result(answer);
+                                let mut msg = Message::new();
+                                msg.set_misc(misc);
+                                inner.send(Arc::new(msg));
+                            });
                         }
                     }
                     #[cfg(feature = "flutter")]
