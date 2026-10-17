@@ -25,6 +25,7 @@ class FuntiFamilyRights {
     this.control = true,
     this.files = true,
     this.terminal = true,
+    this.settings = true,
   });
 
   final bool noPassword;
@@ -32,6 +33,7 @@ class FuntiFamilyRights {
   final bool control;
   final bool files;
   final bool terminal;
+  final bool settings;
 
   factory FuntiFamilyRights.fromJson(dynamic json) {
     if (json is! Map) return const FuntiFamilyRights();
@@ -42,6 +44,7 @@ class FuntiFamilyRights {
       control: v('control', true),
       files: v('files', true),
       terminal: v('terminal', true),
+      settings: v('settings', true),
     );
   }
 
@@ -51,10 +54,11 @@ class FuntiFamilyRights {
         'control': control,
         'files': files,
         'terminal': terminal,
+        'settings': settings,
       };
 
   bool get isDefault =>
-      noPassword && !confirm && control && files && terminal;
+      noPassword && !confirm && control && files && terminal && settings;
 
   @override
   bool operator ==(Object other) =>
@@ -63,10 +67,12 @@ class FuntiFamilyRights {
       other.confirm == confirm &&
       other.control == control &&
       other.files == files &&
-      other.terminal == terminal;
+      other.terminal == terminal &&
+      other.settings == settings;
 
   @override
-  int get hashCode => Object.hash(noPassword, confirm, control, files, terminal);
+  int get hashCode =>
+      Object.hash(noPassword, confirm, control, files, terminal, settings);
 }
 
 class FuntiFamilyMember {
@@ -210,13 +216,15 @@ void showFuntiFamilyRightsDialog(FuntiFamilyMember member,
             bool? confirm,
             bool? control,
             bool? files,
-            bool? terminal}) =>
+            bool? terminal,
+            bool? settings}) =>
         FuntiFamilyRights(
           noPassword: noPassword ?? r.noPassword,
           confirm: confirm ?? r.confirm,
           control: control ?? r.control,
           files: files ?? r.files,
           terminal: terminal ?? r.terminal,
+          settings: settings ?? r.settings,
         );
     Future<void> save() async {
       final ok = await bind.mainFuntiFamilySetRights(
@@ -250,6 +258,8 @@ void showFuntiFamilyRightsDialog(FuntiFamilyMember member,
               (v) => r = copy(files: v)),
           item('funti-right-terminal', 'funti-right-terminal-tip', r.terminal,
               (v) => r = copy(terminal: v)),
+          item('funti-right-settings', 'funti-right-settings-tip', r.settings,
+              (v) => r = copy(settings: v)),
         ],
       ),
       actions: [

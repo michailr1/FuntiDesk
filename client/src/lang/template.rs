@@ -830,6 +830,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-right-files-tip", ""),
         ("funti-right-terminal", ""),
         ("funti-right-terminal-tip", ""),
+        ("funti-right-settings", ""),
+        ("funti-right-settings-tip", ""),
         ("funti-call-declined", ""),
         ("funti-show-home-banner", ""),
         ("funti-settings-access", ""),

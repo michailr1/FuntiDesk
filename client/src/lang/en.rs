@@ -346,6 +346,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-right-files-tip", "Both ways, including copying files through the clipboard"),
         ("funti-right-terminal", "Open the terminal"),
         ("funti-right-terminal-tip", "Command line of this computer"),
+        ("funti-right-settings", "Change FuntiDesk settings"),
+        ("funti-right-settings-tip", "Use the FuntiDesk window of this computer during the session; otherwise it is dimmed"),
         ("funti-call-declined", "The call was declined."),
         ("funti-show-home-banner", "Show the picture on the main screen"),
         ("funti-settings-access", "Computer access"),

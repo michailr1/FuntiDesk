@@ -1444,17 +1444,20 @@ class _DeviceRow extends StatelessWidget {
     }
   }
 
+  // Read when the menu opens and when an item is chosen: the row is not
+  // rebuilt after the toggle, so a value read at build time went stale.
+  bool _forceRelay() => option2bool(kOptionForceAlwaysRelay,
+      bind.mainGetPeerOptionSync(id: peer.id, key: kOptionForceAlwaysRelay));
+
   Widget _menu(BuildContext context) {
     final t = FuntiTokens.of(context);
-    final forceRelay = option2bool(kOptionForceAlwaysRelay,
-        bind.mainGetPeerOptionSync(id: peer.id, key: kOptionForceAlwaysRelay));
     final style = TextStyle(fontSize: 14, color: t.text);
     return PopupMenuButton<_DeviceAction>(
       tooltip: translate('More'),
       color: t.surface,
       splashRadius: 18,
       icon: Icon(Icons.more_horiz_rounded, size: 20, color: t.muted),
-      onSelected: (a) => _onAction(context, a, forceRelay),
+      onSelected: (a) => _onAction(context, a, _forceRelay()),
       itemBuilder: (context) => [
         PopupMenuItem(
             value: _DeviceAction.files,
@@ -1471,7 +1474,7 @@ class _DeviceRow extends StatelessWidget {
             child: Text(translate('Rename'), style: style)),
         CheckedPopupMenuItem(
             value: _DeviceAction.relay,
-            checked: forceRelay,
+            checked: _forceRelay(),
             child: Text(translate('Always connect via relay'), style: style)),
         PopupMenuItem(
             value: _DeviceAction.remove,
