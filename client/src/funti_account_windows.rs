@@ -232,6 +232,7 @@ impl Actor {
             "code_expires_at":self.pending.as_ref().map(|p| p.expires_at),
             "last_refresh":self.last_refresh,"data":self.cache,"error":self.error,
             "account_id":self.session.as_ref().map(|s| &s.account_id),
+            "device_id":binding.map(|b| &b.device_id),
             "library_enabled":self.library_enabled(),
             "pending_history":self.stored.history_queue.len(),
             "notices":binding.map(|b| &b.ledger.notices),
@@ -704,9 +705,34 @@ impl Actor {
                 return Err("funti-account-request-rejected");
             }
             let mut next = self.stored.clone();
+            let event_id = payload.get("event_id").cloned().unwrap_or_else(|| {
+                json!(hex::encode(
+                    hbb_common::sodiumoxide::randombytes::randombytes(32)
+                ))
+            });
+            let connected_at = payload
+                .get("connected_at")
+                .cloned()
+                .unwrap_or_else(|| json!(now()));
+            if !event_id.as_str().map(protocol::token).unwrap_or(false)
+                || !connected_at
+                    .as_i64()
+                    .map(|time| time > now() - 90 * 86400 && time <= now() + 300)
+                    .unwrap_or(false)
+            {
+                return Err("funti-account-request-rejected");
+            }
+            if self
+                .stored
+                .history_queue
+                .iter()
+                .any(|queued| queued["entry"]["event_id"] == event_id)
+            {
+                return self.flush_history(&token).await;
+            }
             next.history_queue.push(json!({"history_epoch":payload["history_epoch"],"entry":{
-                "event_id":hex::encode(hbb_common::sodiumoxide::randombytes::randombytes(32)),
-                "source_device_id":binding.device_id,"funti_id":payload["funti_id"],"name":payload["name"],"connected_at":now()
+                "event_id":event_id,
+                "source_device_id":binding.device_id,"funti_id":payload["funti_id"],"name":payload["name"],"connected_at":connected_at
             }}));
             self.save(next).await?;
             return self.flush_history(&token).await;

@@ -32,6 +32,65 @@ pub fn payload_hash(value: &Value) -> Result<String, serde_json::Error> {
     ))?)))
 }
 
+fn library_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+pub fn merge_local_favorites(
+    cloud: &[Value],
+    previous: &[String],
+    local: &[(String, String)],
+) -> Vec<Value> {
+    let mut merged: Vec<_> = cloud
+        .iter()
+        .filter(|row| {
+            !previous
+                .iter()
+                .any(|id| row["funti_id"] == *id && !local.iter().any(|(current, _)| current == id))
+        })
+        .cloned()
+        .collect();
+    for (id, name) in local {
+        if merged.len() < 128
+            && library_id(id)
+            && !previous.contains(id)
+            && !merged.iter().any(|row| row["funti_id"] == *id)
+        {
+            merged.push(serde_json::json!({"funti_id":id,"name":name}));
+        }
+    }
+    merged
+}
+
+/// Import only the address, label and last-use time from a local recent peer.
+pub fn local_history_entry(
+    account: &str,
+    source: &str,
+    id: &str,
+    name: &str,
+    connected_at: i64,
+    now: i64,
+) -> Option<Value> {
+    if !token(account)
+        || !token(source)
+        || !library_id(id)
+        || name.len() > 256
+        || name.chars().any(char::is_control)
+        || connected_at <= now - 90 * 86400
+        || connected_at > now + 300
+    {
+        return None;
+    }
+    Some(serde_json::json!({
+        "event_id": payload_hash(&serde_json::json!(["local-history-v1", account, source, id, connected_at])).ok()?,
+        "funti_id": id, "name": name, "connected_at": connected_at
+    }))
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Nonce {

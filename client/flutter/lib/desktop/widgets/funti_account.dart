@@ -120,14 +120,12 @@ class FuntiAccountPanel extends StatefulWidget {
 class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
   final _email = TextEditingController();
   final _code = TextEditingController();
-  final _favoriteId = TextEditingController();
   final Map<String, String> _removeRequests = {};
 
   @override
   void dispose() {
     _email.clear();
     _code.clear();
-    _favoriteId.dispose();
     _email.dispose();
     _code.dispose();
     super.dispose();
@@ -167,19 +165,6 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
 
   Map<String, dynamic> get library => data['library'] is Map ? Map<String, dynamic>.from(data['library']) : {};
 
-  Future<void> _importFavorites() async {
-    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: Text(translate('funti-account-import-favorites')),
-      content: Text(translate('funti-account-sync-tip')),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(translate('Cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(translate('Add')))],
-    ));
-    if (accepted != true || !mounted) return;
-    final ids = await bind.mainGetFav();
-    if (!await changeFuntiFavorites(add: ids)) return;
-    await readStatus();
-  }
-
   Future<void> _clearHistory() async {
     final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
       title: Text(translate('funti-account-clear-history')),
@@ -200,13 +185,6 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
         trailing: IconButton(icon: const Icon(Icons.star), tooltip: translate('Remove from Favorites'), onPressed: busy ? null : () async {
           if (await changeFuntiFavorites(remove: [row['funti_id'] as String])) await readStatus();
         })),
-      TextField(controller: _favoriteId, decoration: const InputDecoration(labelText: 'ID'), maxLength: 64),
-      Wrap(spacing: 12, children: [
-        TextButton(onPressed: busy ? null : () async {
-          if (await changeFuntiFavorites(add: [_favoriteId.text.trim()])) { _favoriteId.clear(); await readStatus(); }
-        }, child: Text(translate('Add'))),
-        TextButton(onPressed: busy ? null : _importFavorites, child: Text(translate('funti-account-import-favorites'))),
-      ]),
       _heading('funti-account-history'),
       for (final row in _rows(library['history'])) ListTile(
         title: Text('${row['name']} · ${row['funti_id']}'),

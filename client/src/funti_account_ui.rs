@@ -21,6 +21,7 @@ struct Request {
 
 lazy_static::lazy_static! {
     static ref REQUESTS: Mutex<Option<mpsc::Sender<Request>>> = Mutex::new(None);
+    static ref LOCAL_IMPORT: tokio::sync::Mutex<()> = tokio::sync::Mutex::new(());
 }
 
 pub fn start_ui() {
@@ -53,8 +54,12 @@ pub fn start_ui() {
                     };
                     tokio::spawn(async move {
                         let _permit = permit;
+                        let status = request.action == "status";
                         let result = super::call(request.action, request.payload).await;
-                        let _ = request.reply.send(result);
+                        let _ = request.reply.send(result.clone());
+                        if status {
+                            sync_local_library(&result).await;
+                        }
                     });
                 }
             });
@@ -64,6 +69,131 @@ pub fn start_ui() {
     } else {
         log::warn!("FuntiDesk account: UI runner unavailable");
     }
+}
+
+async fn sync_local_library(raw: &str) {
+    use crate::funti_account_protocol as protocol;
+    use hbb_common::config::{LocalConfig, PeerConfig};
+    use serde_json::{json, Value};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let Ok(_import) = LOCAL_IMPORT.try_lock() else {
+        return;
+    };
+    let Ok(state) = serde_json::from_str::<Value>(raw) else {
+        return;
+    };
+    if state["library_enabled"] != true || state["binding_matches_account"] != true {
+        return;
+    }
+    let (Some(account), Some(source)) = (state["account_id"].as_str(), state["device_id"].as_str())
+    else {
+        return;
+    };
+    let library = &state["data"]["library"];
+    let Some(favorites) = library["favorites"].as_array() else {
+        return;
+    };
+    let marker = format!("funti-account-local-import-v1-{account}");
+    let mut progress: Value = serde_json::from_str(&LocalConfig::get_option(&marker))
+        .unwrap_or_else(|_| json!({"favorites":[],"history_done":false}));
+    let previous: Vec<String> =
+        serde_json::from_value(progress["favorites"].clone()).unwrap_or_default();
+    let local_ids = LocalConfig::get_fav();
+    if local_ids != previous {
+        let ids = local_ids.clone();
+        let Ok(local) = tokio::task::spawn_blocking(move || {
+            ids.into_iter()
+                .map(|id| {
+                    let peer = PeerConfig::load(&id);
+                    let name = peer
+                        .options
+                        .get("alias")
+                        .cloned()
+                        .unwrap_or(peer.info.hostname);
+                    let name: String = name.chars().filter(|c| !c.is_control()).take(64).collect();
+                    (id, name)
+                })
+                .collect::<Vec<_>>()
+        })
+        .await
+        else {
+            return;
+        };
+        let merged = protocol::merge_local_favorites(favorites, &previous, &local);
+        if &merged != favorites {
+            let reply = super::call(
+                "favorites_set".into(),
+                json!({"account_id":account,"revision":library["revision"],"favorites":merged})
+                    .to_string(),
+            )
+            .await;
+            if !serde_json::from_str::<Value>(&reply)
+                .map(|r| r["error"].is_null())
+                .unwrap_or(false)
+            {
+                return;
+            }
+        }
+        // Remember local edits, so a remote deletion is not re-added on restart.
+        progress["favorites"] = json!(local_ids);
+        LocalConfig::set_option(marker.clone(), progress.to_string());
+    }
+    if progress["history_done"] == true {
+        return;
+    }
+    if library["history_epoch"] == 0 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let Ok(peers) = tokio::task::spawn_blocking(|| PeerConfig::peers(None)).await else {
+            return;
+        };
+        for (id, modified, peer) in peers.into_iter().take(1000) {
+            if library["history"]
+                .as_array()
+                .map(|rows| {
+                    rows.iter()
+                        .any(|row| row["source_device_id"] == source && row["funti_id"] == id)
+                })
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let Ok(modified) = modified.duration_since(UNIX_EPOCH) else {
+                continue;
+            };
+            let name = peer
+                .options
+                .get("alias")
+                .cloned()
+                .unwrap_or(peer.info.hostname);
+            let name: String = name.chars().filter(|c| !c.is_control()).take(64).collect();
+            let Some(mut entry) = protocol::local_history_entry(
+                account,
+                source,
+                &id,
+                &name,
+                modified.as_secs() as i64,
+                now,
+            ) else {
+                continue;
+            };
+            entry["account_id"] = account.into();
+            entry["history_epoch"] = library["history_epoch"].clone();
+            let reply = super::call("history_append".into(), entry.to_string()).await;
+            if !serde_json::from_str::<Value>(&reply)
+                .map(|r| r["error"].is_null())
+                .unwrap_or(false)
+            {
+                return;
+            }
+        }
+    }
+    // A cleared account history is never repopulated from an older local list.
+    progress["history_done"] = true.into();
+    LocalConfig::set_option(marker, progress.to_string());
 }
 
 pub fn call_blocking(action: String, payload: String) -> String {
