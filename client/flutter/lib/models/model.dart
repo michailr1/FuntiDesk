@@ -40,6 +40,7 @@ import 'package:vector_math/vector_math.dart' show Vector2;
 import '../common.dart';
 import '../utils/image.dart' as img;
 import '../common/widgets/dialog.dart';
+import '../common/widgets/funti_remote_update.dart';
 import 'input_model.dart';
 import 'platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
@@ -1497,6 +1498,10 @@ class FfiModel with ChangeNotifier {
 
     if (!isCache) {
       tryUseAllMyDisplaysForTheRemoteSession(peerId);
+      // FUNTIDESK (ADR-007, stage 3)
+      if (isDesktop && parent.target != null) {
+        funtiNotifyOldPeer(parent.target!);
+      }
     }
   }
 

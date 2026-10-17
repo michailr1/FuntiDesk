@@ -1215,7 +1215,7 @@ pub fn main_get_version() -> String {
     get_version()
 }
 
-/// FUNTIDESK (ADR-007): JSON `{version, available, unsupported}` or
+/// FUNTIDESK (ADR-007): JSON `{version, build, available, unsupported}` or
 /// `{error}`. `unsupported` is a translation key, empty if this copy can
 /// update itself.
 pub fn main_funti_update_check() -> String {
@@ -1224,6 +1224,7 @@ pub fn main_funti_update_check() -> String {
         Ok(latest) => serde_json::json!({
             "version": latest.version,
             "available": crate::funti_update::is_newer(latest.build),
+            "build": latest.build,
             "unsupported": crate::funti_update::unsupported_reason().unwrap_or_default(),
         }),
         Err(e) => serde_json::json!({ "error": e.to_string() }),
@@ -1876,6 +1877,13 @@ pub fn session_new_rdp(session_id: SessionID) {
 pub fn session_request_voice_call(session_id: SessionID) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.request_voice_call();
+    }
+}
+
+/// FUNTIDESK (ADR-007, stage 3): ask the other computer to update itself.
+pub fn session_funti_update_peer(session_id: SessionID) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.funti_update_peer();
     }
 }
 

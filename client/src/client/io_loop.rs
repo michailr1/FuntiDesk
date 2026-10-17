@@ -2076,6 +2076,24 @@ impl<T: InvokeUiSession> Remote<T> {
                     Some(misc::Union::ChatMessage(c)) => {
                         self.handler.new_message(c.text);
                     }
+                    Some(misc::Union::FuntiUpdateResult(r)) => {
+                        // FUNTIDESK (ADR-007, stage 3): the session then drops and
+                        // reconnects by the usual "Connection Error" countdown.
+                        let text = match r.strip_prefix("err:") {
+                            Some(reason) if reason.starts_with("funti-update-") => reason.to_owned(),
+                            Some(reason) => {
+                                log::warn!("remote update failed: {reason}");
+                                "funti-update-remote-failed".to_owned()
+                            }
+                            None => "funti-update-remote-started".to_owned(),
+                        };
+                        self.handler.msgbox(
+                            "custom-nocancel-info",
+                            "funti-update-remote-title",
+                            &text,
+                            "",
+                        );
+                    }
                     Some(misc::Union::PermissionInfo(p)) => {
                         log::info!("Change permission {:?} -> {}", p.permission, p.enabled);
                         // https://github.com/rustdesk/rustdesk/issues/3703#issuecomment-1474734754
