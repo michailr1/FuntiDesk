@@ -3437,7 +3437,8 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
 
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     let restore_service_cmd = if is_service_running {
-        format!("sc start {}", &app_name)
+        // FUNTIDESK: also for services installed before the recovery setting.
+        format!("{}\nsc start {}", funti_service_recovery_cmd(), &app_name)
     } else {
         "".to_owned()
     };
@@ -3856,6 +3857,15 @@ sc delete {app_name}
 )
 }
 
+/// FUNTIDESK: Windows restarts the service after a crash (it stayed stopped
+/// after one on 2026-10-17); a stop by the user is not a crash.
+fn funti_service_recovery_cmd() -> String {
+    format!(
+        "sc failure {} reset= 86400 actions= restart/5000/restart/10000/restart/60000",
+        crate::get_app_name()
+    )
+}
+
 fn get_create_service(exe: &str) -> String {
     if config::is_outgoing_only() {
         return "".to_string();
@@ -3869,9 +3879,10 @@ if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{ap
         let exe = escape_nested_cmd_ampersands(exe);
         format!("
 sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
+{recovery}
 sc start {app_name}
 ",
-    app_name = crate::get_app_name())
+    app_name = crate::get_app_name(), recovery = funti_service_recovery_cmd())
     }
 }
 
