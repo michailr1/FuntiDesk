@@ -83,11 +83,10 @@ async fn sync_local_library(raw: &str) {
     let Ok(state) = serde_json::from_str::<Value>(raw) else {
         return;
     };
-    if state["library_enabled"] != true || state["binding_matches_account"] != true {
+    if state["library_enabled"] != true {
         return;
     }
-    let (Some(account), Some(source)) = (state["account_id"].as_str(), state["device_id"].as_str())
-    else {
+    let Some(account) = state["account_id"].as_str() else {
         return;
     };
     let library = &state["data"]["library"];
@@ -143,6 +142,12 @@ async fn sync_local_library(raw: &str) {
         return;
     }
     if library["history_epoch"] == 0 {
+        if state["binding_matches_account"] != true {
+            return;
+        }
+        let Some(source) = state["device_id"].as_str() else {
+            return;
+        };
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
