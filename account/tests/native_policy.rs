@@ -28,19 +28,22 @@ fn client_and_server_construct_the_same_nonce_message_and_payload_hash() {
         };
         let client: protocol::Nonce =
             serde_json::from_value(serde_json::to_value(&server).unwrap()).unwrap();
-        assert_eq!(
-            client
-                .message(
-                    action,
-                    &server.account_id,
-                    server.device_id.as_deref(),
-                    "111111",
-                    "local-key",
-                    &hash,
-                    1000
-                )
-                .unwrap(),
-            server.message()
-        );
+        // Server time is 1000: even one second of local lag used to fail.
+        for client_now in [700, 999, 1000, 1001, 1299] {
+            assert_eq!(
+                client
+                    .message(
+                        action,
+                        &server.account_id,
+                        server.device_id.as_deref(),
+                        "111111",
+                        "local-key",
+                        &hash,
+                        client_now
+                    )
+                    .unwrap(),
+                server.message()
+            );
+        }
     }
 }

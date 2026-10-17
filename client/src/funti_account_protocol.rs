@@ -66,7 +66,9 @@ impl Nonce {
             || self.pk != pk
             || self.payload_hash != hash
             || self.expires_at <= now
-            || self.expires_at > now + 300
+            // The server gives a nonce 300 seconds. Allow up to 300 seconds of
+            // local clock lag; the server still enforces its expiry and one use.
+            || self.expires_at > now + 600
             || !["bind", "family", "sync", "ack"].contains(&action)
         {
             return None;
@@ -191,7 +193,7 @@ mod tests {
         nonce.payload_hash = "e".repeat(64);
         assert!(check(&nonce).is_none());
         nonce.payload_hash = hash.clone();
-        nonce.expires_at = 1301;
+        nonce.expires_at = 1601;
         assert!(check(&nonce).is_none());
     }
 
