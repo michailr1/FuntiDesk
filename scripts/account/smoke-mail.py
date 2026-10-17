@@ -244,7 +244,7 @@ print $client->peerhost; close $client;
         assert all(value not in logs for value in ["person@example.invalid", code, token, challenge, context]), "secret leaked to logs"
     assert docker("exec", mail, "postconf", "-h", "maillog_file") == "/dev/null"
     assert docker("exec", mail, "postconf", "-h", "inet_interfaces") == mail_ip
-    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private listener, outbound source, desk HELO, real queued code, independent encrypted state, API restart invalidates session, sender/DKIM refusal, log privacy")
+    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private listener, outbound source, desk HELO, real queued code, Core-only SQLite, session survives API restart, sender/DKIM refusal, log privacy")
 finally:
     for container in reversed(created_containers):
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)

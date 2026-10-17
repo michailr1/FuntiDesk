@@ -15,7 +15,6 @@ import time
 
 REPO = Path(__file__).resolve().parents[2]
 ROOT = Path('/opt/funtidesk-account')
-CURRENT = Path('/opt/funtidesk-web/current')
 
 
 def load(name):
@@ -128,7 +127,7 @@ def update(archive, apply):
         raise RuntimeError('API update requires the active Core cabinet')
     if run('git', '-C', str(REPO), 'status', '--porcelain').strip():
         raise RuntimeError('Source must be clean')
-    pin = json.loads((REPO / 'infra/funtidesk-account/account-local-release.json').read_text())
+    pin = json.loads((REPO / 'infra/funtidesk-account/account-release.json').read_text())
     source = run('git', '-C', str(REPO), 'rev-parse', 'HEAD').decode().strip()
     directory = ROOT / 'updates' / ('local-api-' + pin['source'][:12])
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
