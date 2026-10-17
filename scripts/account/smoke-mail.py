@@ -21,8 +21,7 @@ network = prefix
 outbound_network = prefix + "-outbound"
 mail = prefix + "-mail"
 api = prefix + "-api"
-witness = prefix + "-witness"
-volumes = [prefix + suffix for suffix in ["-secrets", "-data", "-witness"]]
+volumes = [prefix + suffix for suffix in ["-secrets", "-data"]]
 created_containers = []
 created_volumes = []
 network_created = False
@@ -88,39 +87,22 @@ try:
     network_created = True
     config = json.loads(docker("network", "inspect", network))[0]
     subnet = ipaddress.ip_network(config["IPAM"]["Config"][0]["Subnet"])
-    mail_ip, api_ip, witness_ip = [str(subnet.network_address + i) for i in [2, 3, 4]]
+    mail_ip, api_ip = [str(subnet.network_address + i) for i in [2, 3]]
     for volume in volumes:
         docker("volume", "create", volume)
         created_volumes.append(volume)
     docker("run", "--rm", "--network", "none", "--entrypoint", "sh",
-           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", "-v", volumes[2] + ":/witness", mail_image, "-c",
+           "-v", volumes[0] + ":/secrets", "-v", volumes[1] + ":/data", mail_image, "-c",
            "umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /secrets/dkim.private 2>/dev/null; "
-           "openssl rand -hex 32 > /secrets/account.key; openssl rand -hex 32 > /secrets/witness.key; "
-           "chown 10001:10001 /secrets/account.key /secrets/witness.key /data /witness; "
-           "chmod 0400 /secrets/account.key /secrets/witness.key; chmod 0700 /data /witness")
-    witness_options = ["--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-                       "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
-                       "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + "77" * 32,
-                       "-e", "FUNTI_WITNESS_DIRECTORY=/data/witness", "-e", "FUNTI_WITNESS_LISTEN=0.0.0.0:21802",
-                       "-v", volumes[0] + ":/secrets:ro", "-v", volumes[2] + ":/data"]
-    docker("run", "--rm", *witness_options, api_image, "witness-init")
-    created_containers.append(witness)
-    docker("run", "-d", "--name", witness, "--ip", witness_ip, "--network-alias", "funtidesk-account-witness-relay", *witness_options, api_image, "witness")
+           "openssl rand -hex 32 > /secrets/account.key; "
+           "chown 10001:10001 /secrets/account.key /data; "
+           "chmod 0400 /secrets/account.key; chmod 0700 /data")
     account_options = ["--network", network, "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
                        "-e", "FUNTI_ACCOUNT_LISTEN=0.0.0.0:21800", "-e", "FUNTI_ACCOUNT_DATABASE=/data/account.sqlite3",
                        "-e", "FUNTI_ACCOUNT_KEY_FILE=/secrets/account.key", "-e", "FUNTI_ACCOUNT_SMTP_HOST=" + mail_ip,
-                       "-e", "FUNTI_ACCOUNT_SMTP_PORT=2525", "-e", "FUNTI_ACCOUNT_WITNESS_KEY_FILE=/secrets/witness.key",
-                       "-e", "FUNTI_ACCOUNT_WITNESS_NAMESPACE=" + "77" * 32,
-                       "-e", "FUNTI_ACCOUNT_WITNESS_URL=http://funtidesk-account-witness-relay:21802/v1/witness",
+                       "-e", "FUNTI_ACCOUNT_SMTP_PORT=2525",
                        "-v", volumes[0] + ":/secrets:ro", "-v", volumes[1] + ":/data"]
-    for _ in range(60):
-        try:
-            docker("run", "--rm", *account_options, api_image, "initialize")
-            break
-        except RuntimeError:
-            time.sleep(0.25)
-    else:
-        raise RuntimeError("Independent state initialization failed")
+    docker("run", "--rm", *account_options, api_image, "initialize")
     options = ["--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true"]
     for capability in ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "KILL"]:
         options += ["--cap-add", capability]

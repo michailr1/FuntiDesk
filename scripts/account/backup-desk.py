@@ -82,12 +82,11 @@ def sqlite_snapshot(path):
 
 
 def collect(component):
-    # Fixed allowlists intentionally exclude account DB/recovery and all witness
-    # state: only the current independent witness can authorize account restore.
+    # Secrets and server data are backed up separately from the account SQLite database.
     if component == 'account-secrets':
         root = ACCOUNT
         files = [
-            ('secrets/account.key', True), ('secrets/witness.key', True),
+            ('secrets/account.key', True),
             ('secrets/funtidesk202610.private', True), ('account.env', True),
             ('PREPARED', False), ('dns-records.json', False),
         ]
@@ -106,12 +105,9 @@ def collect(component):
         entries[name] = read_file(root / name, private,
                                   allow_group_read=component == 'server' and name == 'server.env')
     if component == 'account-secrets':
-        for name in ['secrets/account.key', 'secrets/witness.key']:
+        for name in ['secrets/account.key']:
             if not re.fullmatch(rb'[0-9a-fA-F]{64}', entries[name][0].strip()):
-                raise BackupError('Invalid account or witness key encoding')
-        environment = entries['account.env'][0]
-        if not re.search(rb'^FUNTI_ACCOUNT_WITNESS_NAMESPACE=[0-9a-fA-F]{64}\s*$', environment, re.M):
-            raise BackupError('Account witness namespace is missing')
+                raise BackupError('Invalid account key encoding')
         check = subprocess.run(['openssl', 'pkey', '-check', '-noout'],
                                input=entries['secrets/funtidesk202610.private'][0],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
@@ -179,7 +175,7 @@ def backup(component, output, recipient):
     root, entries = collect(component)
     unchanged(root, entries)
     manifest = {'format': 1, 'component': component, 'createdUtc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                'restoreNote': 'Account state is restored only from the current independent witness; this archive never resets witness.',
+                'restoreNote': 'Restore account data from a consistent SQLite backup; this archive contains keys, not the account database.',
                 'sqliteMethod': 'SQLite Online Backup to RAM, integrity_check, serialize' if component == 'server' else None,
                 'files': {name: {'sha256': hashlib.sha256(content).hexdigest(), 'bytes': len(content)}
                           for name, (content, _) in entries.items()}}

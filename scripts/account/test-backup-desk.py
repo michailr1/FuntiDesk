@@ -92,7 +92,7 @@ class BackupTests(unittest.TestCase):
         result = backup.backup('account-secrets', artifact, self.recipient)
         members = self.decrypt(artifact)
         self.assertEqual(members['secrets/account.key'], b'a' * 64 + b'\n')
-        self.assertEqual(members['secrets/witness.key'], b'b' * 64 + b'\n')
+        self.assertNotIn('secrets/witness.key', members)
         self.assertEqual(members['secrets/funtidesk202610.private'], self.dkim)
         self.assertEqual(set(self.outputs.iterdir()), {artifact, Path(str(artifact) + '.sha256')})
         self.assertNotIn(self.dkim, artifact.read_bytes())

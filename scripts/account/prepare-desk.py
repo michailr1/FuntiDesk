@@ -143,18 +143,15 @@ def prepare(archive):
         os.chown(path,uid,gid)
     create_mail_queue(ROOT/'mail-queue')
     create_secret(ROOT/'secrets/account.key',10001,secrets.token_hex(32))
-    create_secret(ROOT/'secrets/witness.key',10001,secrets.token_hex(32))
     private=ROOT/'secrets/funtidesk202610.private'
     run('openssl','genpkey','-algorithm','RSA','-pkeyopt','rsa_keygen_bits:2048','-out',str(private))
     private.chmod(0o600)
     public=run('openssl','pkey','-in',str(private),'-pubout','-outform','DER')
     import base64
-    namespace=secrets.token_hex(32)
     environment=(REPO/'infra/funtidesk-account/.env.example').read_text()
     for name,image in [('FUNTI_ACCOUNT_IMAGE','funtidesk-account'),('FUNTI_ACCOUNT_MAIL_IMAGE','funtidesk-account-mail')]:
         lines=environment.splitlines()
         environment='\n'.join(name+'='+loaded[image] if line.startswith(name+'=') else line for line in lines)+'\n'
-    environment=environment.replace('7777777777777777777777777777777777777777777777777777777777777777',namespace)
     (ROOT/'account.env').write_text(environment)
     (ROOT/'account.env').chmod(0o600)
     records={'SPF':{'name':'funti.cc','value':'v=spf1 mx a:funti.cc ip4:172.245.108.154 ip4:173.249.195.36 include:sendinblue.com ~all'},

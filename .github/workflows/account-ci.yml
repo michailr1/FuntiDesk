@@ -43,8 +43,6 @@ jobs:
         run: python3 scripts/account/test-update-web-desk.py
       - name: Test encrypted backups and live SQLite WAL snapshot
         run: python3 scripts/account/test-backup-desk.py
-      - name: Test fresh witness Head authentication and relay inspection
-        run: python3 scripts/account/test-probe-witness-head.py
 
   hbbs-registry:
     runs-on: ubuntu-24.04
@@ -137,11 +135,6 @@ jobs:
           FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
           FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
         run: python3 scripts/account/smoke-mail.py
-      - name: Test independent witness through real HTTPS Caddy
-        env:
-          FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
-          FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
-        run: python3 scripts/account/smoke-witness-tls.py
       - name: Package checked images and provenance
         env:
           SOURCE_REVISION: ${{ github.sha }}

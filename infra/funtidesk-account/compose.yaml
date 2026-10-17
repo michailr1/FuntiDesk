@@ -17,14 +17,9 @@ services:
       FUNTI_ACCOUNT_SMTP_HOST: funtidesk-mail
       FUNTI_ACCOUNT_SMTP_PORT: '2525'
       FUNTI_ACCOUNT_TRUSTED_PROXIES: ${FUNTI_ACCOUNT_CADDY_IP:-172.31.251.4}
-      FUNTI_ACCOUNT_WITNESS_KEY_FILE: /secrets/witness.key
-      FUNTI_ACCOUNT_WITNESS_NAMESPACE: ${FUNTI_ACCOUNT_WITNESS_NAMESPACE:?initialized independent namespace required}
-      FUNTI_ACCOUNT_WITNESS_URL: http://funtidesk-account-witness-relay:21801/v1/witness
-      FUNTI_ACCOUNT_RECOVERY_DIRECTORY: /data/recovery
     volumes:
       - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/data:/data
       - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/account.key:/secrets/account.key:ro
-      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/witness.key:/secrets/witness.key:ro
       - ${FUNTI_ACCOUNT_IDENTITY_DIR:-/opt/funtidesk-account/identity}:/run/funtidesk-identity:ro
     networks:
       frontend:
@@ -32,26 +27,7 @@ services:
         aliases: [funtidesk-account]
       smtp:
         ipv4_address: ${FUNTI_ACCOUNT_SMTP_CLIENT_IP:-172.31.250.3}
-      witness: {}
-    depends_on: [mail, witness-relay]
-
-  witness-relay:
-    image: ${FUNTI_ACCOUNT_IMAGE:?verified account image required}
-    pull_policy: never
-    command: [witness-relay]
-    restart: unless-stopped
-    user: '10001:10001'
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    mem_limit: 192m
-    pids_limit: 32
-    environment:
-      FUNTI_WITNESS_RELAY_LISTEN: 0.0.0.0:21801
-    networks:
-      witness:
-        aliases: [funtidesk-account-witness-relay]
-      witness-outbound: {}
+    depends_on: [mail]
 
   mail:
     image: ${FUNTI_ACCOUNT_MAIL_IMAGE:?verified mail image required}
@@ -96,9 +72,3 @@ networks:
       config:
         - subnet: ${FUNTI_ACCOUNT_SMTP_SUBNET:-172.31.250.0/29}
   outbound: {}
-  witness:
-    internal: true
-    ipam:
-      config:
-        - subnet: ${FUNTI_ACCOUNT_WITNESS_SUBNET:-172.31.252.0/29}
-  witness-outbound: {}
