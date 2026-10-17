@@ -8,6 +8,7 @@
   let challenge = '';
   let email = '';
   let busy = false;
+  let library = null;
   const retryRequests = new Map();
 
   class ApiError extends Error {
@@ -65,6 +66,7 @@
     if (error.code === 'wrong_origin') return 'Откройте кабинет по адресу https://desk.funti.cc/account/.';
     if (error.code === 'invalid_code') return 'Код неверный или больше не действует. Проверьте письмо или запросите новый код.';
     if (error.code === 'try_later' || error.status === 429) return 'Слишком много запросов. Попробуйте немного позже.';
+    if (error.status === 409) return 'Список изменён на другом устройстве. Обновите списки и повторите действие.';
     if (error.status === 403) return 'Не удалось подтвердить запрос. Обновите страницу и повторите действие.';
     if (error.code === 'invalid_request') return 'Проверьте введённые данные и повторите действие.';
     return 'Кабинет сейчас недоступен. Попробуйте ещё раз позже. Подключения и семья в программе продолжают работать.';
@@ -101,6 +103,9 @@
     challenge = '';
     email = '';
     retryRequests.clear();
+    library = null;
+    $('favorite-id').value = '';
+    $('favorite-name').value = '';
     $('account').hidden = true;
     $('login').hidden = false;
     $('email-form').hidden = false;
@@ -108,7 +113,7 @@
     $('email').value = '';
     $('code').value = '';
     $('code-sent').textContent = '';
-    for (const id of ['devices', 'family', 'removals', 'account-email', 'session-expiry', 'device-count']) $(id).replaceChildren();
+    for (const id of ['devices', 'family', 'removals', 'favorites', 'history', 'account-email', 'session-expiry', 'device-count']) $(id).replaceChildren();
   }
 
   async function prepareLogin() {
@@ -153,6 +158,12 @@
     return button;
   }
 
+  function connectLink(id) {
+    const link = element('a', 'back-link', 'Подключиться');
+    link.href = '/connect/#' + encodeURIComponent(id);
+    return link;
+  }
+
   function renderDevices(devices) {
     const root = $('devices');
     root.replaceChildren();
@@ -165,7 +176,7 @@
       body.append(element('p', 'row-detail', 'ID: ' + device.funti_id + (device.version ? ' · ' + device.version : '')));
       body.append(element('p', 'row-detail', 'В кабинете с ' + date(device.bound_at)));
       body.append(element('p', 'row-detail', 'Последний обмен: ' + date(device.last_seen)));
-      row.append(body, removeButton(device));
+      row.append(body, connectLink(device.funti_id), removeButton(device));
       root.append(row);
     }
   }
@@ -221,13 +232,49 @@
     }
   }
 
+  function renderLibrary(lists, devices) {
+    if (!Array.isArray(lists.favorites) || !Array.isArray(lists.history) || !Number.isSafeInteger(lists.revision) || !Number.isSafeInteger(lists.history_epoch)) throw new ApiError(0, 'service_unavailable');
+    library = lists;
+    const favorites = $('favorites');
+    const history = $('history');
+    favorites.replaceChildren();
+    history.replaceChildren();
+    if (!lists.favorites.length) favorites.append(element('li', 'empty', 'Избранных компьютеров пока нет.'));
+    for (const favorite of lists.favorites) {
+      const row = element('li', 'row');
+      const body = element('div', 'row-body');
+      body.append(element('p', 'row-name', favorite.name || favorite.funti_id), element('p', 'row-detail', 'ID: ' + favorite.funti_id));
+      const remove = element('button', '', 'Убрать из избранного');
+      remove.type = 'button';
+      remove.addEventListener('click', () => run(async () => {
+        await api('/library/favorites', { revision: library.revision, favorites: library.favorites.filter((entry) => entry.funti_id !== favorite.funti_id) }, sessionCsrf);
+        await loadLists();
+      }));
+      row.append(body, connectLink(favorite.funti_id), remove);
+      favorites.append(row);
+    }
+    const names = new Map(devices.map((d) => [d.device_id, d.name || d.funti_id]));
+    if (!lists.history.length) history.append(element('li', 'empty', 'История пока пуста.'));
+    for (const entry of lists.history) {
+      const row = element('li', 'row');
+      const body = element('div', 'row-body');
+      body.append(element('p', 'row-name', entry.name || entry.funti_id),
+        element('p', 'row-detail', 'ID: ' + entry.funti_id + ' · ' + date(entry.connected_at)),
+        element('p', 'row-detail', 'С компьютера: ' + (names.get(entry.source_device_id) || 'Компьютер')));
+      row.append(body);
+      row.append(connectLink(entry.funti_id));
+      history.append(row);
+    }
+  }
+
   async function loadLists() {
-    const [devices, family, removals] = await Promise.all([
-      api('/devices'), api('/family'), api('/family/removals'),
+    const [devices, family, removals, lists] = await Promise.all([
+      api('/devices'), api('/family'), api('/family/removals'), api('/library'),
     ]);
     if (!Array.isArray(devices.devices) || !Array.isArray(family.sources) || !Array.isArray(removals.deliveries) || family.sources.some((source) => !Array.isArray(source.members))) {
       throw new ApiError(0, 'service_unavailable');
     }
+    renderLibrary(lists, devices.devices);
     renderDevices(devices.devices);
     renderFamily(family.sources);
     renderRemovals(removals.deliveries, devices.devices, family.sources, removals.has_more === true);
@@ -263,6 +310,27 @@
     $('code').focus();
   }
 
+  $('favorite-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    run(async () => {
+      if (!library) throw new ApiError(0, 'service_unavailable');
+      const id = $('favorite-id').value.trim();
+      const favorites = library.favorites.filter((entry) => entry.funti_id !== id);
+      favorites.push({ funti_id: id, name: $('favorite-name').value.trim() });
+      await api('/library/favorites', { revision: library.revision, favorites }, sessionCsrf);
+      $('favorite-id').value = '';
+      $('favorite-name').value = '';
+      await loadLists();
+    });
+  });
+  $('clear-history').addEventListener('click', () => {
+    if (busy || !library || !window.confirm('Очистить историю на всех клиентах аккаунта? Старые отложенные записи не вернутся.')) return;
+    run(async () => {
+      await api('/library/history/clear', { history_epoch: library.history_epoch }, sessionCsrf);
+      await loadLists();
+    });
+  });
+
   $('email-form').addEventListener('submit', (event) => { event.preventDefault(); run(sendCode); });
   $('code-form').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -285,6 +353,11 @@
   });
   $('retry-login').addEventListener('click', () => run(prepareLogin));
   $('refresh').addEventListener('click', () => run(showAccount));
+  function refreshSignedInLists() {
+    if (sessionCsrf && !busy && !document.hidden) run(loadLists);
+  }
+  window.setInterval(refreshSignedInLists, 30000);
+  document.addEventListener('visibilitychange', refreshSignedInLists);
   for (const [id, path] of [['logout', '/logout'], ['logout-all', '/logout-all']]) {
     $(id).addEventListener('click', () => {
       if (busy || (id === 'logout-all' && !window.confirm('Выйти из кабинета во всех браузерах и программах? Семейные подключения останутся самостоятельными.'))) return;

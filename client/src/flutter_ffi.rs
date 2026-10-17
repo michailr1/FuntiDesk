@@ -1676,6 +1676,11 @@ pub fn main_load_fav_peers() {
         );
     };
     if !config::APP_DIR.read().unwrap().is_empty() {
+        #[cfg(windows)]
+        let cloud_favs = crate::funti_account::favorite_ids();
+        #[cfg(windows)]
+        let favs = cloud_favs.clone().unwrap_or_else(get_fav);
+        #[cfg(not(windows))]
         let favs = get_fav();
         let mut recent = PeerConfig::peers(Some(favs.clone()));
         let mut lan = config::LanPeers::load()
@@ -1698,6 +1703,14 @@ pub fn main_load_fav_peers() {
             })
             .collect();
         recent.append(&mut lan);
+        #[cfg(windows)]
+        if cloud_favs.is_some() {
+            for id in &favs {
+                if !recent.iter().any(|peer| &peer.0 == id) {
+                    recent.push((id.clone(), SystemTime::UNIX_EPOCH, PeerConfig::default()));
+                }
+            }
+        }
         let peers: Vec<HashMap<&str, String>> = recent
             .into_iter()
             .map(|(id, _, p)| peer_to_map(id, p))

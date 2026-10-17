@@ -63,6 +63,23 @@
         <p class="muted">Устройства появляются здесь после входа в FuntiDesk на компьютере. Время последнего обмена не означает, что компьютер сейчас в сети.</p>
         <ul id="devices" class="rows"></ul>
       </section>
+      <section class="card" aria-labelledby="favorites-title">
+        <h2 id="favorites-title">Избранные компьютеры</h2>
+        <p class="muted">Список синхронизируется с клиентами, где вы включили синхронизацию. Пароли и права доступа не передаются.</p>
+        <form id="favorite-form">
+          <label for="favorite-id">ID компьютера</label>
+          <input id="favorite-id" maxlength="64" pattern="[A-Za-z0-9_-]+" required>
+          <label for="favorite-name">Название</label>
+          <input id="favorite-name" maxlength="128">
+          <button type="submit">Добавить в избранное</button>
+        </form>
+        <ul id="favorites" class="rows"></ul>
+      </section>
+      <section class="card" aria-labelledby="history-title">
+        <div class="section-heading"><h2 id="history-title">История подключений</h2><button id="clear-history" type="button" class="danger-outline">Очистить историю</button></div>
+        <p class="muted">Успешные подключения, переданные вашими клиентами после включения синхронизации. До 1000 записей за 90 дней.</p>
+        <ul id="history" class="rows"></ul>
+      </section>
       <section class="card" aria-labelledby="family-title">
         <h2 id="family-title">Семья на компьютерах</h2>
         <p class="muted">Копии списков для просмотра. Устройства вне сети могут ещё не передать изменения.</p>

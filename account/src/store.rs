@@ -78,11 +78,18 @@ impl Store {
             "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;",
         )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 2 {
+        if version > 4 {
             bail!("unsupported database version");
         }
-        db.execute_batch(include_str!("schema.sql"))?;
-        db.execute_batch(include_str!("schema-recovery.sql"))?;
+        if version == 0 {
+            db.execute_batch(include_str!("schema.sql"))?;
+        }
+        if version < 3 {
+            db.execute_batch(include_str!("schema-library.sql"))?;
+        }
+        if version < 4 {
+            db.execute_batch(include_str!("schema-local.sql"))?;
+        }
         Ok(Self {
             db,
             key,
@@ -150,6 +157,10 @@ impl Store {
         let tx = self.db.transaction()?;
         tx.execute("DELETE FROM challenges WHERE expires_at<=?1", [now])?;
         tx.execute("DELETE FROM nonces WHERE expires_at<=?1", [now])?;
+        tx.execute(
+            "DELETE FROM connection_history WHERE connected_at<=?1",
+            [now - 90 * 86400],
+        )?;
         tx.execute("DELETE FROM sessions WHERE expires_at<=?1", [now])?;
         tx.execute(
             "DELETE FROM rate_limits WHERE window_start<?1",

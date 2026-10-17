@@ -1,13 +1,11 @@
 pub mod config;
 pub mod crypto;
 pub mod devices;
+pub mod library;
 pub mod mail;
-pub mod recovery;
 pub mod registry;
-mod relay;
 pub mod store;
 mod web;
-pub mod witness;
 
 use anyhow::Result;
 use axum::Router;
@@ -27,7 +25,6 @@ pub struct App {
     pub(crate) proxies: Arc<Vec<IpAddr>>,
     pub(crate) clock: Arc<dyn Fn() -> i64 + Send + Sync>,
     pub(crate) permits: Arc<tokio::sync::Semaphore>,
-    pub(crate) recovery: Option<Arc<recovery::Recovery>>,
 }
 
 impl App {
@@ -51,7 +48,6 @@ impl App {
                     .unwrap_or(0)
             }),
             permits: Arc::new(tokio::sync::Semaphore::new(32)),
-            recovery: None,
         }
     }
 
@@ -75,27 +71,6 @@ impl App {
         F: FnOnce(&mut store::Store) -> Result<T> + Send + 'static,
     {
         let store = self.store.clone();
-        if let Some(recovery) = self.recovery.clone() {
-            let permit = recovery.workers.clone().try_acquire_owned()?;
-            // Finish a started mutation even if its HTTP request disappears.
-            // The owned task keeps serialization and the queue bound intact.
-            return tokio::spawn(async move {
-                let _permit = permit;
-                let _guard = recovery.gate.lock().await;
-                recovery.finish_pending(store.clone()).await?;
-                let before = store.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    let mut store = before
-                        .lock()
-                        .map_err(|_| anyhow::anyhow!("store lock failed"))?;
-                    call(&mut store)
-                })
-                .await?;
-                recovery.finish_pending(store).await?;
-                result
-            })
-            .await?;
-        }
         tokio::task::spawn_blocking(move || {
             let mut store = store
                 .lock()
@@ -108,8 +83,4 @@ impl App {
 
 pub fn router(app: App) -> Router {
     web::router(app)
-}
-
-pub fn witness_relay() -> Result<Router> {
-    relay::router()
 }

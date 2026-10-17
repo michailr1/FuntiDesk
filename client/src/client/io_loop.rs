@@ -102,6 +102,8 @@ pub struct Remote<T: InvokeUiSession> {
     last_record_state: bool,
     sent_close_reason: bool,
     cursor_dedupe: CursorDedupe,
+    #[cfg(windows)]
+    account_history_context: Option<serde_json::Value>,
 }
 
 #[derive(Default)]
@@ -154,10 +156,16 @@ impl<T: InvokeUiSession> Remote<T> {
             last_record_state: false,
             sent_close_reason: false,
             cursor_dedupe: Default::default(),
+            #[cfg(windows)]
+            account_history_context: None,
         }
     }
 
     pub async fn io_loop(&mut self, key: &str, token: &str, round: u32) {
+        #[cfg(windows)]
+        if self.handler.is_default() {
+            self.account_history_context = crate::funti_account::history_context().await;
+        }
         #[cfg(target_os = "windows")]
         let _file_clip_context_holder = {
             // `is_port_forward()` will not reach here, but we still check it for clarity.
@@ -1605,6 +1613,14 @@ impl<T: InvokeUiSession> Remote<T> {
                                 self.handler.lc.write().unwrap().handle_peer_info(&pi);
                                 return false;
                             }
+                        }
+                        #[cfg(windows)]
+                        if self.handler.is_default() && !self.is_connected {
+                            crate::funti_account::record_connection(
+                                self.account_history_context.take(),
+                                self.handler.lc.read().unwrap().get_id().to_owned(),
+                                pi.hostname.clone(),
+                            );
                         }
                         self.handler.handle_peer_info(pi);
                         if self.handler.is_view_camera()

@@ -27,6 +27,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-tools:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Install encrypted backup test tools
+        run: sudo apt-get update && sudo apt-get install -y age
+      - name: Test activation preflight, readiness and rollback
+        run: python3 scripts/account/test-activate-desk.py
+      - name: Test browser candidate preserves existing account and other Caddy sites
+        run: python3 scripts/account/test-update-browser-desk.py
+      - name: Test exact API image update without changing other environment fields
+        run: python3 scripts/account/test-update-library-desk.py
+      - name: Test static web updates preserve API and restore the previous release on failure
+        run: python3 scripts/account/test-update-web-desk.py
+      - name: Test encrypted backups and live SQLite WAL snapshot
+        run: python3 scripts/account/test-backup-desk.py
+
   hbbs-registry:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -118,11 +135,6 @@ jobs:
           FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
           FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
         run: python3 scripts/account/smoke-mail.py
-      - name: Test independent witness through real HTTPS Caddy
-        env:
-          FUNTI_ACCOUNT_IMAGE: funtidesk-account:ci
-          FUNTI_ACCOUNT_MAIL_IMAGE: funtidesk-account-mail:ci
-        run: python3 scripts/account/smoke-witness-tls.py
       - name: Package checked images and provenance
         env:
           SOURCE_REVISION: ${{ github.sha }}

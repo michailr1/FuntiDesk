@@ -46,9 +46,12 @@ cat > /etc/postfix/allowed_from <<'EOF'
 /^no-reply@funti[.]cc$/ OK
 /./ REJECT
 EOF
+# Let routing choose the SMTP client's source on the outbound network. Otherwise
+# Postfix also uses the sole inet_interfaces address from the private network.
 postconf -e \
-  'myhostname=core.funti.cc' 'mydomain=funti.cc' 'mydestination=' \
+  'myhostname=desk.funti.cc' 'mydomain=funti.cc' 'mydestination=' \
   'inet_protocols=ipv4' "inet_interfaces=$FUNTI_MAIL_BIND_IP" \
+  'smtp_bind_address=0.0.0.0' \
   "mynetworks=$FUNTI_MAIL_SUBNET" \
   'smtpd_relay_restrictions=permit_mynetworks,reject_unauth_destination' \
   'smtpd_sender_restrictions=check_sender_access regexp:/etc/postfix/allowed_from' \
@@ -56,7 +59,7 @@ postconf -e \
   'non_smtpd_milters=unix:/run/opendkim/dkim.sock' 'milter_default_action=tempfail' \
   'milter_protocol=6' 'maillog_file=/dev/null' 'maillog_file_prefixes=/dev/null' 'notify_classes=' \
   'smtp_tls_security_level=verify' 'smtp_tls_CAfile=/etc/ssl/certs/ca-certificates.crt' \
-  'smtp_helo_name=core.funti.cc' 'maximal_queue_lifetime=5m' 'bounce_queue_lifetime=0' \
+  'smtp_helo_name=desk.funti.cc' 'maximal_queue_lifetime=5m' 'bounce_queue_lifetime=0' \
   'message_size_limit=65536' 'default_process_limit=20' \
   'queue_directory=/var/spool/postfix' 'data_directory=/var/lib/postfix'
 

@@ -1,3 +1,4 @@
+import '../funti_library.dart';
 import 'dart:ui' as ui;
 
 import 'package:bot_toast/bot_toast.dart';
@@ -401,11 +402,7 @@ class _PeerTabPageState extends State<PeerTabPage>
                 bind.mainLoadRecentPeers();
                 break;
               case 1:
-                final favs = (await bind.mainGetFav()).toList();
-                peers.map((p) {
-                  favs.remove(p.id);
-                }).toList();
-                await bind.mainStoreFav(favs: favs);
+                if (!await changeFuntiFavorites(remove: peers.map((p) => p.id).toList())) return;
                 bind.mainLoadFavPeers();
                 break;
               case 2:
@@ -439,13 +436,7 @@ class _PeerTabPageState extends State<PeerTabPage>
         toolTip: translate('Add to Favorites'),
         onTap: () async {
           final peers = model.selectedPeers;
-          final favs = (await bind.mainGetFav()).toList();
-          for (var p in peers) {
-            if (!favs.contains(p.id)) {
-              favs.add(p.id);
-            }
-          }
-          await bind.mainStoreFav(favs: favs);
+          if (!await changeFuntiFavorites(add: peers.map((p) => p.id).toList())) return;
           model.setMultiSelectionMode(false);
           showToast(translate('Successful'));
         },

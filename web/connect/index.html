@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; connect-src wss://desk.funti.cc; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Подключиться к компьютеру — FuntiDesk</title>
+  <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/account/account.css">
+  <link rel="stylesheet" href="/connect/session.css">
+  <script type="module" src="/connect/session.js"></script>
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="/"><img src="/mark.svg" width="32" height="32" alt="">FuntiDesk</a><a href="/account/">Личный кабинет</a></header>
+  <main>
+    <h1>Подключиться к компьютеру</h1>
+    <p class="lead">Временный или постоянный пароль проверяет FuntiDesk на компьютере.</p>
+    <form id="connection-form" class="card" autocomplete="off">
+      <label for="peer-id">ID компьютера</label><input id="peer-id" inputmode="numeric" pattern="[0-9]{6,16}" maxlength="16" required>
+      <label for="password">Пароль компьютера</label><input id="password" type="password" maxlength="256" autocomplete="off" required>
+      <div class="inline-actions"><button id="connect" type="submit">Подключиться</button><button id="disconnect" type="button" disabled>Завершить сеанс</button></div>
+      <p class="boundary-note">Вход в личный кабинет не даёт доступа. Пароли не сохраняются. Для первой версии нужен настольный Chromium.</p>
+    </form>
+    <p id="status" class="message" role="status" aria-live="polite">Введите ID и пароль компьютера.</p>
+    <canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas>
+    <p class="muted">Экран, мышь и клавиатура. Некоторые сочетания клавиш обрабатывает сам браузер. <a href="/connect/source.html">Исходный код и лицензии</a>.</p>
+  </main>
+</body>
+</html>

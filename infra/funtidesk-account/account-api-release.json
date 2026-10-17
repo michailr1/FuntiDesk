@@ -1,0 +1,17 @@
+{
+  "source": "2051ad38c8a4e57472e3b249a81c6485b6ae262b",
+  "run_id": 38700709102,
+  "artifact_id": 11955489928,
+  "artifact_zip_sha256": "c1c428f928b9216053982c80b06bdd4dbdce675a8c846cb9d9f24fb3f15f4bc6",
+  "docker_archive_sha256": "fc31e1fe2088f27914000b2990f5232ea0be9b7d83cc020d775a8250158b659c",
+  "images": {
+    "funtidesk-account": "sha256:ec9a1d8c4c00239704b06c95220d5799c42fa3631f477752a6e63ca6d05606b1",
+    "funtidesk-account-mail": "sha256:18180559feba78e9fcb1c645cfd30a35b2d31d2e8ee5208467084f6fa611ea66",
+    "funtidesk-account-server": "sha256:5a36e33e008e6a8d8c2dbd5693185d4e5aa7872f5e190461d83f578b1382f2a4"
+  },
+  "oci_images": {
+    "funtidesk-account": "sha256:5eaaaf15ba9c913881361b419be4f5f80cea52ae0d70c1d6a5f1754c41c62e09",
+    "funtidesk-account-mail": "sha256:faef0bdc71dc7c9ab5c7f870f1ce31a3866672f5a9e370c6641e7a5c190a78ac",
+    "funtidesk-account-server": "sha256:ceaab9ffa53e24bb3b04e284dfbcdca0f858a6b4d11a8688120f27fdfe412f79"
+  }
+}
