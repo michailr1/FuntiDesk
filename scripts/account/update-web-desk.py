@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update the active v3 cabinet's static files, preserving API, Caddy config and images."""
+"""Update the active Core-only cabinet's static files, preserving API, Caddy config and images."""
 import hashlib
 import importlib.util
 import json
@@ -36,8 +36,8 @@ def update():
     caddy = candidates[0]
     api = next(v for v in before if v['Name'] == '/funtidesk-account-account-1')
     data = next(Path(m['Source']) for m in api['Mounts'] if m['Destination'] == '/data')
-    if not api['State']['Running'] or library.database_version(data / 'account.sqlite3') != 3:
-        raise RuntimeError('Expected the active compatible v3 API')
+    if not api['State']['Running'] or library.database_version(data / 'account.sqlite3') != 4:
+        raise RuntimeError('Expected the active compatible v4 API')
     library.api_ready(api['NetworkSettings']['Networks']['funtidesk-account-front']['IPAddress'])
     compose = ['docker', 'compose', '-p', 'caddy', '--env-file', str(ROOT / 'account.env'),
                '-f', '/opt/remnawave/caddy/docker-compose.yml',

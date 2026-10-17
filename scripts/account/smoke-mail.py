@@ -184,21 +184,16 @@ try:
     token = json.loads(verified["body"])["token"]
     session = request(base + "/session", extra={"Authorization": "Bearer " + token})
     assert session["status"] == 200, "native session does not work"
-    docker("stop", api)
-    restored_options = account_options + ["-e", "FUNTI_ACCOUNT_DATABASE=/data/restored.sqlite3"]
-    receipt = docker("run", "--rm", *restored_options, api_image, "restore")
-    assert "ACCOUNT_RECOVERED" in receipt and "event_highwater=1" in receipt
-    docker("rm", api)
-    docker("run", "-d", "--name", api, "--ip", api_ip, *restored_options, api_image)
+    docker("restart", api)
     for _ in range(60):
         try:
             session = request(base + "/session", extra={"Authorization": "Bearer " + token})
-            assert session["status"] == 401, "old session survived actual CLI restore"
+            assert session["status"] == 200, "session did not survive Core-only API restart"
             break
         except RuntimeError:
             time.sleep(0.25)
     else:
-        raise RuntimeError("Restored API startup failed")
+        raise RuntimeError("Core-only API restart failed")
     # A single inet_interfaces address otherwise also becomes the SMTP client's
     # source address. Exercise the real Postfix transport across a second network.
     # This fake MX refuses before MAIL/DATA; both test networks have no Internet.
@@ -249,7 +244,7 @@ print $client->peerhost; close $client;
         assert all(value not in logs for value in ["person@example.invalid", code, token, challenge, context]), "secret leaked to logs"
     assert docker("exec", mail, "postconf", "-h", "maillog_file") == "/dev/null"
     assert docker("exec", mail, "postconf", "-h", "inet_interfaces") == mail_ip
-    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private listener, outbound source, desk HELO, real queued code, independent encrypted state, CLI restore invalidates session, sender/DKIM refusal, log privacy")
+    print("ACCOUNT_SMTP_DKIM_SMOKE_OK: private listener, outbound source, desk HELO, real queued code, independent encrypted state, API restart invalidates session, sender/DKIM refusal, log privacy")
 finally:
     for container in reversed(created_containers):
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)

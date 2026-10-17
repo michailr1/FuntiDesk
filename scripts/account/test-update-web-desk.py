@@ -60,7 +60,7 @@ class StaticUpdate(unittest.TestCase):
 
             library = update.load('update-library-desk')
             library.run = run
-            library.database_version = lambda _: 3
+            library.database_version = lambda _: 4
             library.api_ready = Mock()
             library.stage_full_web = lambda p: p.mkdir()
             activation = SimpleNamespace(switch_link=switch_link, wait_ready=Mock(side_effect=[RuntimeError('readiness'), None] if readiness_fails else None))

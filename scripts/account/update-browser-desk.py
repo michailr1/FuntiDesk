@@ -150,7 +150,7 @@ def update():
     db = sqlite3.connect('file:' + str(api_data / 'account.sqlite3') + '?mode=ro', uri=True)
     version = db.execute('PRAGMA user_version').fetchone()[0]
     db.close()
-    protected = [ROOT / 'account.env', ROOT / 'secrets/account.key', ROOT / 'secrets/witness.key', ROOT / 'secrets/funtidesk202610.private', Path('/opt/funtidesk/data/id_ed25519'), Path('/opt/funtidesk/data/id_ed25519.pub')]
+    protected = [ROOT / 'account.env', ROOT / 'secrets/account.key', ROOT / 'secrets/funtidesk202610.private', Path('/opt/funtidesk/data/id_ed25519'), Path('/opt/funtidesk/data/id_ed25519.pub')]
     hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in protected}
     containers = json.loads(run('docker', 'inspect', *run('docker', 'ps', '-aq').decode().split()))
     stable = {v['Name']: v['Id'] for v in containers if v['Id'] != live['Id']}

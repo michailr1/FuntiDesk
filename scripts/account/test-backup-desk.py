@@ -46,9 +46,8 @@ class BackupTests(unittest.TestCase):
         for path in [self.account / 'secrets', self.server / 'data', self.outputs]:
             path.mkdir(mode=0o700, parents=True)
         self.write(self.account / 'secrets/account.key', b'a' * 64 + b'\n')
-        self.write(self.account / 'secrets/witness.key', b'b' * 64 + b'\n')
         self.write(self.account / 'secrets/funtidesk202610.private', self.dkim)
-        self.write(self.account / 'account.env', b'FUNTI_ACCOUNT_WITNESS_NAMESPACE=' + b'c' * 64 + b'\n')
+        self.write(self.account / 'account.env', b'FUNTI_ACCOUNT_DATABASE=/data/account.sqlite3\n')
         self.write(self.account / 'PREPARED', b'fixture-only\n')
         self.write(self.account / 'dns-records.json', b'{}\n')
         public = os.urandom(32)
