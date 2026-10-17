@@ -185,7 +185,8 @@ def update(archive, apply):
         deadline = time.monotonic() + 45
         while True:
             try:
-                api_ready(before['NetworkSettings']['Networks']['funtidesk-account-front']['IPAddress'])
+                active = json.loads(run('docker', 'inspect', 'funtidesk-account-account-1'))[0]
+                api_ready(active['NetworkSettings']['Networks']['funtidesk-account-front']['IPAddress'])
                 break
             except (OSError, RuntimeError):
                 if time.monotonic() >= deadline:
