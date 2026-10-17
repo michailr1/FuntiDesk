@@ -909,7 +909,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-update-progress", "Скачиваю и проверяю обновление, затем FuntiDesk перезапустится…"),
         ("funti-update-check-failed", "Не удалось проверить обновления: {}"),
         ("funti-update-failed", "Не удалось обновить: {}. Установленная версия не изменилась."),
-        ("funti-update-unsupported-service", "Обновление кнопкой в установленном режиме (служба) пока не поддерживается."),
+        ("funti-update-unsupported-service", "Служба FuntiDesk не запущена, поэтому обновить установленный FuntiDesk нельзя. Перезагрузите компьютер или запустите службу «FuntiDesk Service» в «Службах» Windows"),
         ("funti-update-unsupported-copy", "FuntiDesk не может обновиться в этой папке: рядом с ней нет прав на запись. Перенесите папку FuntiDesk, например, в «Документы» или установите FuntiDesk командой установки."),
         ("funti-update-unsupported-portable-old", "Этот FuntiDesk-portable.exe слишком старый для обновления кнопкой. Один раз скачайте FuntiDesk-portable.exe из последнего релиза — дальше он будет обновляться кнопкой."),
         ("funti-update-service-unreachable", "Служба FuntiDesk не отвечает. Перезагрузите компьютер и попробуйте ещё раз."),
