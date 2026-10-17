@@ -99,7 +99,8 @@ def content_hashes(connection):
     return {name: hashlib.sha256(repr(connection.execute('SELECT * FROM "' + name.replace('"', '""') + '" ORDER BY rowid').fetchall()).encode()).hexdigest() for name in names}
 
 
-def backup_and_check(database, directory):
+def backup_and_check(database, directory, source='HEAD'):
+    migration = run('git', '-C', str(REPO), 'show', source + ':account/src/schema-local.sql').decode()
     original = sqlite3.connect('file:' + str(database) + '?mode=ro', uri=True)
     try:
         before = content_hashes(original)
@@ -110,7 +111,7 @@ def backup_and_check(database, directory):
             try:
                 original.backup(copy)
                 if name.startswith('migration-'):
-                    copy.executescript((REPO / 'account/src/schema-local.sql').read_text())
+                    copy.executescript(migration)
                     if content_hashes(copy) != before or copy.execute('PRAGMA user_version').fetchone()[0] != 4:
                         raise RuntimeError('Migration changed application data')
                 if copy.execute('PRAGMA integrity_check').fetchall() != [('ok',)] or copy.execute('PRAGMA foreign_key_check').fetchall():
@@ -176,7 +177,7 @@ def update(archive, apply):
     private_file(directory / 'APPLY_STARTED', source.encode())
     run(*compose, 'stop', 'account')
     try:
-        backup_and_check(database, directory)
+        backup_and_check(database, directory, pin['source'])
         if (ROOT / 'account.env').read_bytes() != old_env:
             raise RuntimeError('Account environment changed during preparation')
         os.replace(directory / 'account.env.next', ROOT / 'account.env')
