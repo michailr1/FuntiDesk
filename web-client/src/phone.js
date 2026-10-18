@@ -16,8 +16,8 @@ export class PhoneConsole {
     $('phone-fit').onclick = () => { this.fit = true; this.pan = { x: 0, y: 0 }; this.layout(); };
     $('phone-actual').onclick = () => { this.fit = false; this.zoom = 1; this.pan = { x: 0, y: 0 }; this.layout(); };
     $('phone-zoom').oninput = () => { this.fit = false; this.zoom = Number($('phone-zoom').value) / 100; this.layout(); };
-    $('phone-keyboard').onclick = () => { $('phone-keys').hidden = false; $('phone-text').focus(); $('phone-panel').hidden = true; };
-    $('phone-keys-close').onclick = () => { $('phone-text').blur(); $('phone-keys').hidden = true; };
+    $('phone-keyboard').onclick = () => { $('phone-keys').hidden = false; $('phone-panel').hidden = true; this.layout(); $('phone-text').focus({ preventScroll: true }); };
+    $('phone-keys-close').onclick = () => { $('phone-text').blur(); $('phone-keys').hidden = true; this.layout(); };
     $('phone-help').onclick = () => this.help();
     $('phone-help-close').onclick = () => $('phone-help-sheet').close();
     $('phone-cad').onclick = () => { if (confirm('Отправить Ctrl+Alt+Del на компьютер?')) this.key('CtrlAltDel'); };
@@ -38,7 +38,11 @@ export class PhoneConsole {
     $('phone-text').addEventListener('keydown', (e) => {
       if (['Backspace', 'Enter', 'Tab'].includes(e.key) && !e.isComposing) { e.preventDefault(); this.key(e.key === 'Enter' ? 'Return' : e.key); }
     });
-    $('phone-text').addEventListener('beforeinput', (e) => { if (e.inputType === 'deleteContentBackward') { e.preventDefault(); this.key('Backspace'); } });
+    $('phone-text').addEventListener('beforeinput', (e) => {
+      if (e.isComposing) return;
+      const key = { deleteContentBackward: 'Backspace', insertLineBreak: 'Return', insertParagraph: 'Return' }[e.inputType];
+      if (key) { e.preventDefault(); this.key(key); }
+    });
     // TouchEvent samples both fingers together; separate pointer moves can look like a pinch.
     for (const [type, phase] of [['touchstart', 'pointerdown'], ['touchmove', 'pointermove'], ['touchend', 'pointerup'], ['touchcancel', 'pointercancel']]) canvas.addEventListener(type, (event) => {
       if (!this.enabled || !this.shown) return;
@@ -57,6 +61,7 @@ export class PhoneConsole {
     menu.onpointerup = menu.onpointercancel = () => { drag = null; };
     window.addEventListener('resize', () => { this.reset(); this.layout(); });
     visualViewport?.addEventListener('resize', () => this.layout());
+    visualViewport?.addEventListener('scroll', () => this.layout());
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => { this.reset(); if (document.hidden) this.unlock(); else this.wake(); });
   }
@@ -64,11 +69,11 @@ export class PhoneConsole {
     const show = this.enabled && this.session()?.connected === true;
     $('phone-state').textContent = $('status').textContent;
     if (show && this.session().keyboard === false) this.reset();
-    if (show === this.shown) return;
+    if (show === this.shown) { this.renderCursor(); return; }
     this.shown = show; document.body.classList.toggle('phone-session', show); $('phone-ui').hidden = !show;
     this.reset();
     if (!show) {
-      $('phone-help-sheet').close();
+      $('phone-cursor').hidden = true; $('phone-help-sheet').close();
       this.unlock(); $('phone-text').value = ''; $('phone-text').blur(); $('phone-keys').hidden = true;
       for (const name of ['width', 'height', 'transform']) this.canvas.style.removeProperty(name);
       return;
@@ -84,7 +89,7 @@ export class PhoneConsole {
   }
   help() {
     this.reset(); $('phone-panel').hidden = true;
-    $('phone-text').blur(); $('phone-keys').hidden = true;
+    $('phone-text').blur(); $('phone-keys').hidden = true; this.layout();
     if (!$('phone-help-sheet').open) $('phone-help-sheet').showModal();
   }
   async wake() {
@@ -96,9 +101,10 @@ export class PhoneConsole {
   unlock() { const lock = this.lock; this.lock = null; if (lock) lock.release().catch(() => {}); }
   layout() {
     if (!this.shown) return;
-    const height = visualViewport?.height || innerHeight;
-    $('remote-stage').style.height = height + 'px';
-    $('phone-keys').style.bottom = Math.max(0, innerHeight - height - (visualViewport?.offsetTop || 0)) + 'px';
+    const visibleHeight = visualViewport?.height || innerHeight, top = visualViewport?.offsetTop || 0;
+    const height = Math.max(1, visibleHeight - ($('phone-keys').hidden ? 0 : $('phone-keys').offsetHeight));
+    $('remote-stage').style.top = top + 'px'; $('remote-stage').style.height = height + 'px';
+    $('phone-keys').style.bottom = Math.max(0, innerHeight - visibleHeight - top) + 'px';
     const fit = Math.min(innerWidth / this.canvas.width, height / this.canvas.height);
     $('phone-zoom').max = String(Math.round(Math.max(4, fit * 4) * 100));
     if (this.fit) this.zoom = fit;
@@ -106,9 +112,23 @@ export class PhoneConsole {
     this.pan.y = clamp(this.pan.y, -Math.max(0, (this.canvas.height * this.zoom - height) / 2), Math.max(0, (this.canvas.height * this.zoom - height) / 2));
     this.canvas.style.width = this.canvas.width * this.zoom + 'px'; this.canvas.style.height = this.canvas.height * this.zoom + 'px';
     this.canvas.style.transform = `translate(${this.pan.x}px,${this.pan.y}px)`; $('phone-zoom').value = String(Math.round(this.zoom * 100));
-    const menu = $('phone-menu'); menu.style.left = clamp(menu.offsetLeft, 0, innerWidth - menu.offsetWidth) + 'px'; menu.style.top = clamp(menu.offsetTop, 0, height - menu.offsetHeight) + 'px';
+    const menu = $('phone-menu'); menu.style.left = clamp(menu.offsetLeft, 0, innerWidth - menu.offsetWidth) + 'px'; menu.style.top = clamp(menu.offsetTop, top, top + height - menu.offsetHeight) + 'px';
+    this.renderCursor();
+  }
+  remoteCursor(point) {
+    const screen = this.session()?.screen || {};
+    this.cursor = { x: (point.x || 0) - (screen.x || 0), y: (point.y || 0) - (screen.y || 0) }; this.renderCursor();
+  }
+  renderCursor() {
+    const marker = $('phone-cursor');
+    marker.hidden = !this.shown || this.session()?.keyboard === false || this.cursor.x < 0 || this.cursor.y < 0 || this.cursor.x >= this.canvas.width || this.cursor.y >= this.canvas.height;
+    if (marker.hidden) return;
+    const rect = this.canvas.getBoundingClientRect(), stage = $('remote-stage').getBoundingClientRect();
+    marker.style.left = rect.left - stage.left + clamp(Math.round(this.cursor.x), 0, this.canvas.width - 1) * this.zoom + 'px';
+    marker.style.top = rect.top - stage.top + clamp(Math.round(this.cursor.y), 0, this.canvas.height - 1) * this.zoom + 'px';
   }
   mouse(type, button = 0, point = this.cursor) {
+    this.renderCursor();
     const session = this.session(); if (!session) return;
     const x = clamp(Math.round(point.x), 0, this.canvas.width - 1), y = clamp(Math.round(point.y), 0, this.canvas.height - 1);
     session.input({ mouse_event: { mask: type | (button << 3), x: x + (session.screen.x || 0), y: y + (session.screen.y || 0) } });

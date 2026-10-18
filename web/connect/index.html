@@ -27,7 +27,7 @@
       <p class="boundary-note">Вход в личный кабинет не даёт доступа. Пароли не сохраняются. Нужен браузер с WebCodecs VP9.</p>
     </form>
     <p id="status" class="message" role="status" aria-live="polite">Введите ID и пароль компьютера.</p>
-    <div id="remote-stage"><canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas></div>
+    <div id="remote-stage"><canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas><div id="phone-cursor" aria-hidden="true" hidden><svg viewBox="0 0 24 30" width="24" height="30"><path d="M2 2v22l6-6 5 10 4-2-5-10h9Z" fill="#111" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
     <p class="muted">Экран, мышь и клавиатура. Некоторые сочетания клавиш обрабатывает сам браузер. <a href="/connect/source.html">Исходный код и лицензии</a>.</p>
   </main>
   <aside id="phone-ui" hidden aria-label="Управление сеансом">
@@ -42,8 +42,10 @@
       <label>Качество <select id="phone-quality"><option value="2">Быстрее</option><option value="3" selected>Сбалансированное</option><option value="4">Лучшее</option></select></label>
       <button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button>
     </section>
-    <section id="phone-keys" hidden aria-label="Клавиши компьютера"><button id="phone-keys-close" type="button" aria-label="Скрыть клавиатуру">Скрыть клавиатуру</button><div id="phone-key-buttons"></div></section>
-    <textarea id="phone-text" aria-label="Текст для компьютера" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <section id="phone-keys" hidden aria-label="Клавиши компьютера">
+      <div id="phone-input-row"><textarea id="phone-text" rows="1" aria-label="Текст для компьютера" placeholder="Текст для компьютера" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><button id="phone-keys-close" type="button">Скрыть</button></div>
+      <div id="phone-key-buttons" role="group" aria-label="Специальные клавиши — прокрутка вбок"></div>
+    </section>
     <dialog id="phone-help-sheet" aria-labelledby="phone-help-title">
       <h2 id="phone-help-title">Жесты управления</h2>
       <dl>

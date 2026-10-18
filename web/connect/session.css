@@ -7,9 +7,14 @@ main{max-width:1500px}#connection-form{max-width:560px}#screen{display:block;max
 #phone-menu{position:fixed;left:16px;top:max(16px,env(safe-area-inset-top));z-index:12;min-width:48px;min-height:48px;border-radius:50%;touch-action:none;opacity:.9}
 #phone-panel{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(72px,env(safe-area-inset-top));z-index:11;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 100px);overflow:auto;padding:16px;border-radius:16px;background:var(--surface,#fff);color:var(--text,#182339);box-shadow:0 4px 30px #0006}
 #phone-panel label{display:block;margin:8px 0}#phone-panel select{width:100%;min-height:44px}#phone-panel button{min-height:44px;margin:4px}
-#phone-keys{position:fixed;inset:auto 0 0;z-index:13;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom));background:#202936;color:white;max-height:32dvh;overflow:auto}
-#phone-key-buttons{display:flex;gap:6px;flex-wrap:wrap}#phone-key-buttons button{min-width:44px;min-height:44px}#phone-key-buttons [aria-pressed=true]{background:#266de9;color:white}#phone-key-buttons .locked{outline:3px solid #ffd86b}
-#phone-text{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;font-size:16px;resize:none}
+#phone-keys{position:fixed;inset:auto 0 0;z-index:13;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom));background:#202936;color:white}
+#phone-keys button{min-width:44px;min-height:44px;padding:8px 12px;background:#f4f1ec;color:#182339;-webkit-text-fill-color:currentColor}
+#phone-input-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+#phone-text{display:block;flex:1;min-width:0;height:44px;margin:0;padding:10px;border:1px solid #9aa9ba;border-radius:10px;background:white;color:#182339;-webkit-text-fill-color:currentColor;font-family:inherit;font-size:16px;line-height:22px;resize:none}
+#phone-text::placeholder{color:#596475;opacity:1}
+#phone-key-buttons{display:grid;grid-template-rows:repeat(2,44px);grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;touch-action:pan-x}
+#phone-key-buttons [aria-pressed=true]{background:#266de9;color:white}#phone-key-buttons .locked{outline:3px solid #ffd86b;outline-offset:-3px}
+#phone-cursor{position:absolute;z-index:1;width:24px;height:30px;overflow:visible;pointer-events:none}
 #phone-help-sheet{width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:0;border-radius:20px;padding:24px;background:#fffdf9;color:#27241f;box-shadow:0 8px 40px #0006}
 #phone-help-sheet::backdrop{background:#101820b8}#phone-help-sheet dt{font-weight:650;margin-top:12px}#phone-help-sheet dd{margin:4px 0 0;line-height:1.45}#phone-help-close{width:100%;min-height:48px;margin-top:12px}
-@media(orientation:landscape){#phone-panel{top:12px;max-height:calc(100dvh - 24px);width:300px}#phone-keys{max-height:40dvh}}
+@media(orientation:landscape){#phone-panel{top:12px;max-height:calc(100dvh - 24px);width:300px}#phone-key-buttons{grid-template-rows:44px}}

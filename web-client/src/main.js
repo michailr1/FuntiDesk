@@ -13,6 +13,7 @@ $('connection-form').addEventListener('submit', async (event) => {
   if (location.origin !== 'https://desk.funti.cc' || active) return;
   let password = $('password').value; $('password').value = '';
   const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); } });
+  if (phone.enabled) session.onCursor = (point) => phone.remoteCursor(point);
   if (phone.enabled) session.onScreen = () => { phone.cursor = { x: canvas.width / 2, y: canvas.height / 2 }; phone.layout(); };
   active = session; $('connect').disabled = true; $('disconnect').disabled = false;
   try { const result = session.start($('peer-id').value.trim(), password); password = ''; await result; }

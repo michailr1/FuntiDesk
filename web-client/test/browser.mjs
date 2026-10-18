@@ -83,6 +83,10 @@ try {
         await page.locator('#phone-help-sheet[open]').waitFor();assert.equal(input.length,0);
         await page.getByRole('button',{name:'Понятно',exact:true}).click();
         assert.equal(await page.evaluate(()=>window.wakeRequests),1);
+        await page.locator('#phone-cursor').waitFor();
+        send({cursor_position:{x:8,y:10}});
+        await page.waitForFunction(()=>{const c=document.querySelector('#screen').getBoundingClientRect(),p=document.querySelector('#phone-cursor').getBoundingClientRect();return Math.abs(p.x-c.x-c.width/4)<1&&Math.abs(p.y-c.y-c.height*10/32)<1;});
+
         const cdp=await context.newCDPSession(page);
         const touch=async(type,points)=>{await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([x,y],id)=>({id,x,y}))});};
         await touch('touchStart',[[180,400]]);await touch('touchEnd',[]);
@@ -101,19 +105,45 @@ try {
         const enlarged=await page.locator('#screen').boundingBox();assert.ok(enlarged.width>390);
         await touch('touchStart',[[160,400],[220,400]]);await touch('touchMove',[[190,420],[250,420]]);await touch('touchEnd',[]);
         const panned=await page.locator('#screen').boundingBox();assert.ok(panned.x>enlarged.x);
+        const pointer=await page.locator('#phone-cursor').boundingBox(),lastMove=input.filter(v=>v.mouse_event&&!(v.mouse_event.mask||0)).at(-1).mouse_event;
+        assert.ok(Math.abs(pointer.x-panned.x-lastMove.x*panned.width/32)<1,'visible cursor must follow the actual touchpad target after zoom and pan');
         await page.locator('#phone-menu').click();await page.locator('#phone-keyboard').click();
+        const keyboard=await page.locator('#phone-keys').boundingBox();assert.ok(keyboard.height<200,'special keys must stay in a compact strip');
+        const field=await page.locator('#phone-text').boundingBox();assert.ok(field.width>=150&&field.height>=40,'typing field must be visible');
+        assert.equal(await page.locator('#phone-text').evaluate(e=>e===document.activeElement),true);
+        const contrast=await page.locator('[data-key=F2]').evaluate(button=>{
+          const style=getComputedStyle(button),luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+          const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        });assert.ok(contrast>=4.5,'special-key labels must contrast with their background');
+        await page.evaluate(()=>{Object.defineProperties(visualViewport,{height:{value:420,configurable:true},offsetTop:{value:30,configurable:true}});visualViewport.dispatchEvent(new Event('resize'));});
+        const stageWithKeyboard=await page.locator('#remote-stage').boundingBox(),keysWithKeyboard=await page.locator('#phone-keys').boundingBox();
+        assert.equal(stageWithKeyboard.y,30);assert.ok(stageWithKeyboard.y+stageWithKeyboard.height<=keysWithKeyboard.y+1);assert.ok(keysWithKeyboard.y+keysWithKeyboard.height<=451);
+        if(process.env.FUNTI_PHONE_SCREENSHOT)await page.screenshot({path:process.env.FUNTI_PHONE_SCREENSHOT});
+        await page.evaluate(()=>{delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'));});
         await page.locator('#phone-text').fill('Привет');await page.locator('#phone-text').dispatchEvent('input');
+        await page.locator('#phone-text').evaluate(e=>{
+          e.value='Готово';e.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,inputType:'insertCompositionText'}));
+          e.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,isComposing:true,inputType:'deleteContentBackward'}));
+          e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));e.dispatchEvent(new InputEvent('input',{bubbles:true}));
+          e.dispatchEvent(new KeyboardEvent('keydown',{key:'Unidentified',bubbles:true}));
+          e.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertLineBreak'}));
+        });
+
         await page.locator('[data-key=Control]').click();await page.locator('[data-key=F1]').click();
         await page.locator('[data-key=F2]').click();await page.locator('#phone-text').press('Backspace');
         await page.waitForTimeout(50);
         assert.equal(input.filter(v=>v.key_event?.seq==='Привет').length,1);
+        assert.equal(input.filter(v=>v.key_event?.seq==='Готово').length,1);
+        assert.equal(input.filter(v=>v.key_event?.control_key===hbb.ControlKey.Return&&v.key_event.down).length,1);
+        assert.equal(input.filter(v=>v.key_event?.control_key===hbb.ControlKey.Backspace&&v.key_event.down).length,1,'composition edits must not delete remote text');
+
         assert.ok(input.some(v=>v.key_event?.control_key===hbb.ControlKey.F1&&v.key_event.modifiers?.includes(hbb.ControlKey.Control)));
         assert.ok(input.some(v=>v.key_event?.control_key===hbb.ControlKey.F2&&!v.key_event.modifiers?.length));
         await page.locator('[data-key=Control]').click();await page.locator('[data-key=Control]').click();
         await page.locator('[data-key=F3]').click();await page.locator('[data-key=F4]').click();await page.waitForTimeout(50);
         assert.ok(input.some(v=>v.key_event?.control_key===hbb.ControlKey.F4&&v.key_event.modifiers?.includes(hbb.ControlKey.Control)));
         await page.locator('[data-key=Control]').click();
-        await page.locator('#phone-keys-close').click();await page.locator('#phone-menu').click();
+        await page.locator('#phone-keys-close').click();assert.equal(await page.locator('#phone-text').isVisible(),false);await page.locator('#phone-menu').click();
         await page.locator('#phone-cad').click();await page.waitForTimeout(20);
         assert.equal(input.filter(v=>v.key_event?.control_key===hbb.ControlKey.CtrlAltDel).length,0);
         allowAction=true;await page.locator('#phone-cad').click();await page.waitForTimeout(50);
@@ -148,6 +178,8 @@ try {
         await page.waitForTimeout(100);assert.ok(input.some(v=>v.mouse_event));assert.ok(input.some(v=>v.key_event?.chr===97));
       }
       send({misc:{permission_info:{permission:0,enabled:false}}});await page.locator(phone?'#phone-state':'#status').getByText('Компьютер разрешил только просмотр.',{exact:true}).waitFor();
+      if(phone)assert.equal(await page.locator('#phone-cursor').isVisible(),false,'no control marker in view-only mode');
+      else assert.equal(await page.locator('#phone-cursor').isVisible(),false,'desktop input remains unchanged');
       const before=input.length;
       if(phone){
         await page.locator('#phone-keyboard').click();await page.locator('[data-key=F2]').click();await page.locator('#phone-text').fill('Нельзя');
@@ -176,5 +208,5 @@ try {
     assert.deepEqual(errors,[]);
     await context.close();
   }
-  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, view-only, disconnect, no storage');
+  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, readable compact keyboard/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, view-only, disconnect, no storage');
 } finally { await browser.close(); }
