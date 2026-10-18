@@ -14,7 +14,7 @@ use funtidesk_account::{
     devices::{payload_hash, AckPayload, FamilyMember, FamilyPayload, SyncPayload},
     mail::MailJob,
     registry::KeyRegistry,
-    store::{SessionRequest, Store},
+    store::{SessionRequest, Store, TooManySessions},
     App,
 };
 use rand::RngCore;
@@ -253,6 +253,40 @@ async fn code_is_context_bound_and_consumed_once_even_concurrently() {
             .filter(|s| **s == StatusCode::OK)
             .count(),
         1
+    );
+    assert_eq!(
+        f.verify(&scope, id, &mail.code).await.body,
+        json!({"error":"invalid_code"})
+    );
+}
+
+#[tokio::test]
+async fn session_limit_preserves_the_code_until_a_session_is_released() {
+    let mut f = Fixture::new();
+    let mut first = String::new();
+    for _ in 0..20 {
+        let token = f.login("session-limit@example.invalid").await;
+        if first.is_empty() {
+            first = token;
+        }
+        f.advance(3601);
+    }
+    let (scope, challenge, mail) = f.start("session-limit@example.invalid").await;
+    let id = challenge["challenge_id"].as_str().unwrap();
+    for _ in 0..2 {
+        let reply = f.verify(&scope, id, &mail.code).await;
+        assert_eq!(reply.status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(reply.body, json!({"error":"too_many_sessions"}));
+    }
+    assert_eq!(
+        f.call(Method::POST, "/logout", &auth(&first), json!({}))
+            .await
+            .status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        f.verify(&scope, id, &mail.code).await.status,
+        StatusCode::OK
     );
     assert_eq!(
         f.verify(&scope, id, &mail.code).await.body,
@@ -1040,8 +1074,9 @@ fn native_token_cannot_bypass_browser_session_limit() {
             },
             now
         )
+        .err()
         .unwrap()
-        .is_none());
+        .is::<TooManySessions>());
     assert!(db.authenticate(&first, false, now).unwrap().is_some());
 }
 

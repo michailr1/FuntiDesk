@@ -33,7 +33,15 @@ docker compose -p caddy \
   up -d --no-deps --pull never caddy
 ```
 
-При обновлении только API Caddy и webroot пересоздавать не нужно. Текущая статическая поставка — `3c327e5f4e19`: автообновление списков и `/connect/`. Браузерные маршруты WSS используют существующую сеть hbbs/hbbr. Вход в кабинет не является разрешением удалённого сеанса.
+При обновлении только API Caddy и webroot пересоздавать не нужно. Текущая статическая поставка — `30fed457e87e` (2026-10-18): автообновление списков и телефонный `/connect/`, включая PNG для «Домой». [Проверка поставки](reviews/2026-10-18-phone-web-deploy.md). Браузерные маршруты WSS используют существующую сеть hbbs/hbbr. Вход в кабинет не является разрешением удалённого сеанса.
+
+### Телефонный сеанс, ADR-014 / #65
+
+После ревью архитектора и merge статические файлы собираются штатными `npm --prefix web-client run build` и `python3 scripts/web/package.py --write-manifest`. В поставку включается `/connect/app.webmanifest` с MIME `application/manifest+json`; service worker не нужен. Перед поставкой проверить `python3 scripts/web/package.py`.
+
+Одно необходимое изменение Caddy — `manifest-src 'self'` в CSP существующего `handle @connect` блока `desk.funti.cc`, точно по `infra/funtidesk-account/Caddyfile.web-client.fragment`. Сначала сохранить закрытую копию текущего Caddyfile, изменить только эту директиву, проверить `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` в существующем Caddy и применить `caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`. Для `exec -T caddy` использовать тот же Compose с обоими override, что выше; другие блоки, сети и контейнеры не менять. Патч CSP требует ревью до применения (AGENTS.md, правило 12). Принято в #70 и применено на desk 2026-10-18; другие блоки Caddy сохранены.
+
+После поставки проверить HTTP 200 для `/connect/` и `/connect/app.webmanifest`, MIME manifest, фактическую CSP ответа, WSS-сеанс и прежний кабинет. Приёмка — Safari на iPhone в обеих ориентациях, экран «Домой», русская клавиатура/диктовка и настоящий Windows-компьютер. Chromium с эмуляцией телефона эту приёмку не заменяет. При откате вернуть предыдущую статическую поставку штатной процедурой; из CSP убрать только добавленную директиву, затем validate/reload. Остальные сайты и исходные ключи сохраняются.
 
 ## Проверка
 

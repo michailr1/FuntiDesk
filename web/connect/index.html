@@ -2,11 +2,15 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#171b23">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; connect-src wss://desk.funti.cc; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; manifest-src 'self'; connect-src wss://desk.funti.cc; base-uri 'none'; form-action 'none'; object-src 'none'">
   <title>Подключиться к компьютеру — FuntiDesk</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="/connect/apple-touch-icon.png">
+  <link rel="manifest" href="/connect/app.webmanifest">
   <link rel="stylesheet" href="/account/account.css">
   <link rel="stylesheet" href="/connect/session.css">
   <script type="module" src="/connect/session.js"></script>
@@ -20,11 +24,40 @@
       <label for="peer-id">ID компьютера</label><input id="peer-id" inputmode="numeric" pattern="[0-9]{6,16}" maxlength="16" required>
       <label for="password">Пароль компьютера</label><input id="password" type="password" maxlength="256" autocomplete="off" required>
       <div class="inline-actions"><button id="connect" type="submit">Подключиться</button><button id="disconnect" type="button" disabled>Завершить сеанс</button></div>
-      <p class="boundary-note">Вход в личный кабинет не даёт доступа. Пароли не сохраняются. Для первой версии нужен настольный Chromium.</p>
+      <p class="boundary-note">Вход в личный кабинет не даёт доступа. Пароли не сохраняются. Нужен браузер с WebCodecs VP9.</p>
     </form>
     <p id="status" class="message" role="status" aria-live="polite">Введите ID и пароль компьютера.</p>
-    <canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas>
+    <div id="remote-stage"><canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas><div id="phone-cursor" aria-hidden="true" hidden><svg viewBox="0 0 24 30" width="24" height="30"><path d="M2 2v22l6-6 5 10 4-2-5-10h9Z" fill="#111" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
     <p class="muted">Экран, мышь и клавиатура. Некоторые сочетания клавиш обрабатывает сам браузер. <a href="/connect/source.html">Исходный код и лицензии</a>.</p>
   </main>
+  <aside id="phone-ui" hidden aria-label="Управление сеансом">
+    <button id="phone-menu" type="button" aria-label="Меню сеанса" aria-controls="phone-panel">☰</button>
+    <section id="phone-panel" hidden aria-label="Меню сеанса">
+      <p id="phone-state" role="status"></p>
+      <label>Мышь <select id="phone-mode"><option value="pad">Тачпад</option><option value="touch">Касание</option></select></label>
+      <button id="phone-keyboard" type="button">Клавиатура</button>
+      <details id="phone-special-keys"><summary>Спецклавиши</summary><div id="phone-key-buttons" role="group" aria-label="Клавиши компьютера"></div></details>
+      <label>Монитор <select id="phone-monitor"></select></label>
+      <div><button id="phone-fit" type="button">По размеру экрана</button><button id="phone-actual" type="button">1:1</button></div>
+      <label>Масштаб <input id="phone-zoom" type="range" min="1" max="400" step="1" value="100"></label>
+      <label>Качество <select id="phone-quality"><option value="2">Быстрее</option><option value="3" selected>Сбалансированное</option><option value="4">Лучшее</option></select></label>
+      <button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button>
+    </section>
+    <section id="phone-keys" hidden aria-label="Клавиши компьютера">
+      <div id="phone-input-row"><textarea id="phone-text" rows="1" aria-label="Текст для компьютера" placeholder="Текст для компьютера" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><button id="phone-keys-close" type="button">Скрыть</button></div>
+    </section>
+    <dialog id="phone-help-sheet" aria-labelledby="phone-help-title">
+      <h2 id="phone-help-title">Жесты управления</h2>
+      <dl>
+        <dt>Тачпад</dt><dd>Ведите одним пальцем, чтобы двигать курсор. Касание — клик.</dd>
+        <dt>Правый клик</dt><dd>Коснитесь двумя пальцами.</dd>
+        <dt>Прокрутка</dt><dd>Ведите двумя пальцами вверх или вниз.</dd>
+        <dt>Перетаскивание</dt><dd>Двойное касание и ведение одним пальцем.</dd>
+        <dt>Масштаб</dt><dd>Щипок увеличивает экран. Увеличенный экран двигайте двумя пальцами.</dd>
+        <dt>Режим «Касание»</dt><dd>Выберите его в меню. Нажмите на нужное место; удерживайте для правого клика.</dd>
+      </dl>
+      <button id="phone-help-close" type="button" autofocus>Понятно</button>
+    </dialog>
+  </aside>
 </body>
 </html>

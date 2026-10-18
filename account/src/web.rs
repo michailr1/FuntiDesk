@@ -1,7 +1,7 @@
 use crate::{
     config::{self, LOGIN_COOKIE, SESSION_COOKIE},
     crypto, devices, library, mail,
-    store::{Auth, SessionRequest},
+    store::{Auth, SessionRequest, TooManySessions},
     App,
 };
 use axum::{
@@ -284,7 +284,14 @@ async fn verify_code(
                 now,
             )
         })
-        .await?
+        .await
+        .map_err(|error| {
+            if error.is::<TooManySessions>() {
+                ApiError(StatusCode::TOO_MANY_REQUESTS, "too_many_sessions")
+            } else {
+                error.into()
+            }
+        })?
         .ok_or(ApiError(StatusCode::BAD_REQUEST, "invalid_code"))?;
     let mut response = if browser {
         Json(json!({"account_id":issued.account,"csrf":crypto::tag(&app.key,"session-csrf",&[&issued.token])})).into_response()

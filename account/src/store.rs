@@ -37,6 +37,15 @@ pub enum SessionRequest<'a> {
     Browser { previous_hash: Option<&'a str> },
 }
 
+#[derive(Debug)]
+pub struct TooManySessions;
+impl std::fmt::Display for TooManySessions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("too_many_sessions")
+    }
+}
+impl std::error::Error for TooManySessions {}
+
 impl Store {
     pub fn open(path: &Path, key: [u8; 32]) -> Result<Self> {
         let mut options = std::fs::OpenOptions::new();
@@ -220,6 +229,13 @@ impl Store {
         let valid = code.len() == 6
             && code.bytes().all(|b| b.is_ascii_digit())
             && crypto::matches(&self.key, "email-code", &[id, &scope_hash, code], &hash);
+        if valid {
+            let count: i64 = tx.query_row("SELECT COUNT(*) FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE a.email=?1 AND a.disabled=0 AND s.revoked_at IS NULL AND s.expires_at>?2 AND NOT (s.token_hash=?3 AND s.browser=1)", params![email,now,old_hash.unwrap_or("")], |r| r.get(0))?;
+            if count >= 20 {
+                tx.commit()?;
+                bail!(TooManySessions);
+            }
+        }
         tx.execute("UPDATE challenges SET attempts=attempts+1, pending=CASE WHEN attempts>=4 OR ?2=1 THEN 0 ELSE pending END WHERE id=?1", params![id, valid as i64])?;
         if !valid {
             tx.commit()?;
@@ -252,11 +268,6 @@ impl Store {
                 id
             }
         };
-        let count: i64 = tx.query_row("SELECT COUNT(*) FROM sessions WHERE account_id=?1 AND revoked_at IS NULL AND expires_at>?2 AND NOT (token_hash=?3 AND browser=1)", params![account,now,old_hash.unwrap_or("")], |r| r.get(0))?;
-        if count >= 20 {
-            tx.commit()?;
-            return Ok(None);
-        }
         if let Some(hash) = old_hash {
             tx.execute(
                 "UPDATE sessions SET revoked_at=?2 WHERE token_hash=?1 AND browser=1",
