@@ -1,0 +1,13 @@
+{
+  "name": "FuntiDesk — подключение",
+  "short_name": "FuntiDesk",
+  "start_url": "/connect/",
+  "scope": "/connect/",
+  "display": "standalone",
+  "background_color": "#171b23",
+  "theme_color": "#171b23",
+  "icons": [
+    { "src": "/connect/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/mark.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

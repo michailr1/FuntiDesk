@@ -1,20 +1,37 @@
 import { Session, errorText } from './session.js';
 import { controls } from './protocol.js';
+import { Recovery } from './recovery.js';
+import { PhoneConsole } from './phone.js';
 const $ = (id) => document.getElementById(id);
 const canvas = $('screen'); let active;
 let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
 if (location.hash) history.replaceState(null, '', location.pathname);
-function stop() { active?.close(); active = null; $('connect').disabled = false; $('disconnect').disabled = true; }
-$('connection-form').addEventListener('submit', async (event) => {
+function stop() { recovery?.clear(); $('password').value = ''; active?.close(); active = null; phone.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
+async function connect(id, password) {
+  const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); } });
+  if (recovery) session.onFirstFrame = () => recovery.ready();
+  if (phone.enabled) session.onCursor = (point) => phone.remoteCursor(point);
+  if (phone.enabled) session.onScreen = () => { phone.cursor = { x: canvas.width / 2, y: canvas.height / 2 }; phone.layout(); };
+  active = session; $('connect').disabled = true; $('disconnect').disabled = false;
+  try { const result = session.start(id, password, recovery); password = ''; await result; }
+  catch (error) {
+    if (active !== session) return;
+    const code = session.failure || error.message;
+    session.close(); active = null; phone.sync();
+    if (recovery?.interrupted(code)) {
+      $('status').textContent = 'Соединение прервано. Восстановим его при возвращении в течение 5 минут.';
+      recovery.resume();
+    } else { stop(); $('status').textContent = errorText(code); }
+  }
+}
+$('connection-form').addEventListener('submit', (event) => {
   event.preventDefault();
   if (location.origin !== 'https://desk.funti.cc' || active) return;
+  recovery?.clear();
   let password = $('password').value; $('password').value = '';
-  const session = new Session(canvas, (text) => { if (active === session) $('status').textContent = text; });
-  active = session; $('connect').disabled = true; $('disconnect').disabled = false;
-  try { const result = session.start($('peer-id').value.trim(), password); password = ''; await result; }
-  catch (error) { if (active === session) { stop(); $('status').textContent = errorText(error.message); } }
+  connect($('peer-id').value.trim(), password); password = '';
 });
 $('disconnect').addEventListener('click', () => { stop(); $('status').textContent = 'Сеанс завершён.'; });
 window.addEventListener('pagehide', stop);
@@ -31,6 +48,7 @@ window.addEventListener('blur', release);
 document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 function mouse(e, type) {
+  if (e.pointerType === 'touch' && phone.enabled) return;
   if (!active?.connected) return;
   e.preventDefault();
   if (type === 1) { canvas.focus(); buttons.add([1, 4, 2][e.button]); canvas.setPointerCapture(e.pointerId); }
@@ -62,3 +80,6 @@ function key(e, down) {
 }
 canvas.addEventListener('keydown', (e) => key(e, true));
 canvas.addEventListener('keyup', (e) => key(e, false));
+const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click());
+
+const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;

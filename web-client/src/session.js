@@ -8,10 +8,10 @@ export class Session {
     this.sockets = []; this.keys = null; this.decoder = null; this.connected = false; this.firstFrame = false;
     this.keyboard = null; this.screen = { x: 0, y: 0 }; this.pendingFrames = 0;
   }
-  async start(id, password) {
+  async start(id, password, recovery = null) {
     await ready;
     if (this.closed) return;
-    if (!/^[0-9]{6,16}$/.test(id) || !password || password.length > 256) throw new Error('invalid_credentials');
+    if (!/^[0-9]{6,16}$/.test(id) || (password === null ? !recovery?.valid() : !password || password.length > 256)) throw new Error('invalid_credentials');
     if (typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined') throw new Error('unsupported_browser');
     const capability = await VideoDecoder.isConfigSupported({ codec: 'vp09.00.10.08' });
     if (!capability.supported || this.closed) throw new Error('unsupported_browser');
@@ -35,10 +35,11 @@ export class Session {
     this.keys = [exchange.sendKey, exchange.receiveKey]; socket.secure(this.keys);
     const hash = await socket.next();
     if (!hash.hash?.salt || !hash.hash?.challenge) throw new Error('invalid_handshake');
-    const proof = await passwordProof(password, hash.hash.salt, hash.hash.challenge);
+    const proof = recovery ? await recovery.proof(id, exchange.peerKey, hash.hash.salt, hash.hash.challenge, password) : await passwordProof(password, hash.hash.salt, hash.hash.challenge);
     password = '';
+    if (this.closed) { wipe(proof); return; }
     try {
-      socket.send({ login_request: { username: id, my_id: 'web-' + crypto.randomUUID(), my_name: 'FuntiDesk Web',
+      socket.send({ login_request: { username: id, my_id: recovery?.auth.clientId || 'web-' + crypto.randomUUID(), ...(recovery ? { session_id: recovery.auth.sessionId } : {}), my_name: 'FuntiDesk Web',
         password: proof, version: '1.5.0', my_platform: 'Web', video_ack_required: true,
         option: { image_quality: 3, show_remote_cursor: 2, disable_audio: 2, disable_clipboard: 2, enable_file_transfer: 1,
           disable_camera: 2, supported_decoding: { ability_vp9: 1, prefer: 1 }, custom_fps: 30 },
@@ -50,12 +51,15 @@ export class Session {
       if (message.hash) throw new Error('authentication_failed');
       if (message.login_response?.error) throw new Error('authentication_failed');
       if (message.login_response?.peer_info) {
+        recovery?.authorize();
         const info = message.login_response.peer_info;
+        this.displays = info.displays || []; this.display = info.current_display || 0;
         this.screen = info.displays?.[info.current_display || 0] || { x: 0, y: 0 };
         if (this.keyboard === null) this.keyboard = true;
         this.connected = true;
         this.onState('Подключено. Нажмите на экран для управления.', true);
       }
+      if (message.cursor_position) this.onCursor?.(message.cursor_position);
       if (message.test_delay && !message.test_delay.from_client) socket.send({ test_delay: message.test_delay });
       if (message.misc?.permission_info && (message.misc.permission_info.permission || 0) === 0) {
         this.keyboard = message.misc.permission_info.enabled === true;
@@ -80,8 +84,11 @@ export class Session {
       if (this.closed) return;
       const { displayWidth: w, displayHeight: h } = frame;
       if (w <= 0 || h <= 0 || w > 8192 || h > 8192 || w * h > 33554432) { this.fail('invalid_video'); return; }
+      const resized = this.canvas.width !== w || this.canvas.height !== h;
       this.canvas.width = w; this.canvas.height = h;
+      if (resized) this.onScreen?.();
       this.canvas.getContext('2d', { alpha: false }).drawImage(frame, 0, 0);
+      if (!this.firstFrame) this.onFirstFrame?.();
       this.firstFrame = true;
       if (--this.pendingFrames === 0) this.socket.send({ misc: { video_received: true } });
     } catch { this.fail('video_error'); } finally { frame.close(); }
@@ -91,7 +98,12 @@ export class Session {
       try { this.socket.send(value); } catch { this.fail('connection_closed'); }
     }
   }
-  fail(code) { this.close(); this.onState(errorText(code)); }
+  configure(misc) {
+    if (!this.closed && this.connected && this.firstFrame) {
+      try { this.socket.send({ misc }); } catch { this.fail('connection_closed'); }
+    }
+  }
+  fail(code) { this.failure = code; this.close(); this.onState(errorText(code)); }
   close() {
     if (this.closed) return;
     this.closed = true; this.connected = false; this.keyboard = false;
@@ -102,7 +114,8 @@ export class Session {
   }
 }
 export function errorText(code) {
-  return ({ unsupported_browser: 'Нужен настольный Chromium с поддержкой WebCodecs VP9.',
+  return ({ recovery_expired: 'Время восстановления истекло. Введите пароль компьютера ещё раз.',
+    recovery_unavailable: 'Данные доступа изменились. Введите пароль компьютера ещё раз.', unsupported_browser: 'Нужен браузер с поддержкой WebCodecs VP9. Обновите Safari или Chrome и повторите попытку.',
     invalid_credentials: 'Введите ID и временный или постоянный пароль компьютера.',
     computer_unavailable: 'Компьютер недоступен. Проверьте ID и запущен ли FuntiDesk.',
     authentication_failed: 'Компьютер отклонил вход. Проверьте пароль и разрешения на компьютере.',

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2] / "web"
-PUBLIC_SUFFIXES = {".html", ".css", ".js", ".svg", ".jpg", ".png", ".webp", ".ico"}
+PUBLIC_SUFFIXES = {".html", ".css", ".js", ".svg", ".jpg", ".png", ".webp", ".ico", ".webmanifest"}
 
 
 def artifacts():
