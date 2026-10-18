@@ -334,7 +334,7 @@ impl Store {
         tx.execute("INSERT INTO devices(id,account_id,funti_id,pk,name,version,bound_at,last_seen) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)", params![id,auth.account,nonce.funti_id,nonce.pk,name,version,now])?;
         // A newly bound source also receives earlier removals. A stale local
         // family must not silently bypass a removal merely by joining later.
-        tx.execute("INSERT INTO deliveries(event_id,device_id) SELECT id,?1 FROM events WHERE account_id=?2 AND kind='remove'", params![id,auth.account])?;
+        tx.execute("INSERT INTO deliveries(event_id,device_id) SELECT id,?1 FROM events WHERE account_id=?2 AND kind='remove' AND cancelled_at IS NULL", params![id,auth.account])?;
         tx.commit()?;
         Ok(Some(id))
     }
@@ -429,6 +429,38 @@ impl Store {
         Ok(Some(id))
     }
 
+    pub fn cancel_removal(&mut self, auth: &Auth, event_id: i64, now: i64) -> Result<bool> {
+        let tx = self.db.transaction()?;
+        if !active_in(&tx, auth, now)? {
+            return Ok(false);
+        }
+        let existing = tx
+            .query_row(
+                "SELECT cancelled_at FROM events WHERE id=?1 AND account_id=?2 AND kind='remove'",
+                params![event_id, auth.account],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .optional()?;
+        let Some(cancelled_at) = existing else {
+            return Ok(false);
+        };
+        if cancelled_at.is_some() {
+            return Ok(true);
+        }
+        if !quotas(&tx, now, &[(&format!("remove:{}", auth.account), 60, 30)])? {
+            tx.commit()?;
+            return Ok(false);
+        }
+        // Existing deliveries and their ACKs are deliberately retained. Only
+        // devices bound after this transaction skip this removal.
+        tx.execute(
+            "UPDATE events SET cancelled_at=COALESCE(cancelled_at,?3) WHERE id=?1 AND account_id=?2",
+            params![event_id, auth.account, now],
+        )?;
+        tx.commit()?;
+        Ok(true)
+    }
+
     pub fn sync(
         &mut self,
         nonce: &Nonce,
@@ -505,8 +537,8 @@ impl Store {
         if !self.active(auth, now)? {
             return Ok(None);
         }
-        let mut stmt = self.db.prepare("SELECT e.id,e.target_pk,e.created_at,d.device_id,d.acknowledged_at FROM events e JOIN deliveries d ON d.event_id=e.id WHERE e.account_id=?1 AND e.kind='remove' ORDER BY e.id DESC,d.device_id LIMIT 4097")?;
-        let rows = stmt.query_map([&auth.account], |r| Ok(json!({"event_id":r.get::<_,i64>(0)?,"target_pk":r.get::<_,String>(1)?,"created_at":r.get::<_,i64>(2)?,"source_device_id":r.get::<_,String>(3)?,"acknowledged_at":r.get::<_,Option<i64>>(4)?})))?;
+        let mut stmt = self.db.prepare("SELECT e.id,e.target_pk,e.created_at,d.device_id,d.acknowledged_at,e.cancelled_at FROM events e JOIN deliveries d ON d.event_id=e.id WHERE e.account_id=?1 AND e.kind='remove' ORDER BY e.id DESC,d.device_id LIMIT 4097")?;
+        let rows = stmt.query_map([&auth.account], |r| Ok(json!({"event_id":r.get::<_,i64>(0)?,"target_pk":r.get::<_,String>(1)?,"created_at":r.get::<_,i64>(2)?,"source_device_id":r.get::<_,String>(3)?,"acknowledged_at":r.get::<_,Option<i64>>(4)?,"cancelled_at":r.get::<_,Option<i64>>(5)?})))?;
         let mut deliveries = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         let has_more = deliveries.len() > 4096;
         deliveries.truncate(4096);
@@ -552,6 +584,7 @@ pub fn routes() -> Router<App> {
         .route("/devices/{id}/ack/nonce", post(ack_nonce))
         .route("/devices/{id}/ack", post(ack))
         .route("/family/remove", post(remove))
+        .route("/family/remove/cancel", post(cancel_removal))
         .route("/family/removals", get(removals))
 }
 
@@ -774,6 +807,26 @@ async fn remove(
         .await?
         .ok_or_else(web::invalid)?;
     Ok(Json(json!({"event_id":id,"status":"pending"})))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CancelRemoval {
+    event_id: i64,
+}
+async fn cancel_removal(
+    State(app): State<App>,
+    headers: HeaderMap,
+    Json(input): Json<CancelRemoval>,
+) -> ApiResult<Json<Value>> {
+    let auth = web::authorize(&app, &headers, true).await?;
+    let now = app.now();
+    if !app
+        .db(move |db| db.cancel_removal(&auth, input.event_id, now))
+        .await?
+    {
+        return Err(web::invalid());
+    }
+    Ok(Json(json!({"cancelled":true})))
 }
 async fn removals(State(app): State<App>, headers: HeaderMap) -> ApiResult<Json<Value>> {
     let auth = web::authorize(&app, &headers, false).await?;

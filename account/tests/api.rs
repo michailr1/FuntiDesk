@@ -400,6 +400,7 @@ async fn browser_uses_protected_cookie_and_requires_origin_and_csrf_for_changes(
     for (route, body) in [
         ("/library/favorites", json!({"revision":0,"favorites":[]})),
         ("/library/history/clear", json!({"history_epoch":0})),
+        ("/family/remove/cancel", json!({"event_id":1})),
     ] {
         assert_eq!(
             f.call(
@@ -691,6 +692,156 @@ async fn family_is_display_only_and_revocations_replay_after_ack_or_old_copy() {
         .body["events"][0]["event_id"],
         event
     );
+}
+
+#[tokio::test]
+async fn cancel_removal_skips_only_future_bindings_and_keeps_existing_deliveries() {
+    let mut f = Fixture::new();
+    let token = f.login("person@example.invalid").await;
+    let a = f.key("111111");
+    let source = f.bind(&token, "111111", &a).await;
+    let request = json!({"target_pk":pk(&a),"request_id":crypto::token()});
+    let removal = f
+        .call(
+            Method::POST,
+            "/family/remove",
+            &auth(&token),
+            request.clone(),
+        )
+        .await;
+    assert_eq!(removal.status, StatusCode::OK);
+    let event = removal.body["event_id"].as_i64().unwrap();
+    let b = f.key("222222");
+    let queued = f.bind(&token, "222222", &b).await;
+    let ack = f
+        .signed(
+            None,
+            &source,
+            "ack",
+            json!(AckPayload {
+                events: vec![event]
+            }),
+            &a,
+        )
+        .await;
+    assert_eq!(ack.status, StatusCode::OK);
+    let before = f
+        .call(Method::GET, "/family/removals", &auth(&token), json!({}))
+        .await
+        .body;
+    assert_eq!(before["deliveries"].as_array().unwrap().len(), 2);
+    assert!(before["deliveries"][0]["cancelled_at"].is_null());
+    let foreign = f.login("other@example.invalid").await;
+    let body = json!({"event_id":event});
+    let denied = f
+        .call(
+            Method::POST,
+            "/family/remove/cancel",
+            &auth(&foreign),
+            body.clone(),
+        )
+        .await;
+    let missing = f
+        .call(
+            Method::POST,
+            "/family/remove/cancel",
+            &auth(&token),
+            json!({"event_id":i64::MAX}),
+        )
+        .await;
+    assert_eq!(denied.status, StatusCode::BAD_REQUEST);
+    assert_eq!(denied.status, missing.status);
+    assert_eq!(denied.body, missing.body);
+    assert_eq!(
+        f.call(Method::POST, "/family/remove/cancel", &[], body.clone())
+            .await
+            .status,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/family/remove/cancel",
+            &auth(&token),
+            body.clone()
+        )
+        .await
+        .body,
+        json!({"cancelled":true})
+    );
+    f.advance(1);
+    assert_eq!(
+        f.call(Method::POST, "/family/remove/cancel", &auth(&token), body)
+            .await
+            .status,
+        StatusCode::OK
+    );
+    let after = f
+        .call(Method::GET, "/family/removals", &auth(&token), json!({}))
+        .await
+        .body;
+    let mut expected = before;
+    for delivery in expected["deliveries"].as_array_mut().unwrap() {
+        delivery["cancelled_at"] = json!(1_800_000_000);
+    }
+    assert_eq!(after, expected); // Neither deliveries nor existing ACKs changed.
+    let c = f.key("333333");
+    let later = f.bind(&token, "333333", &c).await;
+    assert_eq!(
+        f.signed(None, &later, "sync", json!(SyncPayload { after: 0 }), &c)
+            .await
+            .body["events"],
+        json!([])
+    );
+    for (device, key) in [(&source, &a), (&queued, &b)] {
+        let sync = f
+            .signed(None, device, "sync", json!(SyncPayload { after: 0 }), key)
+            .await;
+        assert_eq!(sync.body["events"][0]["event_id"], event);
+    }
+    assert_eq!(
+        f.signed(
+            None,
+            &queued,
+            "ack",
+            json!(AckPayload {
+                events: vec![event]
+            }),
+            &b
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    // Rebinding an existing source must not clear its delivery queue.
+    assert_eq!(f.bind(&token, "222222", &b).await, queued);
+    assert_eq!(
+        f.signed(None, &queued, "sync", json!(SyncPayload { after: 0 }), &b)
+            .await
+            .body["events"][0]["event_id"],
+        event
+    );
+    assert_eq!(
+        f.call(Method::POST, "/family/remove", &auth(&token), request)
+            .await
+            .body["event_id"],
+        event
+    );
+    let next = f
+        .call(
+            Method::POST,
+            "/family/remove",
+            &auth(&token),
+            json!({"target_pk":pk(&a),"request_id":crypto::token()}),
+        )
+        .await;
+    let next_event = next.body["event_id"].as_i64().unwrap();
+    assert!(next_event > event);
+    let sync = f
+        .signed(None, &later, "sync", json!(SyncPayload { after: 0 }), &c)
+        .await;
+    assert_eq!(sync.body["events"].as_array().unwrap().len(), 1);
+    assert_eq!(sync.body["events"][0]["event_id"], next_event);
 }
 
 #[tokio::test]
