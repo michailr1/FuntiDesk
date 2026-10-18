@@ -108,6 +108,45 @@ try {
         const panned=await page.locator('#screen').boundingBox();assert.ok(panned.x>enlarged.x);
         const pointer=await page.locator('#phone-cursor').boundingBox(),lastMove=input.filter(v=>v.mouse_event&&!(v.mouse_event.mask||0)).at(-1).mouse_event;
         assert.ok(Math.abs(pointer.x-panned.x-lastMove.x*panned.width/32)<1,'visible cursor must follow the actual touchpad target after zoom and pan');
+        const zoomTo=async(value)=>{await page.locator('#phone-zoom').evaluate((e,v)=>{e.value=String(v);e.dispatchEvent(new Event('input'));},value);};
+        const centred=async()=>{await page.waitForFunction(()=>{
+          const stage=document.querySelector('#remote-stage').getBoundingClientRect(),cursor=document.querySelector('#phone-cursor').getBoundingClientRect();
+          return Math.abs(cursor.x-stage.x-stage.width/2)<1&&Math.abs(cursor.y-stage.y-stage.height/2)<1;
+        });};
+        await zoomTo(4000);send({cursor_position:{x:12,y:14}});
+        await page.waitForFunction(()=>Math.abs(document.querySelector('#screen').getBoundingClientRect().x-(innerWidth/2-12*40))<1);
+        await centred();
+        const beforeFollow=await page.locator('#screen').boundingBox();
+        await touch('touchStart',[[180,400]]);await touch('touchMove',[[220,440]]);await touch('touchEnd',[]);
+        await centred();const afterFollow=await page.locator('#screen').boundingBox();
+        assert.ok(afterFollow.x<beforeFollow.x&&afterFollow.y<beforeFollow.y,'touchpad movement must pan both overflowing axes');
+        await page.waitForTimeout(30);
+        const followedMove=input.filter(v=>v.mouse_event&&!(v.mouse_event.mask||0)).at(-1).mouse_event;
+        assert.equal(followedMove.x,13);assert.equal(followedMove.y,15);
+        // A double-tap drag must keep its target centred without dropping the held button.
+        await page.waitForTimeout(350);const dragStart=input.length;
+        await touch('touchStart',[[180,400]]);await touch('touchEnd',[]);
+        await touch('touchStart',[[180,400]]);await touch('touchMove',[[220,440]]);await touch('touchEnd',[]);
+        await centred();await page.waitForTimeout(30);
+        const followDrag=input.slice(dragStart).filter(v=>v.mouse_event).map(v=>v.mouse_event.mask||0);
+        const followHeld=followDrag.slice(followDrag.lastIndexOf(9));assert.ok(followHeld[0]===9&&followHeld.includes(0)&&followHeld.at(-1)===10);
+        for(const [x,y] of [[0,0],[31,31]]){
+          send({cursor_position:{x,y}});
+          await page.waitForFunction(({x})=>{
+            const c=document.querySelector('#screen').getBoundingClientRect(),stage=document.querySelector('#remote-stage').getBoundingClientRect();
+            return x===0?Math.abs(c.x-stage.x)<1&&Math.abs(c.y-stage.y)<1:Math.abs(c.right-stage.right)<1&&Math.abs(c.bottom-stage.bottom)<1;
+          },{x});
+        }
+        // In fit mode a host cursor update must not move the desktop at all.
+        await page.locator('#phone-fit').evaluate(e=>e.click());const fitted=await page.locator('#screen').boundingBox();
+        send({cursor_position:{x:16,y:16}});await page.waitForTimeout(30);assert.deepEqual(await page.locator('#screen').boundingBox(),fitted);
+        await page.locator('#phone-mode').selectOption('touch',{force:true});await zoomTo(4000);
+        const directZoom=await page.locator('#screen').boundingBox();send({cursor_position:{x:20,y:20}});await page.waitForTimeout(30);
+        await touch('touchStart',[[180,400]]);await touch('touchMove',[[220,440]]);await touch('touchEnd',[]);
+        assert.deepEqual(await page.locator('#screen').boundingBox(),directZoom,'direct touch must keep its coordinates stable');
+        await page.locator('#phone-mode').selectOption('pad',{force:true});send({cursor_position:{x:16,y:16}});await centred();
+        await page.setViewportSize({width:844,height:390});await centred();
+        await page.setViewportSize({width:390,height:844});await centred();
         await page.locator('#phone-menu').click();await page.locator('#phone-keyboard').click();
         const keyboard=await page.locator('#phone-keys').boundingBox();assert.ok(keyboard.height<80,'normal typing must not show a second keyboard');
         assert.equal(await page.locator('#phone-key-buttons').isVisible(),false,'special keys belong in the menu on demand');
@@ -115,6 +154,7 @@ try {
         assert.equal(await page.locator('#phone-text').evaluate(e=>e===document.activeElement),true);
         await page.evaluate(()=>{Object.defineProperties(visualViewport,{height:{value:420,configurable:true},offsetTop:{value:30,configurable:true}});visualViewport.dispatchEvent(new Event('resize'));});
         const stageWithKeyboard=await page.locator('#remote-stage').boundingBox(),keysWithKeyboard=await page.locator('#phone-keys').boundingBox();
+        await centred();
         assert.equal(stageWithKeyboard.y,30);assert.ok(stageWithKeyboard.y+stageWithKeyboard.height<=keysWithKeyboard.y+1);assert.ok(keysWithKeyboard.y+keysWithKeyboard.height<=451);
         if(process.env.FUNTI_PHONE_SCREENSHOT)await page.screenshot({path:process.env.FUNTI_PHONE_SCREENSHOT});
         await page.evaluate(()=>{delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'));});
@@ -237,5 +277,5 @@ try {
     assert.deepEqual(errors,[]);
     await context.close();
   }
-  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, native keyboard and optional menu keys/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, bounded recovery/expiry/key/salt/rejection/reload, view-only, disconnect, no storage');
+  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor/centred zoom tracking with edge clamps and direct-touch regression, native keyboard and optional menu keys/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, bounded recovery/expiry/key/salt/rejection/reload, view-only, disconnect, no storage');
 } finally { await browser.close(); }
