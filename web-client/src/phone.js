@@ -13,7 +13,7 @@ export class PhoneConsole {
     $('phone-end').onclick = disconnect;
     $('phone-menu').onclick = () => { if (!this.menuMoved) { $('phone-panel').hidden = !$('phone-panel').hidden; this.layout(); } };
     $('phone-special-keys').querySelector('summary').onpointerdown = (e) => e.preventDefault();
-    $('phone-mode').onchange = () => { this.reset(); this.mode = $('phone-mode').value; };
+    $('phone-mode').onchange = () => { this.reset(); this.mode = $('phone-mode').value; this.layout(); };
     $('phone-fit').onclick = () => { this.fit = true; this.pan = { x: 0, y: 0 }; this.layout(); };
     $('phone-actual').onclick = () => { this.fit = false; this.zoom = 1; this.pan = { x: 0, y: 0 }; this.layout(); };
     $('phone-zoom').oninput = () => { this.fit = false; this.zoom = Number($('phone-zoom').value) / 100; this.layout(); };
@@ -100,7 +100,7 @@ export class PhoneConsole {
     finally { this.waking = false; }
   }
   unlock() { const lock = this.lock; this.lock = null; if (lock) lock.release().catch(() => {}); }
-  layout() {
+  layout(followCursor = true) {
     if (!this.shown) return;
     const visibleHeight = visualViewport?.height || innerHeight, top = visualViewport?.offsetTop || 0;
     const height = Math.max(1, visibleHeight - ($('phone-keys').hidden ? 0 : $('phone-keys').offsetHeight));
@@ -110,6 +110,13 @@ export class PhoneConsole {
     const fit = Math.min(innerWidth / this.canvas.width, height / this.canvas.height);
     $('phone-zoom').max = String(Math.round(Math.max(4, fit * 4) * 100));
     if (this.fit) this.zoom = fit;
+    // Keep the pointer hotspot centred; clamping below stops at the desktop edges.
+    // Two-finger pan/zoom can inspect another area until the pointer moves again.
+    if (followCursor && this.mode === 'pad' && this.zoom > fit && this.session()?.keyboard !== false &&
+        this.cursor.x >= 0 && this.cursor.y >= 0 && this.cursor.x < this.canvas.width && this.cursor.y < this.canvas.height) {
+      this.pan = { x: (this.canvas.width / 2 - Math.round(this.cursor.x)) * this.zoom,
+        y: (this.canvas.height / 2 - Math.round(this.cursor.y)) * this.zoom };
+    }
     this.pan.x = clamp(this.pan.x, -Math.max(0, (this.canvas.width * this.zoom - innerWidth) / 2), Math.max(0, (this.canvas.width * this.zoom - innerWidth) / 2));
     this.pan.y = clamp(this.pan.y, -Math.max(0, (this.canvas.height * this.zoom - height) / 2), Math.max(0, (this.canvas.height * this.zoom - height) / 2));
     this.canvas.style.width = this.canvas.width * this.zoom + 'px'; this.canvas.style.height = this.canvas.height * this.zoom + 'px';
@@ -119,7 +126,7 @@ export class PhoneConsole {
   }
   remoteCursor(point) {
     const screen = this.session()?.screen || {};
-    this.cursor = { x: (point.x || 0) - (screen.x || 0), y: (point.y || 0) - (screen.y || 0) }; this.renderCursor();
+    this.cursor = { x: (point.x || 0) - (screen.x || 0), y: (point.y || 0) - (screen.y || 0) }; this.layout();
   }
   renderCursor() {
     const marker = $('phone-cursor');
@@ -192,13 +199,14 @@ export class PhoneConsole {
         const fit = Math.min(innerWidth / this.canvas.width, (visualViewport?.height || innerHeight) / this.canvas.height);
         if (g.pinch || this.zoom > fit * 1.05) {
           this.fit = false; this.zoom = clamp(g.zoom * (g.pinch ? ratio : 1), .01, Math.max(4, fit * 4));
-          this.pan = { x: g.pan.x + x - g.x, y: g.pan.y + y - g.y }; this.layout();
+          this.pan = { x: g.pan.x + x - g.x, y: g.pan.y + y - g.y }; this.layout(false);
         } else if (Math.abs(y - g.lastY) >= 12) { this.session()?.input({ mouse_event: { mask: 3, x: 0, y: -Math.sign(y - g.lastY) } }); g.lastY = y; }
       } else {
         if (distance(point, this.start) > 8) { this.moved = true; clearTimeout(this.hold); }
         if (this.mode === 'pad') { this.cursor.x += (point.x - this.last.x) / this.zoom; this.cursor.y += (point.y - this.last.y) / this.zoom; }
         else { const r = this.canvas.getBoundingClientRect(); this.cursor = { x: (point.x - r.left) / this.zoom, y: (point.y - r.top) / this.zoom }; }
         this.cursor.x = clamp(this.cursor.x, 0, this.canvas.width - 1); this.cursor.y = clamp(this.cursor.y, 0, this.canvas.height - 1);
+        if (this.mode === 'pad') this.layout();
         this.last = point; this.mouse(0);
       }
       return;
