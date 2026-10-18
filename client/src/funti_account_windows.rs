@@ -99,6 +99,7 @@ pub async fn execute(packet: Packet) -> Value {
         "logout",
         "logout_all",
         "remove",
+        "cancel_removal",
         "dismiss",
         "favorites_set",
         "history_append",
@@ -451,6 +452,26 @@ impl Actor {
                 self.api(
                     "/family/remove",
                     Some(json!({"target_pk":pk,"request_id":request_id})),
+                    Some(&token),
+                    None,
+                )
+                .await?;
+                self.tick().await?;
+            }
+            "cancel_removal" => {
+                let event = payload["event_id"]
+                    .as_i64()
+                    .filter(|id| *id > 0)
+                    .ok_or("funti-account-invalid-request")?;
+                let token = self
+                    .session
+                    .as_ref()
+                    .ok_or("funti-account-session-expired")?
+                    .token
+                    .clone();
+                self.api(
+                    "/family/remove/cancel",
+                    Some(json!({"event_id":event})),
                     Some(&token),
                     None,
                 )

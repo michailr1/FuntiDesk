@@ -159,6 +159,20 @@
     return button;
   }
 
+  function cancelRemovalButton(eventId) {
+    const button = element('button', '', 'Отменить удаление');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      if (busy || !window.confirm('Удаление больше не будет передаваться компьютерам, добавленным позже. Уже отправленные и поставленные в очередь удаления остаются. Права семьи автоматически не восстанавливаются.')) return;
+      run(async () => {
+        await api('/family/remove/cancel', { event_id: eventId }, sessionCsrf);
+        await loadLists();
+        message('Удаление отменено для новых компьютеров. Прежние доставки и права семьи не изменены.');
+      });
+    });
+    return button;
+  }
+
   function connectLink(id) {
     const link = element('a', 'back-link', 'Подключиться');
     link.href = '/connect/#' + encodeURIComponent(id);
@@ -223,6 +237,11 @@
       section.append(element('h3', '', names.get(rows[0].target_pk) || 'Устройство'));
       section.append(element('p', 'muted', 'Удаление № ' + id + ' · ' + date(rows[0].created_at)));
       section.append(element('span', confirmed === rows.length ? 'badge done' : 'badge', 'Подтверждено: ' + confirmed + ' из ' + rows.length + ' показанных компьютеров'));
+      if (rows[0].cancelled_at != null) {
+        section.append(element('p', 'muted', 'Отменено для новых компьютеров · ' + date(rows[0].cancelled_at)));
+      } else if (Number.isSafeInteger(id) && id > 0) {
+        section.append(cancelRemovalButton(id));
+      }
       for (const row of rows) {
         const delivery = element('div', 'delivery');
         delivery.append(element('span', '', computers.get(row.source_device_id) || 'Компьютер'));

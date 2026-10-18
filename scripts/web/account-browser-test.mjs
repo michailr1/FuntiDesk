@@ -52,7 +52,7 @@ try{
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();
-  const removeIds=[];let loseRemove=true;let bootstrapDown=false;let partial=false;let libraryReads=0;
+  const removeIds=[];let loseRemove=true;let bootstrapDown=false;let partial=false;let libraryReads=0;let cancelRequests=0;let loseCancel=true;let acceptDialogs=true;
   await context.route('**/*',async route=>{
     const req=route.request();const url=new URL(req.url());assert.equal(url.origin,'https://desk.funti.cc','Unexpected browser destination');
     if(url.pathname.startsWith(apiPath)){
@@ -65,6 +65,10 @@ try{
       if(url.pathname.endsWith('/family/remove')){
         const body=req.postDataJSON();assert.match(body.request_id,/^[0-9a-f]{64}$/);assert.equal(body.target_pk,member.pk);removeIds.push(body.request_id);
         if(loseRemove){loseRemove=false;await route.abort('failed');return;}
+      }
+      if(url.pathname.endsWith('/family/remove/cancel')){
+        cancelRequests++;assert.ok(Number.isSafeInteger(req.postDataJSON().event_id));
+        if(loseCancel){loseCancel=false;await route.abort('failed');return;}
       }
       if(partial&&url.pathname.endsWith('/family/removals')){const body=await response.json();body.has_more=true;await route.fulfill({response,json:body});return;}
       await route.fulfill({response});return;
@@ -88,7 +92,7 @@ try{
   const cookies=await context.cookies('https://desk.funti.cc');const session=cookies.find(c=>c.name==='__Host-funti-account');assert.ok(session?.httpOnly&&session?.secure&&session?.sameSite==='Strict');
   assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
   await page.reload();await page.getByText(hostile,{exact:true}).waitFor();
-  page.on('dialog',dialog=>dialog.accept());
+  page.on('dialog',dialog=>acceptDialogs?dialog.accept():dialog.dismiss());
   await page.locator('#favorite-id').fill('333333333');await page.locator('#favorite-name').fill(hostile);
   await page.locator('#favorite-form button').click();await page.locator('#favorites .row-name').getByText(hostile,{exact:true}).waitFor();
   assert.equal(await page.locator('#favorites img').count(),0);
@@ -114,6 +118,18 @@ try{
   assert.equal(removeIds.length,2);assert.equal(removeIds[0],removeIds[1]);
   const queued=await request(apiPath+'/family/removals',undefined,native);assert.equal(queued.deliveries.length,2);const event=queued.deliveries[0].event_id;
   await signed(firstId,'ack',{events:[event]},first);await page.locator('#refresh').click();await page.getByText('Подтверждено: 1 из 2 показанных компьютеров',{exact:true}).waitFor();
+  acceptDialogs=false;await page.getByRole('button',{name:'Отменить удаление',exact:true}).click();assert.equal(cancelRequests,0);
+  acceptDialogs=true;await page.getByRole('button',{name:'Отменить удаление',exact:true}).click();await page.locator('#message[data-kind=error]').waitFor();
+  await page.getByRole('button',{name:'Отменить удаление',exact:true}).click();await page.getByText(/^Отменено для новых компьютеров ·/).waitFor();
+  assert.equal(cancelRequests,2);assert.equal(await page.getByRole('button',{name:'Отменить удаление',exact:true}).count(),0);
+  await page.getByText('Подтверждено: 1 из 2 показанных компьютеров',{exact:true}).waitFor();
+  const cancelled=await request(apiPath+'/family/removals',undefined,native);
+  assert.equal(cancelled.deliveries.length,2);assert.ok(cancelled.deliveries.every(row=>row.cancelled_at>0));
+  assert.equal(cancelled.deliveries.filter(row=>row.acknowledged_at!==null).length,1);
+  const laterKey=key();await request('/test/keys',{'900004':laterKey.pk});const laterId=await bind('900004','Новый компьютер',laterKey);
+  assert.deepEqual((await signed(laterId,'sync',{after:0},laterKey)).events,[]);
+  assert.ok((await signed(secondId,'sync',{after:0},second)).events.some(row=>row.kind==='remove'&&row.event_id===event));
+  await page.reload();await page.getByText(/^Отменено для новых компьютеров ·/).waitFor();assert.equal(await page.getByRole('button',{name:'Отменить удаление',exact:true}).count(),0);
   await signed(secondId,'ack',{events:[event]},second);partial=true;await page.locator('#refresh').click();await page.getByText('Показана последняя часть журнала удалений.',{exact:true}).waitFor();
   await page.locator('#logout-all').click();await page.locator('#send-code:enabled').waitFor();assert.equal(await page.locator('#devices .row').count(),0);assert.equal(await page.locator('#account-email').textContent(),'');
   const readsAfterLogout=libraryReads;await page.clock.fastForward(60000);assert.equal(libraryReads,readsAfterLogout);assert.equal(await page.locator('#favorites .row').count(),0);
@@ -122,7 +138,7 @@ try{
   bootstrapDown=true;await page.reload();await page.locator('#retry-login:not([hidden])').waitFor();assert.equal(await page.locator('#send-code').isDisabled(),true);
   bootstrapDown=false;await page.locator('#retry-login').click();await page.locator('#send-code:enabled').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('ACCOUNT_BROWSER_API_OK: Core-only SQLite state, login, invalid/resend code, HttpOnly cookie restore, safe text, automatic favorites/history refresh and stop on logout, no storage, idempotent retry, pending/ack/partial deliveries, logout/all, outage retry');
+  console.log('ACCOUNT_BROWSER_API_OK: Core-only SQLite state, login, invalid/resend code, HttpOnly cookie restore, safe text, automatic favorites/history refresh and stop on logout, no storage, idempotent retry, cancel confirmation/retry and reload, future bind skips cancelled removal, existing queue/ack preserved, partial deliveries, logout/all, outage retry');
 }finally{
   await browser?.close();
   for(const child of [service,fixture].filter(Boolean)){if(child.exitCode===null){const ended=once(child,'exit');child.kill();await ended;}}
