@@ -17,7 +17,7 @@ spec.loader.exec_module(update)
 
 
 class StaticUpdate(unittest.TestCase):
-    def exercise(self, readiness_fails=False, config_changed=False):
+    def exercise(self, readiness_fails=False, config_changed=False, schema=4):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'ACTIVATED').touch()
@@ -60,7 +60,7 @@ class StaticUpdate(unittest.TestCase):
 
             library = update.load('update-library-desk')
             library.run = run
-            library.database_version = lambda _: 4
+            library.database_version = lambda _: schema
             library.api_ready = Mock()
             library.stage_full_web = lambda p: p.mkdir()
             activation = SimpleNamespace(switch_link=switch_link, wait_ready=Mock(side_effect=[RuntimeError('readiness'), None] if readiness_fails else None))
@@ -82,6 +82,9 @@ class StaticUpdate(unittest.TestCase):
 
     def test_only_static_release_is_switched(self):
         self.exercise()
+
+    def test_static_update_supports_schema_v5(self):
+        self.exercise(schema=5)
 
     def test_readiness_failure_restores_previous_release(self):
         self.exercise(readiness_fails=True)
