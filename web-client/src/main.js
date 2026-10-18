@@ -1,5 +1,5 @@
 import { Session, errorText } from './session.js';
-import { controls } from './protocol.js';
+import { controls, ready } from './protocol.js';
 import { Recovery } from './recovery.js';
 import { PhoneConsole } from './phone.js';
 const $ = (id) => document.getElementById(id);
@@ -8,7 +8,7 @@ let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
 if (location.hash) history.replaceState(null, '', location.pathname);
-function stop() { recovery?.clear(); $('password').value = ''; active?.close(); active = null; phone.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
+function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
 async function connect(id, password) {
   const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); } });
   if (recovery) session.onFirstFrame = () => recovery.ready();
@@ -34,7 +34,8 @@ $('connection-form').addEventListener('submit', (event) => {
   connect($('peer-id').value.trim(), password); password = '';
 });
 $('disconnect').addEventListener('click', () => { stop(); $('status').textContent = 'Сеанс завершён.'; });
-window.addEventListener('pagehide', stop);
+window.addEventListener('pagehide', () => { recovery?.saveReload(); stop(true); });
+window.addEventListener('pageshow', (event) => { if (event.persisted) Recovery.forgetReload(); });
 const buttons = new Set(); const keys = new Map();
 const modifier = (e) => [e.altKey && controls.Alt, e.ctrlKey && controls.Control, e.shiftKey && controls.Shift, e.metaKey && controls.Meta].filter(Boolean);
 function release() {
@@ -83,3 +84,9 @@ canvas.addEventListener('keyup', (e) => key(e, false));
 const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click());
 
 const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;
+
+await ready;
+if (recovery?.restoreReload(target)) {
+  $('peer-id').value = recovery.auth.id;
+  recovery.resume();
+} else Recovery.forgetReload();
