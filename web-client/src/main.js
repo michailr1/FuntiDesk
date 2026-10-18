@@ -3,7 +3,7 @@ import { controls, ready } from './protocol.js';
 import { Recovery } from './recovery.js';
 import { PhoneConsole } from './phone.js';
 const $ = (id) => document.getElementById(id);
-const canvas = $('screen'); let active;
+const canvas = $('screen'); let active; let hadSessionOnHide = false;
 let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
@@ -34,8 +34,13 @@ $('connection-form').addEventListener('submit', (event) => {
   connect($('peer-id').value.trim(), password); password = '';
 });
 $('disconnect').addEventListener('click', () => { stop(); $('status').textContent = 'Сеанс завершён.'; });
-window.addEventListener('pagehide', () => { recovery?.saveReload(); stop(true); });
-window.addEventListener('pageshow', (event) => { if (event.persisted) Recovery.forgetReload(); });
+window.addEventListener('pagehide', () => {
+  hadSessionOnHide = active?.connected === true && active.firstFrame;
+  recovery?.saveReload(); stop(true);
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) { Recovery.forgetReload(); if (recovery && hadSessionOnHide) $('status').textContent = errorText('recovery_page_restored'); hadSessionOnHide = false; }
+});
 const buttons = new Set(); const keys = new Map();
 const modifier = (e) => [e.altKey && controls.Alt, e.ctrlKey && controls.Control, e.shiftKey && controls.Shift, e.metaKey && controls.Meta].filter(Boolean);
 function release() {
@@ -86,7 +91,11 @@ const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click
 const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;
 
 await ready;
-if (recovery?.restoreReload(target)) {
+const restored = recovery?.restoreReload(target);
+if (restored === true) {
   $('peer-id').value = recovery.auth.id;
   recovery.resume();
-} else Recovery.forgetReload();
+} else {
+  Recovery.forgetReload();
+  if (typeof restored === 'string') $('status').textContent = errorText(restored);
+}

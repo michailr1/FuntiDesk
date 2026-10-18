@@ -1,6 +1,7 @@
 import { passwordKey, challengeProof, wipe } from './protocol.js';
 const WINDOW = 5 * 60 * 1000;
 const RELOAD = 'funtidesk.phone-reload.v1';
+const ATTEMPT = 'funtidesk.phone-reload.attempt';
 const bytes = (value) => Array.isArray(value) && value.length === 32 && value.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
 const transient = new Set(['connection_closed', 'network_error', 'network_timeout']);
 
@@ -12,7 +13,7 @@ export class Recovery {
       else { if (this.deadline && Date.now() >= this.deadline) this.expire(); else if (this.waiting) this.resume(); else if (this.auth?.confirmed && !this.recovering) this.ready(); }
     });
   }
-  static forgetReload() { try { sessionStorage.removeItem(RELOAD); } catch { /* Storage may be unavailable. */ } }
+  static forgetReload() { try { sessionStorage.removeItem(RELOAD); sessionStorage.removeItem(ATTEMPT); } catch { /* Storage may be unavailable. */ } }
   clear(preserveReload = false) {
     if (!preserveReload) Recovery.forgetReload();
     clearTimeout(this.timer); wipe(this.auth?.salted);
@@ -25,16 +26,32 @@ export class Recovery {
     const createdAt = Date.now(), expiresAt = this.deadline || createdAt + WINDOW;
     try {
       // This derived credential is password-equivalent. Never store a cleartext password.
+      sessionStorage.setItem(ATTEMPT, String(createdAt));
       sessionStorage.setItem(RELOAD, JSON.stringify({ version: 1, id, peerKey: [...peerKey], salt,
         salted: [...salted], clientId, sessionId, createdAt, expiresAt }));
-    } catch { Recovery.forgetReload(); } // Failure leaves the ordinary password-entry path.
+    } catch { try { sessionStorage.removeItem(RELOAD); } catch { /* Keep only the non-secret attempt marker, if saved. */ } }
+  }
+  static navigationType() {
+    const type = performance.getEntriesByType?.('navigation')?.[0]?.type;
+    // Safari versions/settings without Navigation Timing 2 still expose the same
+    // reload/back-forward distinction through the legacy Navigation Timing API.
+    return type ?? ({ 0: 'navigate', 1: 'reload', 2: 'back_forward' })[performance.navigation?.type];
   }
   restoreReload(target) {
-    let raw;
-    try { raw = sessionStorage.getItem(RELOAD); sessionStorage.removeItem(RELOAD); }
-    catch { return false; }
-    if (!raw || raw.length > 4096 || location.origin !== 'https://desk.funti.cc' ||
-        performance.getEntriesByType('navigation')[0]?.type !== 'reload') return false;
+    const navigation = Recovery.navigationType();
+    let raw, attempt;
+    try {
+      raw = sessionStorage.getItem(RELOAD); attempt = sessionStorage.getItem(ATTEMPT);
+      sessionStorage.removeItem(RELOAD); sessionStorage.removeItem(ATTEMPT);
+    }
+    catch { return navigation === 'reload' ? 'recovery_storage_unavailable' : false; }
+    if (location.origin !== 'https://desk.funti.cc') return false;
+    if (navigation !== 'reload') return raw && !navigation ? 'recovery_navigation_unavailable' : false;
+    if (!raw) {
+      const savedAt = Number(attempt), now = Date.now();
+      return attempt && Number.isSafeInteger(savedAt) && savedAt <= now && now - savedAt <= WINDOW ? 'recovery_missing' : false;
+    }
+    if (raw.length > 4096) return 'recovery_unavailable';
     try {
       const value = JSON.parse(raw), now = Date.now();
       if (value.version !== 1 || typeof value.id !== 'string' || !/^[0-9]{6,16}$/.test(value.id) || (target && target !== value.id) ||
@@ -42,13 +59,14 @@ export class Recovery {
           typeof value.clientId !== 'string' || !/^web-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(value.clientId) ||
           !Number.isInteger(value.sessionId) || value.sessionId < 1 || value.sessionId > 0xffffffff ||
           !Number.isSafeInteger(value.createdAt) || !Number.isSafeInteger(value.expiresAt) ||
-          value.createdAt > now || value.expiresAt <= now || value.expiresAt <= value.createdAt || value.expiresAt - value.createdAt > WINDOW) return false;
+          value.createdAt > now || value.expiresAt <= value.createdAt || value.expiresAt - value.createdAt > WINDOW) return 'recovery_unavailable';
+      if (value.expiresAt <= now) return 'recovery_expired';
       this.auth = { id: value.id, peerKey: Uint8Array.from(value.peerKey), salt: value.salt,
         salted: Uint8Array.from(value.salted), clientId: value.clientId, sessionId: value.sessionId, confirmed: true };
       this.deadline = value.expiresAt; this.waiting = true;
       this.timer = setTimeout(() => this.expire(), value.expiresAt - now);
       return true;
-    } catch { return false; }
+    } catch { return 'recovery_unavailable'; }
   }
   arm() {
     if (this.deadline) return;
