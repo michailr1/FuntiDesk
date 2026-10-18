@@ -19,6 +19,7 @@ export class PhoneConsole {
     $('phone-keyboard').onclick = () => { $('phone-keys').hidden = false; $('phone-text').focus(); $('phone-panel').hidden = true; };
     $('phone-keys-close').onclick = () => { $('phone-text').blur(); $('phone-keys').hidden = true; };
     $('phone-help').onclick = () => this.help();
+    $('phone-help-close').onclick = () => $('phone-help-sheet').close();
     $('phone-cad').onclick = () => { if (confirm('Отправить Ctrl+Alt+Del на компьютер?')) this.key('CtrlAltDel'); };
     $('phone-quality').onchange = () => this.session()?.configure({ option: { image_quality: Number($('phone-quality').value) } });
     $('phone-monitor').onchange = () => { this.reset(); this.pan = { x: 0, y: 0 }; this.session()?.configure({ switch_display: { display: Number($('phone-monitor').value) } }); };
@@ -67,6 +68,7 @@ export class PhoneConsole {
     this.shown = show; document.body.classList.toggle('phone-session', show); $('phone-ui').hidden = !show;
     this.reset();
     if (!show) {
+      $('phone-help-sheet').close();
       this.unlock(); $('phone-text').value = ''; $('phone-text').blur(); $('phone-keys').hidden = true;
       for (const name of ['width', 'height', 'transform']) this.canvas.style.removeProperty(name);
       return;
@@ -80,7 +82,11 @@ export class PhoneConsole {
     $('phone-monitor').value = String(this.session().display || 0);
     if (!this.hinted) { this.hinted = true; this.help(); }
   }
-  help() { alert('Тачпад: ведите одним пальцем; касание — клик; касание двумя — правый клик; два пальца вверх/вниз — прокрутка. Двойное касание с ведением — перетаскивание. Щипок — масштаб; увеличенный экран двигайте двумя пальцами. В режиме «Касание» нажимайте на нужное место, удерживайте для правого клика.'); }
+  help() {
+    this.reset(); $('phone-panel').hidden = true;
+    $('phone-text').blur(); $('phone-keys').hidden = true;
+    if (!$('phone-help-sheet').open) $('phone-help-sheet').showModal();
+  }
   async wake() {
     if (!this.shown || document.hidden || this.lock || this.waking || !navigator.wakeLock) return;
     this.waking = true;

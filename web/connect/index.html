@@ -9,6 +9,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; manifest-src 'self'; connect-src wss://desk.funti.cc; base-uri 'none'; form-action 'none'; object-src 'none'">
   <title>Подключиться к компьютеру — FuntiDesk</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="/connect/apple-touch-icon.png">
   <link rel="manifest" href="/connect/app.webmanifest">
   <link rel="stylesheet" href="/account/account.css">
   <link rel="stylesheet" href="/connect/session.css">
@@ -43,6 +44,18 @@
     </section>
     <section id="phone-keys" hidden aria-label="Клавиши компьютера"><button id="phone-keys-close" type="button" aria-label="Скрыть клавиатуру">Скрыть клавиатуру</button><div id="phone-key-buttons"></div></section>
     <textarea id="phone-text" aria-label="Текст для компьютера" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <dialog id="phone-help-sheet" aria-labelledby="phone-help-title">
+      <h2 id="phone-help-title">Жесты управления</h2>
+      <dl>
+        <dt>Тачпад</dt><dd>Ведите одним пальцем, чтобы двигать курсор. Касание — клик.</dd>
+        <dt>Правый клик</dt><dd>Коснитесь двумя пальцами.</dd>
+        <dt>Прокрутка</dt><dd>Ведите двумя пальцами вверх или вниз.</dd>
+        <dt>Перетаскивание</dt><dd>Двойное касание и ведение одним пальцем.</dd>
+        <dt>Масштаб</dt><dd>Щипок увеличивает экран. Увеличенный экран двигайте двумя пальцами.</dd>
+        <dt>Режим «Касание»</dt><dd>Выберите его в меню. Нажмите на нужное место; удерживайте для правого клика.</dd>
+      </dl>
+      <button id="phone-help-close" type="button" autofocus>Понятно</button>
+    </dialog>
   </aside>
 </body>
 </html>

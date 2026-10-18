@@ -26,7 +26,7 @@ try {
   for(const scenario of ['valid','phone','wrong-password','wrong-key']) {
     const phone=scenario==='phone';
     const context=await browser.newContext(phone?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:{});const page=await context.newPage();const errors=[];const input=[];const publicKeys=[];
-    let allowAction=false;page.on('dialog',dialog=>allowAction?dialog.accept():dialog.dismiss());
+    const systemDialogs=[];let allowAction=false;page.on('dialog',dialog=>{systemDialogs.push(dialog.type());return allowAction?dialog.accept():dialog.dismiss();});
     if(phone)await page.addInitScript(()=>{
       window.wakeRequests=0;window.wakeReleases=0;
       Object.defineProperty(navigator,'wakeLock',{value:{request:async()=>{
@@ -40,7 +40,7 @@ try {
       const url=new URL(route.request().url());
       if(url.pathname==='/connect/session.js')return route.fulfill({contentType:'application/javascript',body:bundle});
       const filename=path.join(root,'web',url.pathname.endsWith('/')?url.pathname+'index.html':url.pathname);
-      const type=({'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'})[path.extname(filename)];
+      const type=({'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'})[path.extname(filename)];
       await route.fulfill({contentType:type,body:await readFile(filename),headers:type==='text/html'?{'Content-Security-Policy':policy}:{}});
     });
     await page.routeWebSocket('wss://desk.funti.cc/ws/rendezvous',ws=>ws.onMessage(bytes=>{
@@ -51,7 +51,7 @@ try {
     }));
     let relay;let send;let sendCount=0;let receiveCount=0;let keys;
     await page.routeWebSocket('wss://desk.funti.cc/ws/relay',ws=>{
-      relay=ws;let state=0;
+      relay=ws;let state=0;sendCount=0;receiveCount=0;
       send=(value)=>ws.send(Buffer.from(encrypt(encode(wire,value),++sendCount,keys[1])));
       ws.onMessage(async bytes=>{
         bytes=Buffer.from(bytes);
@@ -80,6 +80,8 @@ try {
       assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelector('#screen').getContext('2d').getImageData(16,16,1,1).data).map((v,i)=>i===0?v>200:i===3?v===255:v<50)),[true,true,true,true]);
       if(phone){
         await page.locator('body.phone-session').waitFor();await page.locator('#phone-menu').waitFor();
+        await page.locator('#phone-help-sheet[open]').waitFor();assert.equal(input.length,0);
+        await page.getByRole('button',{name:'Понятно',exact:true}).click();
         assert.equal(await page.evaluate(()=>window.wakeRequests),1);
         const cdp=await context.newCDPSession(page);
         const touch=async(type,points)=>{await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([x,y],id)=>({id,x,y}))});};
@@ -135,6 +137,10 @@ try {
         assert.equal(await page.locator('link[rel=manifest]').getAttribute('href'),'/connect/app.webmanifest');
         const app=JSON.parse(await readFile(path.join(root,'web/connect/app.webmanifest'),'utf8'));
         assert.equal(app.display,'standalone');assert.equal(app.start_url,'/connect/');
+        assert.equal(await page.locator('link[rel=apple-touch-icon]').getAttribute('href'),'/connect/apple-touch-icon.png');
+        const icon=await readFile(path.join(root,'web/connect/apple-touch-icon.png'));
+        assert.deepEqual([...icon.subarray(0,8)],[137,80,78,71,13,10,26,10]);
+        assert.equal(icon.readUInt32BE(16),180);assert.equal(icon.readUInt32BE(20),180);
         await page.evaluate(async()=>{window.denyWakeLock=true;await window.currentWake.release();document.dispatchEvent(new Event('visibilitychange'));});
         await page.waitForTimeout(50);assert.equal(await page.evaluate(()=>window.wakeRequests),2);await page.locator('body.phone-session').waitFor();
       }else{
@@ -151,7 +157,14 @@ try {
       }else await page.keyboard.press('b');
       await page.waitForTimeout(50);assert.equal(input.length,before);
       await page.locator(phone?'#phone-end':'#disconnect').click();await page.locator('#connect:enabled').waitFor();
-      if(phone){assert.equal(await page.evaluate(()=>window.wakeReleases),1);assert.equal(await page.locator('#phone-text').inputValue(),'');}
+      if(phone){
+        assert.equal(await page.evaluate(()=>window.wakeReleases),1);assert.equal(await page.locator('#phone-text').inputValue(),'');
+        await page.locator('#password').fill(password);await page.locator('#connect').click();await page.locator('body.phone-session').waitFor();
+        assert.equal(await page.locator('#phone-help-sheet').isVisible(),false,'reconnect must not reopen the first-session hint');
+        await page.locator('#phone-menu').click();await page.locator('#phone-help').click();await page.locator('#phone-help-sheet[open]').waitFor();
+        await page.getByRole('button',{name:'Понятно',exact:true}).click();
+        await page.locator('#phone-menu').click();await page.locator('#phone-end').click();await page.locator('#connect:enabled').waitFor();
+      }
     } else {
       await page.locator('#connect:enabled').waitFor();
       assert.equal(publicKeys.length,scenario==='wrong-key'?0:1);
@@ -159,6 +172,7 @@ try {
     }
     assert.equal(await page.locator('#password').inputValue(),'');
     assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+    assert.equal(systemDialogs.filter(type=>type==='alert').length,0,'gesture hints must never use a system alert');
     assert.deepEqual(errors,[]);
     await context.close();
   }

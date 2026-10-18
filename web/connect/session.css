@@ -10,4 +10,6 @@ main{max-width:1500px}#connection-form{max-width:560px}#screen{display:block;max
 #phone-keys{position:fixed;inset:auto 0 0;z-index:13;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom));background:#202936;color:white;max-height:32dvh;overflow:auto}
 #phone-key-buttons{display:flex;gap:6px;flex-wrap:wrap}#phone-key-buttons button{min-width:44px;min-height:44px}#phone-key-buttons [aria-pressed=true]{background:#266de9;color:white}#phone-key-buttons .locked{outline:3px solid #ffd86b}
 #phone-text{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;font-size:16px;resize:none}
+#phone-help-sheet{width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:0;border-radius:20px;padding:24px;background:#fffdf9;color:#27241f;box-shadow:0 8px 40px #0006}
+#phone-help-sheet::backdrop{background:#101820b8}#phone-help-sheet dt{font-weight:650;margin-top:12px}#phone-help-sheet dd{margin:4px 0 0;line-height:1.45}#phone-help-close{width:100%;min-height:48px;margin-top:12px}
 @media(orientation:landscape){#phone-panel{top:12px;max-height:calc(100dvh - 24px);width:300px}#phone-keys{max-height:40dvh}}
