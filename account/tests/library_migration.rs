@@ -62,7 +62,7 @@ fn upgrade_keeps_existing_account_and_session_and_reopen_keeps_synchronized_list
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        4
+        5
     );
 }
 
@@ -107,8 +107,13 @@ fn removing_witness_preserves_v3_data_sessions_and_revocations_without_network()
         ]
         .iter()
         .map(|table| {
+            let columns = if *table == "events" {
+                "id,account_id,kind,target_pk,created_at,request_id"
+            } else {
+                "*"
+            };
             let mut stmt = db
-                .prepare(&format!("SELECT * FROM {table} ORDER BY 1"))
+                .prepare(&format!("SELECT {columns} FROM {table} ORDER BY 1"))
                 .unwrap();
             let columns = stmt.column_count();
             stmt.query_map([], |row| (0..columns).map(|i| row.get(i)).collect())
@@ -129,7 +134,7 @@ fn removing_witness_preserves_v3_data_sessions_and_revocations_without_network()
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        4
+        5
     );
     assert_eq!(db.query_row("SELECT count(*) FROM sqlite_master WHERE name='recovery_state' OR (type='trigger' AND name LIKE 'recovery_%')", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
     assert_eq!(
@@ -139,4 +144,62 @@ fn removing_witness_preserves_v3_data_sessions_and_revocations_without_network()
     );
     drop(db);
     drop(Store::open(&path, [7; 32]).unwrap());
+}
+
+#[test]
+fn v4_migration_preserves_deliveries_and_cancellation_survives_reopen() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("account.sqlite3");
+    let now = 1_800_000_000;
+    let token = "a".repeat(64);
+    let db = Connection::open(&path).unwrap();
+    for sql in [
+        include_str!("../src/schema.sql"),
+        include_str!("../src/schema-library.sql"),
+        include_str!("../src/schema-local.sql"),
+    ] {
+        db.execute_batch(sql).unwrap();
+    }
+    db.execute_batch(
+        "INSERT INTO accounts VALUES('account','person@example.invalid',1000,0);
+        INSERT INTO devices VALUES('device','account','123456789','public-key','PC','1',1000,1100);
+        INSERT INTO events VALUES(42,'account','remove','removed-public-key',1100,'request');
+        INSERT INTO deliveries VALUES(42,'device',1150);",
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO sessions VALUES(?1,'account',0,1000,?2,NULL)",
+        params![crypto::digest(token.as_bytes()), now + 3600],
+    )
+    .unwrap();
+    drop(db);
+    let mut store = Store::open(&path, [7; 32]).unwrap();
+    let auth = store.authenticate(&token, false, now).unwrap().unwrap();
+    let rows = store.removals(&auth, now).unwrap().unwrap();
+    assert!(rows["deliveries"][0]["cancelled_at"].is_null());
+    assert!(store.cancel_removal(&auth, 42, now).unwrap());
+    drop(store);
+    let store = Store::open(&path, [7; 32]).unwrap();
+    let auth = store.authenticate(&token, false, now).unwrap().unwrap();
+    let rows = store.removals(&auth, now).unwrap().unwrap();
+    assert_eq!(rows["deliveries"][0]["cancelled_at"], now);
+    assert_eq!(rows["deliveries"][0]["acknowledged_at"], 1150);
+    assert_eq!(rows["deliveries"][0]["target_pk"], "removed-public-key");
+    drop(store);
+    let db = Connection::open(path).unwrap();
+    assert_eq!(
+        db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        5
+    );
+    assert_eq!(
+        db.query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
+            .unwrap(),
+        "ok"
+    );
+    assert_eq!(
+        db.query_row("SELECT pk FROM devices", [], |r| r.get::<_, String>(0))
+            .unwrap(),
+        "public-key"
+    );
 }
