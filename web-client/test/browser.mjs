@@ -46,27 +46,28 @@ try {
     await page.routeWebSocket('wss://desk.funti.cc/ws/rendezvous',ws=>ws.onMessage(bytes=>{
       const request=decode(rendezvous,Buffer.from(bytes));assert.equal(request.punch_hole_request.id,id);
       assert.equal(request.punch_hole_request.licence_key,fixtureKey);
-      const signed=signedPeer.slice();if(scenario==='wrong-key')signed[0]^=1;
+      const signed=hostPeer.slice();if(scenario==='wrong-key')signed[0]^=1;
       ws.send(Buffer.from(encode(rendezvous,{relay_response:{uuid:'fixture',pk:signed,relay_server:'attacker.invalid:1234',version:'1.5.0'}})));
     }));
-    let relay;let send;let sendCount=0;let receiveCount=0;let keys;
+    let relay;let send;let sendCount=0;let receiveCount=0;let keys;let connectionCount=0;const logins=[];let hostPassword=password;let hostSalt='salt';let hostPeer=signedPeer;let hostIdentity=signedId;let viewOnly=false;
     await page.routeWebSocket('wss://desk.funti.cc/ws/relay',ws=>{
-      relay=ws;let state=0;sendCount=0;receiveCount=0;
+      relay=ws;let state=0;sendCount=0;receiveCount=0;const challenge='challenge-'+(++connectionCount);
       send=(value)=>ws.send(Buffer.from(encrypt(encode(wire,value),++sendCount,keys[1])));
       ws.onMessage(async bytes=>{
         bytes=Buffer.from(bytes);
-        if(state===0){const request=decode(rendezvous,bytes);assert.equal(request.request_relay.secure,true);state=1;ws.send(Buffer.from(encode(wire,{signed_id:{id:signedId}})));return;}
+        if(state===0){const request=decode(rendezvous,bytes);assert.equal(request.request_relay.secure,true);state=1;ws.send(Buffer.from(encode(wire,{signed_id:{id:hostIdentity}})));return;}
         if(state===1){
           const value=decode(wire,bytes).public_key;publicKeys.push(value);assert.equal(value.kx_version,1);
           const secret=sodium.crypto_box_open_easy(value.symmetric_value,new Uint8Array(24),value.asymmetric_value,box.privateKey);
-          keys=splitKeys(secret,value.asymmetric_value,box.publicKey,1);state=2;send({hash:{salt:'salt',challenge:'challenge'}});return;
+          keys=splitKeys(secret,value.asymmetric_value,box.publicKey,1);state=2;send({hash:{salt:hostSalt,challenge}});return;
         }
         const value=decode(wire,decrypt(bytes,++receiveCount,keys[0]));
         if(value.login_request){
           assert.equal(value.login_request.username,id);assert.equal(value.login_request.option.disable_clipboard,2);
-          const correct=await passwordProof(password,'salt','challenge');
+          logins.push(value.login_request);const correct=await passwordProof(hostPassword,hostSalt,challenge);
           if(!sodium.memcmp(correct,value.login_request.password)){send({login_response:{error:'Wrong Password'}});return;}
           send({login_response:{peer_info:{hostname:'Fixture',platform:'Windows',current_display:0,displays:[{width:32,height:32,x:0,y:0}]}}});
+          if(viewOnly)send({misc:{permission_info:{permission:0,enabled:false}}});
           send({video_frame:{vp9s:{frames:[{key:true,pts:0,data:frame}]}}});
         }
         if(value.mouse_event||value.key_event||value.misc?.switch_display||value.misc?.option)input.push(value);
@@ -199,6 +200,31 @@ try {
         await page.locator('#phone-menu').click();await page.locator('#phone-help').click();await page.locator('#phone-help-sheet[open]').waitFor();
         await page.getByRole('button',{name:'Понятно',exact:true}).click();
         await page.locator('#phone-menu').click();await page.locator('#phone-end').click();await page.locator('#connect:enabled').waitFor();
+        await page.clock.install();
+        const visibility=async hidden=>page.evaluate(hidden=>{Object.defineProperty(document,'hidden',{value:hidden,configurable:true});document.dispatchEvent(new Event('visibilitychange'));},hidden);
+        const started=async()=>{await page.locator('body.phone-session').waitFor();await page.waitForFunction(()=>document.querySelector('#screen').getContext('2d').getImageData(16,16,1,1).data[0]>200);};
+        const login=async()=>{await page.locator('#password').fill(password);await page.locator('#connect').click();await started();};
+        const disconnect=async()=>{await visibility(true);relay.close();await page.locator('#status').getByText(/Восстановим/).waitFor();};
+        await login();const initial=logins.at(-1),initialCount=connectionCount;
+        await disconnect();await page.clock.setSystemTime(Date.now()+60_000);viewOnly=true;await visibility(false);await started();
+        assert.equal(connectionCount,initialCount+1);assert.equal(await page.locator('#password').inputValue(),'');
+        const restored=logins.at(-1);assert.equal(restored.my_id,initial.my_id);assert.equal(restored.session_id,initial.session_id);assert.notDeepEqual(restored.password,initial.password,'each recovery needs a fresh challenge proof');
+        const inputBefore=input.length;await page.touchscreen.tap(180,180);await page.waitForTimeout(30);assert.equal(input.length,inputBefore,'restored connection must use current host permissions');
+        // One return gets one attempt; a second transport failure cannot spin.
+        relay.close();await page.locator('#connect:enabled').waitFor();await page.waitForTimeout(50);assert.equal(connectionCount,initialCount+1);
+        viewOnly=false;await login();await disconnect();const expiredCount=connectionCount;
+        await page.clock.setSystemTime(Date.now()+360_000);await visibility(false);await page.locator('#connect:enabled').waitFor();
+        assert.equal(connectionCount,expiredCount,'a suspended expiry timer must not extend the five-minute window');
+        await login();await disconnect();hostSalt='new-salt';const changedSalt=logins.length;await visibility(false);await page.locator('#connect:enabled').waitFor();assert.equal(logins.length,changedSalt,'changed salt must stop before sending cached credentials');hostSalt='salt';
+        await login();await disconnect();const changedKey=logins.length;const nextSigner=sodium.crypto_sign_keypair();
+        hostPeer=sodium.crypto_sign(encode(hbb.IdPk,{id,pk:nextSigner.publicKey}),server.privateKey);hostIdentity=sodium.crypto_sign(encode(hbb.IdPk,{id,pk:box.publicKey,kx_version:1}),nextSigner.privateKey);
+        await visibility(false);await page.locator('#connect:enabled').waitFor();assert.equal(logins.length,changedKey,'a different verified host key must not receive the cached password proof');hostPeer=signedPeer;hostIdentity=signedId;
+        await login();await disconnect();hostPassword='changed-password';const rejected=connectionCount;await visibility(false);await page.locator('#connect:enabled').waitFor();await page.waitForTimeout(50);assert.equal(connectionCount,rejected+1,'host rejection must stop automatic retries');hostPassword=password;
+        await login();await visibility(true);await page.locator('#phone-menu').click();await page.locator('#phone-end').click();const ended=connectionCount;await visibility(false);await page.waitForTimeout(30);assert.equal(connectionCount,ended,'End must erase recovery');
+        await login();await visibility(true);const malformedCount=connectionCount;relay.send(Buffer.from([1,2,3]));await page.locator('#connect:enabled').waitFor();await visibility(false);await page.waitForTimeout(30);assert.equal(connectionCount,malformedCount,'invalid encrypted data must not trigger recovery');
+        await login();await visibility(true);const closedByHost=connectionCount;send({misc:{close_reason:'Closed manually by the peer'}});await page.locator('#connect:enabled').waitFor();await visibility(false);await page.waitForTimeout(30);assert.equal(connectionCount,closedByHost,'host termination must not trigger recovery');
+        await login();const reloadCount=connectionCount;await page.reload();await page.locator('#connect:enabled').waitFor();await page.waitForTimeout(30);assert.equal(connectionCount,reloadCount,'reload must not recover credentials');
+        assert.equal(await page.locator('#peer-id').getAttribute('autocomplete'),'username');assert.equal(await page.locator('#password').getAttribute('autocomplete'),'current-password');
       }
     } else {
       await page.locator('#connect:enabled').waitFor();
@@ -211,5 +237,5 @@ try {
     assert.deepEqual(errors,[]);
     await context.close();
   }
-  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, native keyboard and optional menu keys/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, view-only, disconnect, no storage');
+  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, native keyboard and optional menu keys/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, bounded recovery/expiry/key/salt/rejection/reload, view-only, disconnect, no storage');
 } finally { await browser.close(); }

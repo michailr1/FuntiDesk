@@ -38,16 +38,20 @@ export function handshake(signedPeer, signedId, expectedId, serverKey = SERVER_K
   try {
     const symmetric_value = sodium.crypto_box_easy(secret, new Uint8Array(24), peer.pk, pair.privateKey);
     const [sendKey, receiveKey] = splitKeys(secret, pair.publicKey, peer.pk, peer.kx_version);
-    return { public_key: { asymmetric_value: pair.publicKey, symmetric_value, kx_version: 1 }, sendKey, receiveKey };
+    return { public_key: { asymmetric_value: pair.publicKey, symmetric_value, kx_version: 1 }, sendKey, receiveKey, peerKey: trusted.pk };
   } finally { sodium.memzero(pair.privateKey); sodium.memzero(secret); }
 }
+export async function passwordKey(password, salt) {
+  const text = new TextEncoder(), raw = new Uint8Array([...text.encode(password), ...text.encode(salt)]);
+  try { return new Uint8Array(await crypto.subtle.digest('SHA-256', raw)); } finally { wipe(raw); }
+}
+export async function challengeProof(salted, challenge) {
+  const raw = new Uint8Array([...salted, ...new TextEncoder().encode(challenge)]);
+  try { return new Uint8Array(await crypto.subtle.digest('SHA-256', raw)); } finally { wipe(raw); }
+}
 export async function passwordProof(password, salt, challenge) {
-  const text = new TextEncoder();
-  const raw = new Uint8Array([...text.encode(password), ...text.encode(salt)]);
-  const salted = new Uint8Array(await crypto.subtle.digest('SHA-256', raw));
-  wipe(raw);
-  try { return new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array([...salted, ...text.encode(challenge)]))); }
-  finally { sodium.memzero(salted); }
+  const salted = await passwordKey(password, salt);
+  try { return await challengeProof(salted, challenge); } finally { wipe(salted); }
 }
 export function encrypt(bytes, count, key) { return sodium.crypto_secretbox_easy(bytes, nonce(count), key); }
 export function decrypt(bytes, count, key) { return sodium.crypto_secretbox_open_easy(bytes, nonce(count), key); }
