@@ -108,13 +108,10 @@ try {
         const pointer=await page.locator('#phone-cursor').boundingBox(),lastMove=input.filter(v=>v.mouse_event&&!(v.mouse_event.mask||0)).at(-1).mouse_event;
         assert.ok(Math.abs(pointer.x-panned.x-lastMove.x*panned.width/32)<1,'visible cursor must follow the actual touchpad target after zoom and pan');
         await page.locator('#phone-menu').click();await page.locator('#phone-keyboard').click();
-        const keyboard=await page.locator('#phone-keys').boundingBox();assert.ok(keyboard.height<200,'special keys must stay in a compact strip');
+        const keyboard=await page.locator('#phone-keys').boundingBox();assert.ok(keyboard.height<80,'normal typing must not show a second keyboard');
+        assert.equal(await page.locator('#phone-key-buttons').isVisible(),false,'special keys belong in the menu on demand');
         const field=await page.locator('#phone-text').boundingBox();assert.ok(field.width>=150&&field.height>=40,'typing field must be visible');
         assert.equal(await page.locator('#phone-text').evaluate(e=>e===document.activeElement),true);
-        const contrast=await page.locator('[data-key=F2]').evaluate(button=>{
-          const style=getComputedStyle(button),luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
-          const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
-        });assert.ok(contrast>=4.5,'special-key labels must contrast with their background');
         await page.evaluate(()=>{Object.defineProperties(visualViewport,{height:{value:420,configurable:true},offsetTop:{value:30,configurable:true}});visualViewport.dispatchEvent(new Event('resize'));});
         const stageWithKeyboard=await page.locator('#remote-stage').boundingBox(),keysWithKeyboard=await page.locator('#phone-keys').boundingBox();
         assert.equal(stageWithKeyboard.y,30);assert.ok(stageWithKeyboard.y+stageWithKeyboard.height<=keysWithKeyboard.y+1);assert.ok(keysWithKeyboard.y+keysWithKeyboard.height<=451);
@@ -129,6 +126,12 @@ try {
           e.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertLineBreak'}));
         });
 
+        await page.locator('#phone-menu').click();await page.locator('#phone-special-keys summary').click();
+        const contrast=await page.locator('[data-key=F2]').evaluate(button=>{
+          const style=getComputedStyle(button),luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+          const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        });assert.ok(contrast>=4.5,'special-key labels must contrast with their background');
+        assert.equal(await page.locator('#phone-text').evaluate(e=>e===document.activeElement),true,'menu and extra keys must retain native keyboard focus');
         await page.locator('[data-key=Control]').click();await page.locator('[data-key=F1]').click();
         await page.locator('[data-key=F2]').click();await page.locator('#phone-text').press('Backspace');
         await page.waitForTimeout(50);
@@ -143,7 +146,7 @@ try {
         await page.locator('[data-key=F3]').click();await page.locator('[data-key=F4]').click();await page.waitForTimeout(50);
         assert.ok(input.some(v=>v.key_event?.control_key===hbb.ControlKey.F4&&v.key_event.modifiers?.includes(hbb.ControlKey.Control)));
         await page.locator('[data-key=Control]').click();
-        await page.locator('#phone-keys-close').click();assert.equal(await page.locator('#phone-text').isVisible(),false);await page.locator('#phone-menu').click();
+        await page.locator('#phone-menu').click();await page.locator('#phone-keys-close').click();assert.equal(await page.locator('#phone-text').isVisible(),false);await page.locator('#phone-menu').click();
         await page.locator('#phone-cad').click();await page.waitForTimeout(20);
         assert.equal(input.filter(v=>v.key_event?.control_key===hbb.ControlKey.CtrlAltDel).length,0);
         allowAction=true;await page.locator('#phone-cad').click();await page.waitForTimeout(50);
@@ -182,7 +185,7 @@ try {
       else assert.equal(await page.locator('#phone-cursor').isVisible(),false,'desktop input remains unchanged');
       const before=input.length;
       if(phone){
-        await page.locator('#phone-keyboard').click();await page.locator('[data-key=F2]').click();await page.locator('#phone-text').fill('Нельзя');
+        await page.locator('#phone-keyboard').click();await page.locator('#phone-menu').click();await page.locator('[data-key=F2]').click();await page.locator('#phone-text').fill('Нельзя');await page.locator('#phone-menu').click();
         await page.locator('#phone-keys-close').click();
         const r=await page.locator('#screen').boundingBox();await page.touchscreen.tap(r.x+r.width/2,r.y+r.height/2);
         await page.locator('#phone-menu').click();
@@ -208,5 +211,5 @@ try {
     assert.deepEqual(errors,[]);
     await context.close();
   }
-  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, readable compact keyboard/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, view-only, disconnect, no storage');
+  console.log('BROWSER_PROTOCOL_OK: encrypted VP9 session, desktop regression, mobile cursor, native keyboard and optional menu keys/viewport, IME/Enter, touch/pinch/drag, text/modifiers, display/quality, confirmed SAS, orientation, optional Wake Lock, view-only, disconnect, no storage');
 } finally { await browser.close(); }

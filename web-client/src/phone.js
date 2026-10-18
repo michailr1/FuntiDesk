@@ -11,7 +11,8 @@ export class PhoneConsole {
     this.mode = 'pad'; this.zoom = 1; this.fit = true; this.pan = { x: 0, y: 0 };
     this.cursor = { x: 0, y: 0 }; this.shown = false; this.hinted = false;
     $('phone-end').onclick = disconnect;
-    $('phone-menu').onclick = () => { if (!this.menuMoved) $('phone-panel').hidden = !$('phone-panel').hidden; };
+    $('phone-menu').onclick = () => { if (!this.menuMoved) { $('phone-panel').hidden = !$('phone-panel').hidden; this.layout(); } };
+    $('phone-special-keys').querySelector('summary').onpointerdown = (e) => e.preventDefault();
     $('phone-mode').onchange = () => { this.reset(); this.mode = $('phone-mode').value; };
     $('phone-fit').onclick = () => { this.fit = true; this.pan = { x: 0, y: 0 }; this.layout(); };
     $('phone-actual').onclick = () => { this.fit = false; this.zoom = 1; this.pan = { x: 0, y: 0 }; this.layout(); };
@@ -52,7 +53,7 @@ export class PhoneConsole {
       for (const t of event.changedTouches) this.pointer({ type: phase, pointerType: 'touch', pointerId: t.identifier, clientX: t.clientX, clientY: t.clientY, preventDefault() {} });
     }, { passive: false });
     const menu = $('phone-menu'); let drag;
-    menu.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, left: menu.offsetLeft, top: menu.offsetTop }; this.menuMoved = false; menu.setPointerCapture(e.pointerId); };
+    menu.onpointerdown = (e) => { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, left: menu.offsetLeft, top: menu.offsetTop }; this.menuMoved = false; menu.setPointerCapture(e.pointerId); };
     menu.onpointermove = (e) => {
       if (!drag) return;
       if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) this.menuMoved = true;
@@ -105,6 +106,7 @@ export class PhoneConsole {
     const height = Math.max(1, visibleHeight - ($('phone-keys').hidden ? 0 : $('phone-keys').offsetHeight));
     $('remote-stage').style.top = top + 'px'; $('remote-stage').style.height = height + 'px';
     $('phone-keys').style.bottom = Math.max(0, innerHeight - visibleHeight - top) + 'px';
+    $('phone-panel').style.maxHeight = Math.max(44, visibleHeight - Math.max(0, $('phone-panel').offsetTop - top) - 12) + 'px';
     const fit = Math.min(innerWidth / this.canvas.width, height / this.canvas.height);
     $('phone-zoom').max = String(Math.round(Math.max(4, fit * 4) * 100));
     if (this.fit) this.zoom = fit;
