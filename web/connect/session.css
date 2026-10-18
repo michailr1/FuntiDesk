@@ -1,1 +1,15 @@
 main{max-width:1500px}#connection-form{max-width:560px}#screen{display:block;max-width:100%;width:100%;height:auto;background:#171b23;border:1px solid var(--border);border-radius:10px;touch-action:none}#screen:focus-visible{outline:3px solid #2a73f0;outline-offset:3px}#status{margin:20px 0}
+.phone-session{margin:0;overflow:hidden;background:#171b23}
+.phone-session .site-header,.phone-session main>:not(#remote-stage){display:none}
+.phone-session #remote-stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;background:#171b23}
+.phone-session #screen{max-width:none;border:0;border-radius:0;flex-shrink:0}
+#phone-ui[hidden],#phone-panel[hidden],#phone-keys[hidden]{display:none}
+#phone-menu{position:fixed;left:16px;top:max(16px,env(safe-area-inset-top));z-index:12;min-width:48px;min-height:48px;border-radius:50%;touch-action:none;opacity:.9}
+#phone-panel{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(72px,env(safe-area-inset-top));z-index:11;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 100px);overflow:auto;padding:16px;border-radius:16px;background:var(--surface,#fff);color:var(--text,#182339);box-shadow:0 4px 30px #0006}
+#phone-panel label{display:block;margin:8px 0}#phone-panel select{width:100%;min-height:44px}#phone-panel button{min-height:44px;margin:4px}
+#phone-keys{position:fixed;inset:auto 0 0;z-index:13;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom));background:#202936;color:white;max-height:32dvh;overflow:auto}
+#phone-key-buttons{display:flex;gap:6px;flex-wrap:wrap}#phone-key-buttons button{min-width:44px;min-height:44px}#phone-key-buttons [aria-pressed=true]{background:#266de9;color:white}#phone-key-buttons .locked{outline:3px solid #ffd86b}
+#phone-text{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;font-size:16px;resize:none}
+#phone-help-sheet{width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:0;border-radius:20px;padding:24px;background:#fffdf9;color:#27241f;box-shadow:0 8px 40px #0006}
+#phone-help-sheet::backdrop{background:#101820b8}#phone-help-sheet dt{font-weight:650;margin-top:12px}#phone-help-sheet dd{margin:4px 0 0;line-height:1.45}#phone-help-close{width:100%;min-height:48px;margin-top:12px}
+@media(orientation:landscape){#phone-panel{top:12px;max-height:calc(100dvh - 24px);width:300px}#phone-keys{max-height:40dvh}}

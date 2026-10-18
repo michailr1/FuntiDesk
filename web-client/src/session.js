@@ -51,6 +51,7 @@ export class Session {
       if (message.login_response?.error) throw new Error('authentication_failed');
       if (message.login_response?.peer_info) {
         const info = message.login_response.peer_info;
+        this.displays = info.displays || []; this.display = info.current_display || 0;
         this.screen = info.displays?.[info.current_display || 0] || { x: 0, y: 0 };
         if (this.keyboard === null) this.keyboard = true;
         this.connected = true;
@@ -80,7 +81,9 @@ export class Session {
       if (this.closed) return;
       const { displayWidth: w, displayHeight: h } = frame;
       if (w <= 0 || h <= 0 || w > 8192 || h > 8192 || w * h > 33554432) { this.fail('invalid_video'); return; }
+      const resized = this.canvas.width !== w || this.canvas.height !== h;
       this.canvas.width = w; this.canvas.height = h;
+      if (resized) this.onScreen?.();
       this.canvas.getContext('2d', { alpha: false }).drawImage(frame, 0, 0);
       this.firstFrame = true;
       if (--this.pendingFrames === 0) this.socket.send({ misc: { video_received: true } });
@@ -89,6 +92,11 @@ export class Session {
   input(value) {
     if (!this.closed && this.connected && this.firstFrame && this.keyboard) {
       try { this.socket.send(value); } catch { this.fail('connection_closed'); }
+    }
+  }
+  configure(misc) {
+    if (!this.closed && this.connected && this.firstFrame) {
+      try { this.socket.send({ misc }); } catch { this.fail('connection_closed'); }
     }
   }
   fail(code) { this.close(); this.onState(errorText(code)); }
@@ -102,7 +110,7 @@ export class Session {
   }
 }
 export function errorText(code) {
-  return ({ unsupported_browser: 'Нужен настольный Chromium с поддержкой WebCodecs VP9.',
+  return ({ unsupported_browser: 'Нужен браузер с поддержкой WebCodecs VP9. Обновите Safari или Chrome и повторите попытку.',
     invalid_credentials: 'Введите ID и временный или постоянный пароль компьютера.',
     computer_unavailable: 'Компьютер недоступен. Проверьте ID и запущен ли FuntiDesk.',
     authentication_failed: 'Компьютер отклонил вход. Проверьте пароль и разрешения на компьютере.',

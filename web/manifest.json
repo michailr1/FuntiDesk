@@ -31,9 +31,21 @@
       "content_type": "image/jpeg"
     },
     {
+      "file": "connect/app.webmanifest",
+      "bytes": 397,
+      "sha256": "11b606b4508da0bcbe3c7c06fb7ff3916d8827b78f5ca501bad80de40e2888ff",
+      "content_type": "application/manifest+json"
+    },
+    {
+      "file": "connect/apple-touch-icon.png",
+      "bytes": 10048,
+      "sha256": "492301e5202f98f83201be197c49d2150930354847af8361496101b555b6bf64",
+      "content_type": "image/png"
+    },
+    {
       "file": "connect/index.html",
-      "bytes": 2461,
-      "sha256": "2c4a1f35dddcdf4928dc845ecc4b974bd6fb93de10e74a54d14a65fed34a9d59",
+      "bytes": 5601,
+      "sha256": "015026a28aa5dbe402297b0e791ce11c348a613d629fe9f62724f0c4b7388b49",
       "content_type": "text/html"
     },
     {
@@ -44,14 +56,14 @@
     },
     {
       "file": "connect/session.css",
-      "bytes": 292,
-      "sha256": "8420eb8c8c7f9ed52d5ddca390fcb632e6dae356b9cd5b95681d4e5060af5334",
+      "bytes": 2457,
+      "sha256": "f4e10bce04e840eebbcf219e10eb8eebc844826ca91bfc872b8ce112027aab1f",
       "content_type": "text/css"
     },
     {
       "file": "connect/session.js",
-      "bytes": 1076751,
-      "sha256": "e827c6467a2641fa67cb53bbe0532f35bc1e0873a6f0858f076855b647155cb8",
+      "bytes": 1087822,
+      "sha256": "58b61d157dc06e762124e7efb041193dd37edb20a570dbb0b76eb162a212d649",
       "content_type": "text/javascript"
     },
     {
