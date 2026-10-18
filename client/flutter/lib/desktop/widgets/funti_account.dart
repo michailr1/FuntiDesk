@@ -163,6 +163,27 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
     }
   }
 
+  Future<void> _cancelRemoval(int eventId) async {
+    if (busy) return;
+    final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Text(translate('funti-account-cancel-removal')),
+              content: Text(translate('funti-account-cancel-removal-confirm')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(translate('Cancel'))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(translate('funti-account-cancel-removal'))),
+              ],
+            ));
+    if (accepted == true && mounted) {
+      await command('cancel_removal', {'event_id': eventId});
+    }
+  }
+
   Map<String, dynamic> get library => data['library'] is Map ? Map<String, dynamic>.from(data['library']) : {};
 
   Future<void> _clearHistory() async {
@@ -277,6 +298,16 @@ class _FuntiAccountPanelState extends _AccountState<FuntiAccountPanel> {
                       '${translate('funti-account-removal-from')} ${_date(group.first['created_at'])}'),
                   Text(
                       '${translate('funti-account-confirmed')}: $done / ${group.length} ${translate('funti-account-shown-computers')}'),
+                  if (group.first['cancelled_at'] != null)
+                    Text(
+                        '${translate('funti-account-removal-cancelled')}: ${_date(group.first['cancelled_at'])}'),
+                  if (group.first['cancelled_at'] == null &&
+                      group.first['event_id'] is int)
+                    TextButton(
+                        onPressed: busy
+                            ? null
+                            : () => _cancelRemoval(group.first['event_id'] as int),
+                        child: Text(translate('funti-account-cancel-removal'))),
                   for (final row in group)
                     Text(
                         '${names[row['source_device_id']] ?? translate('funti-account-computer')}: ${row['acknowledged_at'] == null ? translate('funti-account-pending') : _date(row['acknowledged_at'])}'),
