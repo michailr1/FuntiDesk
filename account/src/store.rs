@@ -87,7 +87,7 @@ impl Store {
             "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;",
         )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 4 {
+        if version > 5 {
             bail!("unsupported database version");
         }
         if version == 0 {
@@ -98,6 +98,9 @@ impl Store {
         }
         if version < 4 {
             db.execute_batch(include_str!("schema-local.sql"))?;
+        }
+        if version < 5 {
+            db.execute_batch(include_str!("schema-cancel.sql"))?;
         }
         Ok(Self {
             db,
