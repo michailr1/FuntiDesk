@@ -41,10 +41,15 @@ const PAIR_CODE_TTL: Duration = Duration::from_secs(300);
 
 const HELP_TTL: Duration = Duration::from_secs(600);
 
+// A `#[cfg]` inside `lazy_static!` gates only the static, not its generated
+// type, so the Windows-only lock lives in its own block (Android build).
+#[cfg(windows)]
 lazy_static::lazy_static! {
     // FUNTIDESK (ADR-009): synchronize local edits with the account's atomic removal.
-    #[cfg(windows)]
     static ref MUTATION: Mutex<()> = Default::default();
+}
+
+lazy_static::lazy_static! {
     static ref PAIR_CODE: Mutex<Option<(String, Instant)>> = Default::default();
     // Family members asked for help from this computer: their next family
     // login here is accepted without "Accept" (the person asked themselves).
