@@ -20,11 +20,11 @@
   <main>
     <h1>Подключиться к компьютеру</h1>
     <p class="lead">Временный или постоянный пароль проверяет FuntiDesk на компьютере.</p>
-    <form id="connection-form" class="card" autocomplete="off">
-      <label for="peer-id">ID компьютера</label><input id="peer-id" inputmode="numeric" pattern="[0-9]{6,16}" maxlength="16" required>
-      <label for="password">Пароль компьютера</label><input id="password" type="password" maxlength="256" autocomplete="off" required>
+    <form id="connection-form" class="card" autocomplete="on">
+      <label for="peer-id">ID компьютера</label><input id="peer-id" name="username" autocomplete="username" inputmode="numeric" pattern="[0-9]{6,16}" maxlength="16" required>
+      <label for="password">Пароль компьютера</label><input id="password" name="password" type="password" maxlength="256" autocomplete="current-password" required>
       <div class="inline-actions"><button id="connect" type="submit">Подключиться</button><button id="disconnect" type="button" disabled>Завершить сеанс</button></div>
-      <p class="boundary-note">Вход в личный кабинет не даёт доступа. Пароли не сохраняются. Нужен браузер с WebCodecs VP9.</p>
+      <p class="boundary-note">Вход в личный кабинет не даёт доступа. Постоянный пароль можно подставить через системный менеджер паролей. FuntiDesk не записывает пароль в постоянное хранилище. Нужен браузер с WebCodecs VP9.</p>
     </form>
     <p id="status" class="message" role="status" aria-live="polite">Введите ID и пароль компьютера.</p>
     <div id="remote-stage"><canvas id="screen" tabindex="0" width="960" height="540" aria-label="Экран удалённого компьютера"></canvas><div id="phone-cursor" aria-hidden="true" hidden><svg viewBox="0 0 24 30" width="24" height="30"><path d="M2 2v22l6-6 5 10 4-2-5-10h9Z" fill="#111" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
