@@ -292,6 +292,13 @@ try {
           await page.getByRole('button',{name:'Понятно',exact:true}).click();const readonlyCount=input.length;
           await page.touchscreen.tap(180,400);await page.waitForTimeout(30);assert.equal(input.length,readonlyCount);
           await endReload();viewOnly=false;const afterEnd=connectionCount;await reload();await noReload(afterEnd);assert.equal(await page.evaluate(()=>window.reloadRecordPresent),false);
+          await login();const legacyCount=connectionCount;
+          await reload("const original=performance.getEntriesByType.bind(performance);performance.getEntriesByType=type=>type==='navigation'?[]:original(type);");
+          await started();assert.equal(connectionCount,legacyCount+1,'native legacy reload must work when Navigation Timing 2 is unavailable');
+          await endReload();
+          await login();const unknownCount=connectionCount;
+          await reload("performance.getEntriesByType=()=>[];Object.defineProperty(performance,'navigation',{value:undefined});");
+          await noReload(unknownCount);assert.match(await page.locator('#status').textContent(),/не сообщил об обновлении/);
           for(const mutation of [
             'value.createdAt=Date.now()-360000;value.expiresAt=Date.now()-60000;sessionStorage.setItem(key,JSON.stringify(value));',
             'value.createdAt=Date.now()+3600000;value.expiresAt=value.createdAt+300000;sessionStorage.setItem(key,JSON.stringify(value));',
@@ -318,7 +325,9 @@ try {
           await reload();await noReload(beforeTarget);assert.equal(await page.locator('#peer-id').inputValue(),'987654321');await page.locator('#peer-id').fill(id);
           await login();const beforeNavigation=connectionCount;await page.goto('https://desk.funti.cc/connect/?manual');await noReload(beforeNavigation);await page.locator('#peer-id').fill(id);
           await login();await page.evaluate(()=>Object.defineProperty(Storage.prototype,'setItem',{value(){throw new DOMException('Denied','SecurityError');}}));const beforeBlocked=connectionCount;
-          await reload();await noReload(beforeBlocked);
+          await reload();await noReload(beforeBlocked);assert.match(await page.locator('#status').textContent(),/Данные для восстановления отсутствуют/);
+          await login();await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
+          await page.locator('#connect:enabled').waitFor();assert.match(await page.locator('#status').textContent(),/вернул закрытую страницу/);
 
         }
         assert.equal(await page.locator('#peer-id').getAttribute('autocomplete'),'username');assert.equal(await page.locator('#password').getAttribute('autocomplete'),'current-password');

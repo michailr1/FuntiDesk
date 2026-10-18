@@ -35,7 +35,9 @@ $('connection-form').addEventListener('submit', (event) => {
 });
 $('disconnect').addEventListener('click', () => { stop(); $('status').textContent = 'Сеанс завершён.'; });
 window.addEventListener('pagehide', () => { recovery?.saveReload(); stop(true); });
-window.addEventListener('pageshow', (event) => { if (event.persisted) Recovery.forgetReload(); });
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) { Recovery.forgetReload(); if (recovery) $('status').textContent = errorText('recovery_page_restored'); }
+});
 const buttons = new Set(); const keys = new Map();
 const modifier = (e) => [e.altKey && controls.Alt, e.ctrlKey && controls.Control, e.shiftKey && controls.Shift, e.metaKey && controls.Meta].filter(Boolean);
 function release() {
@@ -86,7 +88,11 @@ const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click
 const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;
 
 await ready;
-if (recovery?.restoreReload(target)) {
+const restored = recovery?.restoreReload(target);
+if (restored === true) {
   $('peer-id').value = recovery.auth.id;
   recovery.resume();
-} else Recovery.forgetReload();
+} else {
+  Recovery.forgetReload();
+  if (typeof restored === 'string') $('status').textContent = errorText(restored);
+}
