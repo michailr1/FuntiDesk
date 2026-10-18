@@ -57,6 +57,7 @@ export class Session {
         this.connected = true;
         this.onState('Подключено. Нажмите на экран для управления.', true);
       }
+      if (message.cursor_position) this.onCursor?.(message.cursor_position);
       if (message.test_delay && !message.test_delay.from_client) socket.send({ test_delay: message.test_delay });
       if (message.misc?.permission_info && (message.misc.permission_info.permission || 0) === 0) {
         this.keyboard = message.misc.permission_info.enabled === true;
