@@ -1,6 +1,7 @@
 import { passwordKey, challengeProof, wipe } from './protocol.js';
 const WINDOW = 5 * 60 * 1000;
 const RELOAD = 'funtidesk.phone-reload.v1';
+const ATTEMPT = 'funtidesk.phone-reload.attempt';
 const bytes = (value) => Array.isArray(value) && value.length === 32 && value.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
 const transient = new Set(['connection_closed', 'network_error', 'network_timeout']);
 
@@ -12,7 +13,7 @@ export class Recovery {
       else { if (this.deadline && Date.now() >= this.deadline) this.expire(); else if (this.waiting) this.resume(); else if (this.auth?.confirmed && !this.recovering) this.ready(); }
     });
   }
-  static forgetReload() { try { sessionStorage.removeItem(RELOAD); } catch { /* Storage may be unavailable. */ } }
+  static forgetReload() { try { sessionStorage.removeItem(RELOAD); sessionStorage.removeItem(ATTEMPT); } catch { /* Storage may be unavailable. */ } }
   clear(preserveReload = false) {
     if (!preserveReload) Recovery.forgetReload();
     clearTimeout(this.timer); wipe(this.auth?.salted);
@@ -25,9 +26,10 @@ export class Recovery {
     const createdAt = Date.now(), expiresAt = this.deadline || createdAt + WINDOW;
     try {
       // This derived credential is password-equivalent. Never store a cleartext password.
+      sessionStorage.setItem(ATTEMPT, String(createdAt));
       sessionStorage.setItem(RELOAD, JSON.stringify({ version: 1, id, peerKey: [...peerKey], salt,
         salted: [...salted], clientId, sessionId, createdAt, expiresAt }));
-    } catch { Recovery.forgetReload(); } // Failure leaves the ordinary password-entry path.
+    } catch { try { sessionStorage.removeItem(RELOAD); } catch { /* Keep only the non-secret attempt marker, if saved. */ } }
   }
   static navigationType() {
     const type = performance.getEntriesByType?.('navigation')?.[0]?.type;
@@ -37,12 +39,18 @@ export class Recovery {
   }
   restoreReload(target) {
     const navigation = Recovery.navigationType();
-    let raw;
-    try { raw = sessionStorage.getItem(RELOAD); sessionStorage.removeItem(RELOAD); }
+    let raw, attempt;
+    try {
+      raw = sessionStorage.getItem(RELOAD); attempt = sessionStorage.getItem(ATTEMPT);
+      sessionStorage.removeItem(RELOAD); sessionStorage.removeItem(ATTEMPT);
+    }
     catch { return navigation === 'reload' ? 'recovery_storage_unavailable' : false; }
     if (location.origin !== 'https://desk.funti.cc') return false;
     if (navigation !== 'reload') return raw && !navigation ? 'recovery_navigation_unavailable' : false;
-    if (!raw) return 'recovery_missing';
+    if (!raw) {
+      const savedAt = Number(attempt), now = Date.now();
+      return attempt && Number.isSafeInteger(savedAt) && savedAt <= now && now - savedAt <= WINDOW ? 'recovery_missing' : false;
+    }
     if (raw.length > 4096) return 'recovery_unavailable';
     try {
       const value = JSON.parse(raw), now = Date.now();
