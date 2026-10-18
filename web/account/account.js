@@ -65,6 +65,7 @@
   function errorText(error) {
     if (error.code === 'wrong_origin') return 'Откройте кабинет по адресу https://desk.funti.cc/account/.';
     if (error.code === 'invalid_code') return 'Код неверный или больше не действует. Проверьте письмо или запросите новый код.';
+    if (error.code === 'too_many_sessions') return 'Достигнут лимит 20 входов. Выйдите из кабинета на одном из устройств и повторите ввод кода.';
     if (error.code === 'try_later' || error.status === 429) return 'Слишком много запросов. Попробуйте немного позже.';
     if (error.status === 409) return 'Список изменён на другом устройстве. Обновите списки и повторите действие.';
     if (error.status === 403) return 'Не удалось подтвердить запрос. Обновите страницу и повторите действие.';
