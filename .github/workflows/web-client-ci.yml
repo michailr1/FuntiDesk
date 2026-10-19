@@ -1,9 +1,9 @@
 name: Browser client checks
 on:
   push:
-    paths: ['web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
+    paths: ['web/index.html', 'web/style.css', 'web/app.js', 'web/theme*', 'web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
   pull_request:
-    paths: ['web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
+    paths: ['web/index.html', 'web/style.css', 'web/app.js', 'web/theme*', 'web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -31,3 +31,6 @@ jobs:
       - name: Run encrypted browser session against protocol fixture
         working-directory: web-client
         run: CHROMIUM_PATH="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')" npm run test:browser
+      - name: Check landing animation, themes and warmed browser cache
+        working-directory: web-client
+        run: CHROMIUM_PATH="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')" npm run test:landing

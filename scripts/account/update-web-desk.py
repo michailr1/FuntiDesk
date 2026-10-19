@@ -22,11 +22,11 @@ def load(name):
     return module
 
 
-LANDING_FILES = ('index.html', 'style.css', 'theme.js', 'mark.svg')
+LANDING_FILES = ('index.html', 'style.css', 'theme.js', 'mark.svg', 'app.js')
 
 
 def stage_landing(release):
-    """Keep deployed account/connect bytes; replace only the landing's four assets."""
+    """Keep deployed account/connect bytes; replace only the landing's assets."""
     rows = {v['file']: v for v in json.loads((REPO / 'web/manifest.json').read_text())['artifacts']}
     for name in LANDING_FILES:
         path = REPO / 'web' / name
