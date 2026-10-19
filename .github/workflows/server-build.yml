@@ -72,5 +72,5 @@ jobs:
           gh release create "$tag" dist/hbbs dist/hbbr dist/SHA256SUMS \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "FuntiDesk server ${GITHUB_SHA::12}" \
+            --title "Сервер Linux x64 — FuntiDesk ${GITHUB_SHA::12}" \
             --notes "hbbs/hbbr x86_64-unknown-linux-musl from commit ${GITHUB_SHA}. See ADR-004."

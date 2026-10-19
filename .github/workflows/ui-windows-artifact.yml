@@ -166,7 +166,7 @@ jobs:
           "@
           gh release create $tag $zip $single $versionFile $whatsNew (Join-Path $dist 'SHA256SUMS.txt') `
             --target $env:GITHUB_SHA --latest `
-            --title "FuntiDesk для Windows $short" `
+            --title "Windows x64 — FuntiDesk $((Get-Content $versionFile -Raw).Trim())" `
             --notes ($notes -replace '(?m)^ {10}', '')
 
       - name: Upload build logs

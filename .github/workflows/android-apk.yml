@@ -243,7 +243,7 @@ jobs:
           tag="funtidesk-android-${GITHUB_SHA::12}"
           notes="Тестовая сборка Android-клиента FuntiDesk (arm64), коммит ${GITHUB_SHA}. Отладочная подпись: установка вручную из файла, не для распространения."
           gh release create "$tag" dist/FuntiDesk-android-arm64.apk dist/SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title "FuntiDesk Android ${GITHUB_SHA::12}" \
+            --target "$GITHUB_SHA" --title "Android arm64 — FuntiDesk (тестовая сборка ${GITHUB_SHA::12})" \
             --notes "$notes" --prerelease --latest=false
 
       # Job logs of this public repository need a GitHub login to read; the
@@ -258,7 +258,7 @@ jobs:
           [ -f ci-log.txt ] || echo "no log" > ci-log.txt
           tail -c 3000000 ci-log.txt > android-ci-log.txt
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --title "Android CI log" --prerelease --latest=false \
+            gh release create "$tag" --title "Служебное — журнал сборки Android" --prerelease --latest=false \
               --notes "Лог последней неудачной сборки Android (служебный)."
           fi
           gh release upload "$tag" android-ci-log.txt --clobber
