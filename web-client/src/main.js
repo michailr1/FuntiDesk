@@ -1,16 +1,18 @@
+import { FilePanel } from './files-ui.js';
 import { Session, errorText } from './session.js';
 import { controls, ready } from './protocol.js';
 import { Recovery } from './recovery.js';
 import { PhoneConsole } from './phone.js';
 const $ = (id) => document.getElementById(id);
-const canvas = $('screen'); let active; let hadSessionOnHide = false;
+const canvas = $('screen'); let active; let files; let hadSessionOnHide = false;
 let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
 if (location.hash) history.replaceState(null, '', location.pathname);
-function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
+function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); files?.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
 async function connect(id, password) {
-  const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); } });
+  const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); files?.sync(); } });
+  session.onFilePermission = () => files?.sync();
   if (recovery) session.onFirstFrame = () => recovery.ready();
   if (phone.enabled) session.onCursor = (point) => phone.remoteCursor(point);
   if (phone.enabled) session.onScreen = () => { phone.cursor = { x: canvas.width / 2, y: canvas.height / 2 }; phone.layout(); };
@@ -19,7 +21,7 @@ async function connect(id, password) {
   catch (error) {
     if (active !== session) return;
     const code = session.failure || error.message;
-    session.close(); active = null; phone.sync();
+    session.close(); active = null; phone.sync(); files?.sync();
     if (recovery?.interrupted(code)) {
       $('status').textContent = 'Соединение прервано. Восстановим его при возвращении в течение 5 минут.';
       recovery.resume();
@@ -87,6 +89,7 @@ function key(e, down) {
 canvas.addEventListener('keydown', (e) => key(e, true));
 canvas.addEventListener('keyup', (e) => key(e, false));
 const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click());
+files = new FilePanel(() => active, () => {phone.reset();$('phone-panel').hidden = true;$('phone-text').blur();$('phone-keys').hidden = true;});
 
 const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;
 

@@ -23,7 +23,7 @@
     <form id="connection-form" class="card" autocomplete="on">
       <label for="peer-id">ID компьютера</label><input id="peer-id" name="username" autocomplete="username" inputmode="numeric" pattern="[0-9]{6,16}" maxlength="16" required>
       <label for="password">Пароль компьютера</label><input id="password" name="password" type="password" maxlength="256" autocomplete="current-password" required>
-      <div class="inline-actions"><button id="connect" type="submit">Подключиться</button><button id="disconnect" type="button" disabled>Завершить сеанс</button></div>
+      <div class="inline-actions"><button id="connect" type="submit">Подключиться</button><button id="files-open" type="button" hidden>Файлы</button><button id="disconnect" type="button" disabled>Завершить сеанс</button></div>
       <p class="boundary-note">Вход в личный кабинет не даёт доступа. Постоянный пароль можно подставить через системный менеджер паролей. FuntiDesk не записывает пароль в постоянное хранилище. Нужен браузер с WebCodecs VP9.</p>
     </form>
     <p id="status" class="message" role="status" aria-live="polite">Введите ID и пароль компьютера.</p>
@@ -41,7 +41,7 @@
       <div><button id="phone-fit" type="button">По размеру экрана</button><button id="phone-actual" type="button">1:1</button></div>
       <label>Масштаб <input id="phone-zoom" type="range" min="1" max="400" step="1" value="100"></label>
       <label>Качество <select id="phone-quality"><option value="2">Быстрее</option><option value="3" selected>Сбалансированное</option><option value="4">Лучшее</option></select></label>
-      <button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button>
+      <button id="phone-files" type="button" hidden>Файлы</button><button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button>
     </section>
     <section id="phone-keys" hidden aria-label="Клавиши компьютера">
       <div id="phone-input-row"><textarea id="phone-text" rows="1" aria-label="Текст для компьютера" placeholder="Текст для компьютера" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><button id="phone-keys-close" type="button">Скрыть</button></div>
@@ -59,5 +59,24 @@
       <button id="phone-help-close" type="button" autofocus>Понятно</button>
     </dialog>
   </aside>
+  <dialog id="files-dialog" aria-labelledby="files-title">
+    <div class="files-heading"><h2 id="files-title">Файлы компьютера</h2><button id="files-close" type="button" aria-label="Закрыть файлы">×</button></div>
+    <p>До 50 МБ на файл. Не закрывайте страницу во время передачи.</p>
+    <form id="files-login" autocomplete="on">
+      <label for="files-id">ID компьютера</label><input id="files-id" name="username" autocomplete="username" readonly>
+      <label for="files-password">Пароль компьютера</label><input id="files-password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+      <button id="files-login-button" type="submit">Открыть файлы</button>
+    </form>
+    <section id="files-browser" hidden aria-label="Папки и передача файлов">
+      <div class="files-actions"><button id="files-home" type="button">Домашняя папка</button><button id="files-drives" type="button">Диски</button><button id="files-up" type="button">Выше</button><button id="files-refresh" type="button">Обновить</button></div>
+      <form id="files-folder-form"><label for="files-path">Папка компьютера</label><input id="files-path" maxlength="4096" autocomplete="off"><button id="files-folder-go" type="submit">Перейти</button></form>
+      <ul id="files-list" aria-label="Содержимое папки"></ul>
+      <form id="files-upload"><label for="files-pick">Файл или фото с этого устройства</label><input id="files-pick" type="file">
+        <label for="files-name">Имя на компьютере</label><input id="files-name" maxlength="255" autocomplete="off"><button id="files-send" type="submit">Отправить</button></form>
+      <progress id="files-progress" hidden aria-label="Прогресс передачи"></progress><button id="files-cancel" type="button" hidden>Отменить передачу</button>
+      <a id="files-save" hidden>Сохранить</a><p>На iPhone файл сохраняется средствами Safari в «Файлы»; при открытии предпросмотра выберите «Поделиться → Сохранить в Файлы».</p>
+    </section>
+    <p id="files-status" role="status" aria-live="polite"></p>
+  </dialog>
 </body>
 </html>

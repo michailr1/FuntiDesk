@@ -6,7 +6,7 @@ export class Session {
   constructor(canvas, onState) {
     this.canvas = canvas; this.onState = onState; this.closed = false;
     this.sockets = []; this.keys = null; this.decoder = null; this.connected = false; this.firstFrame = false;
-    this.keyboard = null; this.screen = { x: 0, y: 0 }; this.pendingFrames = 0;
+    this.keyboard = null; this.filesAllowed = null; this.screen = { x: 0, y: 0 }; this.pendingFrames = 0;
   }
   async start(id, password, recovery = null) {
     await ready;
@@ -32,6 +32,7 @@ export class Session {
     const first = await socket.next();
     const exchange = handshake(relay.pk, first.signed_id?.id, id);
     socket.send({ public_key: exchange.public_key });
+    this.id = id; this.peerKey = exchange.peerKey.slice();
     this.keys = [exchange.sendKey, exchange.receiveKey]; socket.secure(this.keys);
     const hash = await socket.next();
     if (!hash.hash?.salt || !hash.hash?.challenge) throw new Error('invalid_handshake');
@@ -56,6 +57,7 @@ export class Session {
         this.displays = info.displays || []; this.display = info.current_display || 0;
         this.screen = info.displays?.[info.current_display || 0] || { x: 0, y: 0 };
         if (this.keyboard === null) this.keyboard = true;
+        if (this.filesAllowed === null) this.filesAllowed = true;
         this.connected = true;
         this.onState('Подключено. Нажмите на экран для управления.', true);
       }
@@ -65,6 +67,7 @@ export class Session {
         this.keyboard = message.misc.permission_info.enabled === true;
         if (!this.keyboard) this.onState('Компьютер разрешил только просмотр.', true);
       }
+      if (message.misc?.permission_info?.permission === 4) { this.filesAllowed = message.misc.permission_info.enabled === true; this.onFilePermission?.(); }
       if (message.misc?.close_reason) throw new Error('remote_closed');
       if (message.misc?.switch_display) { this.screen = message.misc.switch_display; this.decoder.reset(); this.decoder.configure({ codec: 'vp09.00.10.08', optimizeForLatency: true }); }
       if (message.video_frame && this.connected) this.video(message.video_frame);
@@ -106,7 +109,7 @@ export class Session {
   fail(code) { this.failure = code; this.close(); this.onState(errorText(code)); }
   close() {
     if (this.closed) return;
-    this.closed = true; this.connected = false; this.keyboard = false;
+    this.closed = true; this.connected = false; this.filesAllowed = false; this.onFilePermission?.(); this.keyboard = false;
     for (const socket of this.sockets) socket.close();
     if (this.decoder && this.decoder.state !== 'closed') this.decoder.close();
     if (this.keys) for (const key of this.keys) wipe(key);

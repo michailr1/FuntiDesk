@@ -23,25 +23,30 @@ def load(name):
 
 
 LANDING_FILES = ('index.html', 'style.css', 'theme.js', 'mark.svg', 'app.js')
+CONSOLE_FILES = tuple('connect/' + name for name in ('index.html', 'session.css', 'session.js', 'licenses.html', 'source.html', 'app.webmanifest', 'apple-touch-icon.png'))
 
 
-def stage_landing(release):
-    """Keep deployed account/connect bytes; replace only the landing's assets."""
+def stage_subset(release, files):
+    """Keep deployed pages outside the selected static component."""
     rows = {v['file']: v for v in json.loads((REPO / 'web/manifest.json').read_text())['artifacts']}
-    for name in LANDING_FILES:
+    for name in files:
         path = REPO / 'web' / name
         if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != rows[name]['sha256']:
-            raise RuntimeError('Landing manifest mismatch')
+            raise RuntimeError('Selected web manifest mismatch')
     for path in CURRENT.rglob('*'):
         if path.is_symlink() or not (path.is_file() or path.is_dir()):
             raise RuntimeError('Unexpected deployed web entry')
     shutil.copytree(CURRENT, release)
-    for name in LANDING_FILES:
+    for name in files:
         shutil.copyfile(REPO / 'web' / name, release / name)
         (release / name).chmod(0o444)
 
 
-def update(landing_only=False):
+def update(landing_only=False, console_only=False):
+    if landing_only and console_only:
+        raise RuntimeError('Select only one static component')
+    selected = CONSOLE_FILES if console_only else LANDING_FILES if landing_only else None
+    kind = 'console' if console_only else 'landing' if landing_only else 'web'
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc' or not (ROOT / 'ACTIVATED').is_file():
         raise RuntimeError('Static update requires the active Core cabinet')
     library = load('update-library-desk')
@@ -70,19 +75,19 @@ def update(landing_only=False):
     hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in protected}
     stable = {v['Name']: v['Id'] for v in before if v['Id'] != caddy['Id']}
     old_link = os.readlink(CURRENT)
-    release = CURRENT.parent / 'releases' / (source + ('-landing' if landing_only else '-web'))
+    release = CURRENT.parent / 'releases' / (source + '-' + kind)
     preserved = {p.relative_to(CURRENT).as_posix(): hashlib.sha256(p.read_bytes()).digest()
-                 for p in CURRENT.rglob('*') if p.is_file() and p.relative_to(CURRENT).as_posix() not in LANDING_FILES} if landing_only else {}
+                 for p in CURRENT.rglob('*') if p.is_file() and p.relative_to(CURRENT).as_posix() not in selected} if selected else {}
     previous_umask = os.umask(0o022)
     try:
-        if landing_only:
-            stage_landing(release)
+        if selected:
+            stage_subset(release, selected)
         else:
             library.stage_full_web(release)
             (release / 'SOURCE_COMMIT').write_text(source + '\n')
     finally:
         os.umask(previous_umask)
-    directory = ROOT / 'updates' / (('landing-' if landing_only else 'web-') + source[:12])
+    directory = ROOT / 'updates' / (kind + '-' + source[:12])
     directory.mkdir(mode=0o700)
     library.private_file(directory / 'before.json', json.dumps({'webroot': old_link, 'source': source}).encode())
     activation = load('activate-desk')
@@ -106,7 +111,7 @@ def update(landing_only=False):
         assert all(hashlib.sha256((release / name).read_bytes()).digest() == digest for name, digest in preserved.items())
         library.private_file(directory / 'receipt.json', json.dumps({'webSource': source, 'webroot': str(release),
                              'previousWebroot': old_link, 'apiAndOtherContainersPreserved': True,
-                             'landingOnly': landing_only,
+                             'landingOnly': landing_only, 'consoleOnly': console_only,
                              'caddyConfigImageVolumesAndNetworksPreserved': True}).encode())
         print('DESK_STATIC_WEB_READY')
     except Exception:
@@ -118,10 +123,12 @@ def update(landing_only=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--landing-only', action='store_true', help='Preserve deployed cabinet and console; update only the landing page')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--console-only', action='store_true', help='Update console assets, preserving the deployed landing page and cabinet')
+    group.add_argument('--landing-only', action='store_true', help='Preserve deployed cabinet and console; update only the landing page')
     args = parser.parse_args()
     try:
-        update(landing_only=args.landing_only)
+        update(landing_only=args.landing_only, console_only=args.console_only)
     except Exception as error:
         print('DESK_STATIC_WEB_FAILED: ' + (str(error) if isinstance(error, RuntimeError) else type(error).__name__))
         raise SystemExit(1)

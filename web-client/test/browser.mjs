@@ -238,6 +238,15 @@ try {
         await page.locator('#phone-menu').click();
       }else await page.keyboard.press('b');
       await page.waitForTimeout(50);assert.equal(input.length,before);
+      if(scenario==='valid'){
+        await page.locator('#files-open').waitFor({state:'visible'});const beforeFiles=connectionCount;
+        await page.locator('#files-open').click();assert.equal(await page.locator('#files-id').inputValue(),id);
+        assert.equal(connectionCount,beforeFiles,'opening a panel cannot silently authorize another channel');
+        send({misc:{permission_info:{permission:4,enabled:false}}});
+        await page.waitForFunction(()=>!document.getElementById('files-dialog').open);
+        assert.equal(await page.locator('#files-open').isVisible(),false);assert.equal(await page.locator('#disconnect').isEnabled(),true);
+        send({misc:{permission_info:{permission:4,enabled:true}}});await page.locator('#files-open').waitFor({state:'visible'});
+      }
       await page.locator(phone?'#phone-end':'#disconnect').click();await page.locator('#connect:enabled').waitFor();
       if(phone){
         assert.equal(await page.evaluate(()=>window.wakeReleases),1);assert.equal(await page.locator('#phone-text').inputValue(),'');
