@@ -34,3 +34,6 @@ jobs:
       - name: Check landing animation, themes and warmed browser cache
         working-directory: web-client
         run: CHROMIUM_PATH="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')" npm run test:landing
+      - name: Check encrypted file authentication and transfers
+        working-directory: web-client
+        run: CHROMIUM_PATH="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')" npm run test:files

@@ -17,7 +17,7 @@ spec.loader.exec_module(update)
 
 
 class StaticUpdate(unittest.TestCase):
-    def exercise(self, readiness_fails=False, config_changed=False, schema=4, landing_only=False):
+    def exercise(self, readiness_fails=False, config_changed=False, schema=4, landing_only=False, console_only=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'ACTIVATED').touch()
@@ -73,22 +73,24 @@ class StaticUpdate(unittest.TestCase):
             with patch.object(update, 'ROOT', root), patch.object(update, 'CURRENT', current), patch.object(update, 'CADDY', root / 'Caddyfile'), patch.object(update.socket, 'gethostname', return_value='core.funti.cc'), patch.object(update.os, 'geteuid', return_value=0), patch.object(update, 'load', side_effect=lambda name: library if name == 'update-library-desk' else activation), contextlib.redirect_stdout(io.StringIO()):
                 if readiness_fails or config_changed:
                     with self.assertRaises(RuntimeError):
-                        update.update(landing_only=landing_only)
+                        update.update(landing_only=landing_only, console_only=console_only)
                     self.assertEqual(os.readlink(current), old)
                     self.assertFalse(list((root / 'updates').glob('*/receipt.json')))
                     self.assertEqual(len(recreates), 0 if config_changed else 2)
                 else:
-                    update.update(landing_only=landing_only)
+                    update.update(landing_only=landing_only, console_only=console_only)
                     receipt = json.loads(next((root / 'updates').glob('*/receipt.json')).read_text())
                     self.assertTrue(receipt['apiAndOtherContainersPreserved'])
                     self.assertEqual(receipt['webroot'], os.readlink(current))
                     self.assertEqual(len(recreates), 1)
                     self.assertEqual(receipt['landingOnly'], landing_only)
-                    if landing_only:
-                        for name in update.LANDING_FILES:
+                    self.assertEqual(receipt['consoleOnly'], console_only)
+                    if landing_only or console_only:
+                        selected = update.CONSOLE_FILES if console_only else update.LANDING_FILES
+                        for name in selected:
                             self.assertEqual((current / name).read_bytes(), (update.REPO / 'web' / name).read_bytes())
                         for name, contents in baseline.items():
-                            if name not in update.LANDING_FILES:
+                            if name not in selected:
                                 self.assertEqual((current / name).read_bytes(), contents)
                 for name, contents in baseline.items():
                     self.assertEqual((root / 'releases/old' / name).read_bytes(), contents)
@@ -113,6 +115,16 @@ class StaticUpdate(unittest.TestCase):
     def test_landing_readiness_failure_restores_previous_release(self):
         self.exercise(landing_only=True, readiness_fails=True)
 
+    def test_console_update_preserves_landing_and_v4_cabinet(self):
+        self.exercise(console_only=True)
+
+    def test_console_readiness_failure_restores_previous_release(self):
+        self.exercise(console_only=True, readiness_fails=True)
+
+    def test_components_cannot_be_combined(self):
+        with self.assertRaisesRegex(RuntimeError, 'Select only one'):
+            update.update(landing_only=True, console_only=True)
+
     def test_landing_rejects_symlinks_without_following_them(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -120,7 +132,7 @@ class StaticUpdate(unittest.TestCase):
             (root / 'old/unsafe').symlink_to('/etc')
             with patch.object(update, 'CURRENT', root / 'old'):
                 with self.assertRaisesRegex(RuntimeError, 'Unexpected deployed web entry'):
-                    update.stage_landing(root / 'new')
+                    update.stage_subset(root / 'new', update.LANDING_FILES)
             self.assertFalse((root / 'new').exists())
 
 

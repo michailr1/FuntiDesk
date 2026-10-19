@@ -20,7 +20,7 @@ const generated = await new Promise((resolve, reject) => pbjs([
 ], (error, output) => error ? reject(error) : resolve(output)));
 fs.writeFileSync(path.join(here, 'src/schema.generated.js'), generated.replaceAll('protobufjs/minimal\"', 'protobufjs/minimal.js\"'));
 const escape = (s) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-const notices = ['libsodium', 'libsodium-wrappers', 'protobufjs', 'long'].map((name) => {
+const notices = ['libsodium', 'libsodium-wrappers', 'protobufjs', 'long', 'fzstd'].map((name) => {
   const pkg = JSON.parse(fs.readFileSync(path.join(here, 'node_modules', name, 'package.json')));
   return '<h2>' + escape(name + ' ' + pkg.version) + '</h2><pre>' + escape(fs.readFileSync(path.join(here, 'node_modules', name, 'LICENSE'), 'utf8')) + '</pre>';
 }).join('');

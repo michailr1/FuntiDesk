@@ -44,26 +44,26 @@
     },
     {
       "file": "connect/index.html",
-      "bytes": 6286,
-      "sha256": "f7683182c3c6916e0c3e271d20553b33d685a90a3a27ad35208f805a5854afc6",
+      "bytes": 8862,
+      "sha256": "fcdbdb51615e931d9d8b5ed0cec8c736200b6ccfdbdffd9de91a6fa83e139473",
       "content_type": "text/html"
     },
     {
       "file": "connect/licenses.html",
-      "bytes": 15319,
-      "sha256": "b447bf128d1a2ab6516bb7f8aa044911d8351574c08769a25a66c1b15ecc7614",
+      "bytes": 16419,
+      "sha256": "436cab123f9d953809b09796eef12ce347a3fc8443a463351a538f05f2212209",
       "content_type": "text/html"
     },
     {
       "file": "connect/session.css",
-      "bytes": 3145,
-      "sha256": "f839927a184ac622d9782f9d924a195001946e363b1fbe47905d0ecf56ebc7be",
+      "bytes": 4291,
+      "sha256": "559a0905a2abd3effdc8eafe2807dfc53f621591586f41b8d37b60ac1324d017",
       "content_type": "text/css"
     },
     {
       "file": "connect/session.js",
-      "bytes": 1097991,
-      "sha256": "5327aac61911582e29d6e68a43c6047f940c07de5186d9525c7f27bf297d9bd4",
+      "bytes": 1124081,
+      "sha256": "55191f1d96af08e1615ce434f7fadccf40f490c652aa68a5f7849bd295789462",
       "content_type": "text/javascript"
     },
     {

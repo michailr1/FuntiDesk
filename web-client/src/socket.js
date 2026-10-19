@@ -29,6 +29,15 @@ export class Socket {
     if (this.keys) bytes = encrypt(bytes, ++this.sendCount, this.keys[0]);
     this.ws.send(bytes);
   }
+  async drain(valid = () => true) {
+    const deadline = Date.now() + 30000;
+    while (this.ws.bufferedAmount > 256 * 1024) {
+      if (this.closed || !valid()) throw new Error('cancelled');
+      if (Date.now() >= deadline) throw new Error('network_timeout');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    if (this.closed || !valid()) throw new Error('cancelled');
+  }
   async next(timeout = 30000) {
     if (this.closed) throw new Error(this.reason || 'connection_closed');
     if (this.queue.length) { const next = this.queue.shift(); this.queuedBytes -= next.size; return next.value; }
