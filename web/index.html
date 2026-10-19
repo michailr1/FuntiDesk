@@ -1,104 +1,17 @@
-<!doctype html>
-<html lang="ru" data-theme="light">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#F4F1EC">
-  <meta name="description" content="FuntiDesk — удалённый доступ к своим компьютерам. Скачать приложение, открыть веб-консоль или личный кабинет.">
-  <title>FuntiDesk — скачать приложение и подключиться</title>
-  <link rel="icon" href="/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css">
-  <script src="/theme.js"></script>
-</head>
-<body>
-  <a class="skip-link" href="#main">К содержимому</a>
-  <header class="site-header">
-    <a class="brand" href="/" aria-label="FuntiDesk — главная"><img src="/mark.svg" width="34" height="34" alt="">FuntiDesk</a>
-    <nav aria-label="Главная навигация">
-      <a href="#download">Скачать</a>
-      <a href="/connect/">Веб-консоль</a>
-    </nav>
-    <div class="header-tools">
-      <label class="theme-picker"><span class="sr-only">Тема сайта</span><select data-theme-select aria-label="Тема сайта"><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="system">Как в системе</option></select></label>
-      <a class="account-link" href="/account/" aria-label="Личный кабинет" title="Личный кабинет">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-        <span>Кабинет</span>
-      </a>
-    </div>
-  </header>
-  <main id="main">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">FUNTIDESK / ДЛЯ СВОИХ</p>
-        <h1 id="hero-title">Ваш компьютер.<br><span>Всегда под рукой.</span></h1>
-        <p class="lead">Подключитесь к домашнему компьютеру, откройте нужный файл или помогите близким. С компьютера и прямо из браузера.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/michailr1/FuntiDesk/releases/latest/download/FuntiDesk-portable.exe">Скачать для Windows <span aria-hidden="true">↓</span></a>
-          <a class="button secondary" href="/connect/">Открыть веб-консоль <span aria-hidden="true">→</span></a>
-        </div>
-        <a class="sub-link" href="#download">Все платформы и варианты загрузки <span aria-hidden="true">↓</span></a>
-      </div>
-      <aside class="entry-points" aria-label="Войти в FuntiDesk">
-        <a class="entry-card console-card" href="/connect/">
-          <span class="card-top"><span class="eyebrow">ПОДКЛЮЧЕНИЕ В БРАУЗЕРЕ</span><span aria-hidden="true">→</span></span>
-          <svg class="entry-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="10" width="52" height="35" rx="4"/><path d="M22 55h20M32 45v10m-9-29 6 6 12-13"/></svg>
-          <h2>Веб-консоль</h2>
-          <p>Введите ID компьютера и временный или постоянный пароль. На телефоне можно работать без установки приложения.</p>
-          <span class="card-action">Подключиться к компьютеру <span aria-hidden="true">→</span></span>
-        </a>
-        <a class="entry-card cabinet-card" href="/account/">
-          <span class="card-top"><span class="eyebrow">ВАШ АККАУНТ</span><span aria-hidden="true">→</span></span>
-          <h2>Личный кабинет</h2>
-          <p>Устройства, избранное и история подключений. Вход в кабинет сам по себе не даёт доступа к компьютеру.</p>
-          <span class="card-action">Войти по почте <span aria-hidden="true">→</span></span>
-        </a>
-      </aside>
-    </section>
-    <section id="download" class="downloads" aria-labelledby="download-title">
-      <div class="section-heading">
-        <div><p class="eyebrow">01 / ПРИЛОЖЕНИЯ</p><h2 id="download-title">Скачать FuntiDesk</h2></div>
-        <p>Выберите свою систему.<br>Файлы загружаются из официального репозитория FuntiDesk.</p>
-      </div>
-      <div class="download-grid">
-        <article class="download-card" aria-labelledby="windows-title">
-          <div class="card-top"><h3 id="windows-title">Windows</h3><span class="badge">x64</span></div>
-          <p>Один файл для запуска без установки. Установить службу для постоянного доступа можно в приложении.</p>
-          <a class="button primary" href="https://github.com/michailr1/FuntiDesk/releases/latest/download/FuntiDesk-portable.exe">Скачать .exe <span aria-hidden="true">↓</span></a>
-          <div class="download-links">
-            <a href="https://github.com/michailr1/FuntiDesk/releases/latest/download/FuntiDesk-windows-x64.zip">Скачать архив .zip</a>
-            <a href="https://github.com/michailr1/FuntiDesk/releases?q=funtidesk-windows-&amp;expanded=true">Все выпуски Windows →</a>
-            <a href="https://github.com/michailr1/FuntiDesk/releases/latest/download/SHA256SUMS.txt">Контрольные суммы SHA-256</a>
-          </div>
-        </article>
-        <article class="download-card" aria-labelledby="android-title">
-          <div class="card-top"><h3 id="android-title">Android</h3><span class="badge testing">Тестовая · arm64</span></div>
-          <p>APK для ручной установки. Сборка с отладочной подписью предназначена для тестирования, не для обычного распространения.</p>
-          <a class="button secondary" href="https://github.com/michailr1/FuntiDesk/releases/download/funtidesk-android-cae81d2cafd6/FuntiDesk-android-arm64.apk">Скачать тестовый .apk <span aria-hidden="true">↓</span></a>
-          <div class="download-links">
-            <a href="https://github.com/michailr1/FuntiDesk/releases/tag/funtidesk-android-cae81d2cafd6">Об этой тестовой сборке →</a>
-            <a href="https://github.com/michailr1/FuntiDesk/releases?q=funtidesk-android-&amp;expanded=true">Все выпуски Android →</a>
-            <a href="https://github.com/michailr1/FuntiDesk/releases/download/funtidesk-android-cae81d2cafd6/SHA256SUMS.txt">Контрольная сумма SHA-256</a>
-          </div>
-        </article>
-      </div>
-      <div class="other-platforms">
-        <article><h3>iPhone и iPad</h3><p>Подключайтесь через Safari. Отдельного приложения для iOS пока нет.</p><a href="/connect/">Открыть веб-консоль →</a></article>
-        <article><h3>macOS и Linux</h3><p>Готовые приложения пока не опубликованы. Для подключения к Windows используйте браузер.</p><a href="/connect/">Открыть веб-консоль →</a></article>
-      </div>
-    </section>
-    <section class="getting-started" aria-labelledby="start-title">
-      <div class="section-heading"><div><p class="eyebrow">02 / ПЕРВОЕ ПОДКЛЮЧЕНИЕ</p><h2 id="start-title">Три простых шага</h2></div></div>
-      <ol class="steps">
-        <li><h3>Запустите FuntiDesk</h3><p>Скачайте приложение на Windows-компьютер, к которому хотите подключиться.</p></li>
-        <li><h3>Узнайте ID и пароль</h3><p>Они показаны в приложении. Для регулярного доступа можно задать постоянный пароль.</p></li>
-        <li><h3>Подключитесь</h3><p>Откройте приложение на другом устройстве или <a href="/connect/">веб-консоль</a> и введите ID и пароль компьютера.</p></li>
-      </ol>
-    </section>
-  </main>
-  <footer>
-    <div><a class="brand" href="/"><img src="/mark.svg" width="26" height="26" alt="">FuntiDesk</a><p>Удалённый доступ для своих.</p></div>
-    <nav aria-label="Дополнительные ссылки"><a href="/connect/">Веб-консоль</a><a href="/account/">Личный кабинет</a><a href="https://github.com/michailr1/FuntiDesk">Исходный код</a><a href="https://github.com/michailr1/FuntiDesk/blob/main/client/LICENCE">AGPL-3.0</a></nav>
-    <p class="legal">FuntiDesk основан на RustDesk (© Purslane Tech Pte. Ltd.).</p>
-  </footer>
-</body>
-</html>
+<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#F4F1EC"><meta name="description" content="FuntiDesk — удалённый доступ для своих устройств, семьи и доверенных людей."><title>FuntiDesk — живые соединения</title><script src="/theme.js?v=833179f9307f"></script><link rel="icon" href="/mark.svg"><link rel="stylesheet" href="/style.css?v=c9bdbbd752d0"><link rel="stylesheet" href="/lab.css?v=932ef7fb8a5b"><link rel="stylesheet" href="/platforms.css?v=998efbb82643"><link rel="stylesheet" href="/family.css?v=21f86defb800"><link rel="stylesheet" href="/prototype.css?v=ac76c719e140"><link rel="stylesheet" href="/theme.css?v=d4300b883c67"></head><body>
+<header><a class="brand" href="#hero"><img src="/mark.svg" alt="Эмблема FuntiDesk">Funti<span>Desk</span></a><nav aria-label="Навигация сайта"><a href="#story">Возможности</a><a href="#family-story">Для семьи</a><a href="#download" data-essential>Скачать</a><a href="/connect/" data-essential>Веб-консоль</a><a href="#faq">Вопросы</a></nav><label class="theme-picker"><span>Тема</span><select id="site-theme" data-theme-select aria-label="Тема сайта"><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="system">Как в системе</option></select></label><button id="motion" class="quiet" aria-pressed="false">◉ Анимация</button><a class="account-link" href="/account/" aria-label="Личный кабинет" title="Личный кабинет"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></a></header><main><section class="hero" id="hero"><div class="hero-top"><span><i class="live"></i> УДАЛЁННЫЙ ДОСТУП ДЛЯ СВОИХ</span><span class="edition">FUNTIDESK / УДАЛЁННЫЙ ДОСТУП</span></div><div class="title-space"><canvas id="letters" aria-hidden="true"></canvas><h1 class="sr">FuntiDesk — удалённый доступ, который остаётся вашим</h1><div class="hero-node n1"><span class="node-icon">▣</span><span>Домашний компьютер<small>WINDOWS</small></span><i></i></div><div class="hero-node n2"><span class="node-icon">▱</span><span>Ноутбук<small>WINDOWS</small></span><i></i></div><div class="hero-node n3"><span class="node-icon">▯</span><span>Телефон<small>В БРАУЗЕРЕ</small></span><i></i></div><div class="hero-node n4"><span class="node-icon">▭</span><span>Компьютер близкого<small>WINDOWS</small></span><i></i></div><div class="orbit-label">СВЯЗЬ НАЧИНАЕТСЯ С ВАС</div><div class="hero-interaction"><button id="hero-form" class="active">Буквы</button><button id="hero-network">Соединения</button><span>Наведите курсор · нажмите на сцену</span></div></div>
+<div class="hero-bottom"><div><div class="eyebrow">УДАЛЁННЫЙ ДОСТУП</div><h2>Живые соединения.<br><span>С теми, кто важен.</span></h2><p>Свои компьютеры, семья и доверенные люди.<br>Понятный интерфейс. Своя инфраструктура.</p><div class="actions"><a class="primary" href="#download">Скачать для Windows ↓</a><a class="secondary" href="/connect/">Открыть веб-консоль →</a></div></div><div class="hero-caption"><span class="line"></span><p>Буквы становятся точками.<br>Точки находят друг друга.<br>Появляется соединение.</p><button id="morph" class="quiet">↻ Повторить превращение</button></div></div><div class="scroll-note">ПРОКРУТИТЕ, ЧТОБЫ ИССЛЕДОВАТЬ <span>↓</span></div></section>
+<section id="story" class="story"><div class="section-label">01 / ОДИН FUNTIDESK. ВАШИ СЦЕНАРИИ.</div><div class="section-heading"><h2>Свои устройства.<br><span>Знакомый интерфейс.</span></h2><p>Начните с компьютера.<br>Оставайтесь на связи с близкими.</p></div><div class="features"><article><span class="feature-no">01</span><div class="feature-symbol">↗</div><h3>Подключиться просто</h3><p>ID или имя знакомого устройства. Недавние подключения и избранное всегда под рукой.</p><a class="text-action" href="/connect/">Открыть веб-консоль →</a></article><article><span class="feature-no">02</span><div class="feature-symbol">⌂</div><h3>Для семьи и близких</h3><p>Сопряжение по коду, семейный список, запрос помощи и звонок в одном месте.</p><a class="text-action" href="/account/">Открыть кабинет →</a></article><article><span class="feature-no">03</span><div class="feature-symbol">⇄</div><h3>Больше, чем экран</h3><p>Управление, файлы, буфер обмена и терминал в приложении для Windows.</p><a class="text-action" href="#download">Скачать приложение →</a></article><article><span class="feature-no">04</span><div class="feature-symbol"><img src="/mark.svg" alt=""></div><h3>Своя инфраструктура</h3><p>Self-hosted проект с открытым кодом. Понятные состояния соединения и доступные исходники.</p><a class="text-action" href="https://github.com/michailr1/FuntiDesk" target="_blank" rel="noopener">Исходный код ↗</a></article></div></section><section id="family-story" class="family-story"><div><div class="section-label">03 / ДЛЯ СВОИХ</div><h2>«Помоги с компьютером».<br><span>Теперь — одна кнопка.</span></h2><p>Добавьте близкого по коду. Знакомые устройства появятся в семье. Запросите помощь или позвоните — без долгого поиска нужного контакта.</p><div class="actions"><a class="primary" href="#download">Скачать приложение ↓</a><a class="secondary" href="/account/">Личный кабинет →</a></div></div><div class="family-relationship"><div class="relation-card"><img src="/mark.svg" alt=""><div><b>Ноутбук</b><small>Помощник · владелец</small></div><i class="status-dot"></i></div><div class="relation-line"><span>Сопряжение по коду</span></div><div class="relation-children"><div class="relation-card"><span class="relation-icon">▣</span><div><b>Компьютер близкого</b><small>Доверенное устройство</small></div><i class="status-dot"></i></div><div class="relation-card"><span class="relation-icon">▱</span><div><b>Семейный ноутбук</b><small>Ещё не добавлено</small></div><i class="status-dot offline"></i></div></div><small>Семейный доступ настраивается в приложении</small></div></section><section id="platforms" class="platform-section"><div class="section-label">04 / ПЛАТФОРМЫ</div><div class="section-heading"><h2>Сначала Windows.<br><span>Дальше — больше.</span></h2><p>Показываем статус проекта,<br>а не обещаем одинаковые возможности везде.</p></div><div class="platform-grid"><article><span>▣</span><h3>Windows</h3><b>Клиент доступен</b><p>Основная платформа проекта.</p></article><article><span>▯</span><h3>Android</h3><b>Тестовый APK</b><p>Мобильный клиент в разработке.</p></article><article><span>▯</span><h3>iOS</h3><b>Веб-консоль в Safari</b><p>Подключение к компьютеру без установки приложения.</p></article><article><span>⌘</span><h3>macOS</h3><b>Развитие проекта</b><p>Готовый релиз здесь не заявлен.</p></article><article><span>▱</span><h3>Linux</h3><b>Развитие проекта</b><p>Готовый релиз здесь не заявлен.</p></article></div></section><section id="download" class="download-section">
+<div class="section-label">СКАЧАТЬ FUNTIDESK</div><div class="section-heading"><h2>Выберите свою<br><span>платформу.</span></h2><p>Прямые ссылки на дистрибутивы.<br>Отдельные выпуски для каждой ОС.</p></div>
+<div class="distribution-grid">
+<article class="distribution-card"><h3>Windows <small>x64</small></h3><p>Запустите одним файлом или скачайте архив. Установить службу для постоянного доступа можно в программе.</p><a class="primary" href="https://github.com/michailr1/FuntiDesk/releases/latest/download/FuntiDesk-portable.exe">Скачать .exe ↓</a><div class="distribution-links"><a href="https://github.com/michailr1/FuntiDesk/releases/latest/download/FuntiDesk-windows-x64.zip">Скачать архив .zip</a><a href="https://github.com/michailr1/FuntiDesk/releases?q=funtidesk-windows-&amp;expanded=true">Все выпуски Windows →</a><a href="https://github.com/michailr1/FuntiDesk/releases/latest/download/SHA256SUMS.txt">SHA-256</a></div></article>
+<article class="distribution-card"><h3>Android <small>Тестовый APK · arm64</small></h3><p>Сборка для тестирования с отладочной подписью. Ручная установка из APK; не для обычного распространения.</p><a class="primary" href="https://github.com/michailr1/FuntiDesk/releases/download/funtidesk-android-cae81d2cafd6/FuntiDesk-android-arm64.apk">Скачать тестовый .apk ↓</a><div class="distribution-links"><a href="https://github.com/michailr1/FuntiDesk/releases/tag/funtidesk-android-cae81d2cafd6">Об этой сборке</a><a href="https://github.com/michailr1/FuntiDesk/releases?q=funtidesk-android-&amp;expanded=true">Все выпуски Android →</a><a href="https://github.com/michailr1/FuntiDesk/releases/download/funtidesk-android-cae81d2cafd6/SHA256SUMS.txt">SHA-256</a></div></article>
+</div><div class="browser-entry"><div><h3>Подключиться из браузера</h3><p>Веб-консоль для телефона и компьютера. Введите ID и временный или постоянный пароль удалённого компьютера.</p></div><a class="primary" href="/connect/">Открыть веб-консоль →</a></div>
+<div class="install-command"><p>Установка Windows через PowerShell:</p><pre><code>irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex</code></pre></div>
+</section><section id="faq" class="faq"><div class="section-label">ВОПРОСЫ И ОТВЕТЫ</div><h2>Перед подключением.</h2>
+<details><summary>Как подключиться к компьютеру?</summary><p>Запустите FuntiDesk на Windows-компьютере. На другом устройстве откройте приложение или <a href="/connect/">веб-консоль</a>, введите ID и временный или постоянный пароль этого компьютера.</p></details>
+<details><summary>Что даёт личный кабинет?</summary><p>Устройства, избранное и история подключений. Вход в <a href="/account/">кабинет</a> сам по себе не предоставляет доступ к компьютеру и не заменяет его пароль.</p></details>
+<details><summary>Как работает семья?</summary><p>Добавьте близкого по коду в приложении. Права семейного доступа настраиваются на самом компьютере. Кабинет показывает сохранённые семейные списки.</p></details>
+<details><summary>Можно ли подключиться с iPhone?</summary><p>Да, через <a href="/connect/">веб-консоль в Safari</a> к Windows-компьютеру. Отдельного приложения для iOS пока нет. Удалённое управление самим iPhone не заявлено.</p></details>
+<details><summary>Где приложения для macOS и Linux?</summary><p>Готовые клиентские дистрибутивы пока не опубликованы. Для подключения к Windows-компьютеру можно использовать веб-консоль.</p></details>
+</section></main><footer><a class="brand" href="#hero"><img src="/mark.svg" alt="">Funti<span>Desk</span></a><span>FuntiDesk · живые соединения</span><a href="https://github.com/michailr1/FuntiDesk" target="_blank" rel="noopener">GitHub ↗</a><a href="/connect/">Веб-консоль</a><a href="/account/">Личный кабинет</a><a href="#hero">Наверх ↑</a></footer><div id="toast" role="status"></div><script src="/app.js?v=ff6236327ceb"></script></body></html>

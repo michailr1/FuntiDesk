@@ -20,8 +20,8 @@
     },
     {
       "file": "app.js",
-      "bytes": 11140,
-      "sha256": "6d469bfa038612a199ec6b2d14092c14c8243f4a9eab575a68d3e3854cd16bce",
+      "bytes": 5293,
+      "sha256": "ff6236327ceb56726b01fbbf93b2f31dd0b887f4e8811df44133c23250de244d",
       "content_type": "text/javascript"
     },
     {
@@ -86,8 +86,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 9279,
-      "sha256": "fb7a700c4b9b0681914543bbd54fe5de8c3aaa5d98a6ec26608dc52ade20cc92",
+      "bytes": 13844,
+      "sha256": "cd2694b1f1a39cb308f34b825b63349804cc6b9c4099f1fe40778a1cd3a0e45b",
       "content_type": "text/html"
     },
     {
@@ -134,8 +134,8 @@
     },
     {
       "file": "style.css",
-      "bytes": 7840,
-      "sha256": "7538bb60876bf5bf49e6c1e318a4dc44a06cfea6681be38f32faa12465f35cd6",
+      "bytes": 18216,
+      "sha256": "c9bdbbd752d0f75c37e86c54f2b1d747065ca2b29a9768e1cd1c94a5517d0c4a",
       "content_type": "text/css"
     },
     {
@@ -146,8 +146,8 @@
     },
     {
       "file": "theme.js",
-      "bytes": 1715,
-      "sha256": "921ed8b8c15201b9033c579b663e231929f633ab3a37834dd5eb89e1f7959fdf",
+      "bytes": 1923,
+      "sha256": "833179f9307f47938870910ef9ec8540b49bbfc907b180004b636ebc368cba71",
       "content_type": "text/javascript"
     }
   ]
