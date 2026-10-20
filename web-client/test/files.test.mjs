@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fileBlock, fileName, fileSize, BLOCK, LIMIT} from '../src/file-codec.js';
 import {Files} from '../src/files.js';
+import {displayEntries,displaySize} from '../src/files-ui.js';
 const frames=JSON.parse(await readFile(new URL('./fixtures/file-zstd.json',import.meta.url)));
 const decode = hex => fileBlock(Uint8Array.from(Buffer.from(hex,'hex')),true);
 function client(t){const sent=[];const f=new Files();f.connected=true;f.path='C:\\Users\\Family';f.socket={send:m=>sent.push(m),drain:async()=>{}};t.after(()=>f.close());return {f,sent};}
@@ -69,4 +70,18 @@ test('cancellation while waiting for send capacity cannot send late file bytes',
  f.upload(new File(['private payload'],'a.txt'));const id=f.job.id;
  f.handle({file_action:{send_confirm:{id,offset_blk:0}}});f.cancel();resume();await new Promise(r=>setTimeout(r,10));
  assert.equal(sent.filter(m=>m.file_response?.block||m.file_response?.done).length,0);
+});
+
+test('file display keeps folders first, uses natural names and does not mutate native order',()=>{
+ const entries=[{name:'File10.txt',entry_type:4,size:10},{name:'Folder10',entry_type:0},{name:'file2.txt',entry_type:4,size:2},{name:'Folder2',entry_type:0},{name:'C:',entry_type:3},{name:'shortcut',entry_type:2}];
+ const original=structuredClone(entries),names=(query,sort)=>displayEntries(entries,query,sort).map(e=>e.name);
+ assert.deepEqual(names('','name'),['C:','Folder2','Folder10','shortcut','file2.txt','File10.txt']);
+ assert.deepEqual(names('','reverse'),['shortcut','Folder10','Folder2','C:','File10.txt','file2.txt']);
+ assert.deepEqual(names('','size'),['C:','Folder2','Folder10','shortcut','File10.txt','file2.txt']);
+ assert.deepEqual(names(' FILE','name'),['file2.txt','File10.txt']);assert.deepEqual(names('missing','name'),[]);
+ assert.deepEqual(entries,original);
+});
+test('human file sizes include zero and unknown, with the same binary units as the transport limit',()=>{
+ assert.equal(displaySize(0),'0 Б');assert.equal(displaySize(1024),'1 КБ');assert.equal(displaySize(50*1024*1024),'50 МБ');assert.equal(displaySize(-1),'Размер неизвестен');
+ assert.deepEqual(displayEntries([{name:'older',entry_type:4,modified_time:1},{name:'folder',entry_type:0},{name:'new',entry_type:4,modified_time:10}], '', 'date').map(e=>e.name),['folder','new','older']);
 });

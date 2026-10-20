@@ -60,23 +60,29 @@
     </dialog>
   </aside>
   <dialog id="files-dialog" aria-labelledby="files-title">
-    <div class="files-heading"><h2 id="files-title">Файлы компьютера</h2><button id="files-close" type="button" aria-label="Закрыть файлы">×</button></div>
-    <p>До 50 МБ на файл. Не закрывайте страницу во время передачи.</p>
+    <div class="files-heading"><div><h2 id="files-title">Файлы</h2><span id="files-computer">На удалённом компьютере</span></div><button id="files-close" type="button" aria-label="Закрыть файлы">Готово</button></div>
     <form id="files-login" autocomplete="on">
       <label for="files-id">ID компьютера</label><input id="files-id" name="username" autocomplete="username" readonly>
       <label for="files-password">Пароль компьютера</label><input id="files-password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
       <button id="files-login-button" type="submit">Открыть файлы</button>
     </form>
     <section id="files-browser" hidden aria-label="Папки и передача файлов">
-      <div class="files-actions"><button id="files-home" type="button">Домашняя папка</button><button id="files-drives" type="button">Диски</button><button id="files-up" type="button">Выше</button><button id="files-refresh" type="button">Обновить</button></div>
-      <form id="files-folder-form"><label for="files-path">Папка компьютера</label><input id="files-path" maxlength="4096" autocomplete="off"><button id="files-folder-go" type="submit">Перейти</button></form>
-      <ul id="files-list" aria-label="Содержимое папки"></ul>
-      <form id="files-upload"><label for="files-pick">Файл или фото с этого устройства</label><input id="files-pick" type="file">
-        <label for="files-name">Имя на компьютере</label><input id="files-name" maxlength="255" autocomplete="off"><button id="files-send" type="submit">Отправить</button></form>
-      <progress id="files-progress" hidden aria-label="Прогресс передачи"></progress><button id="files-cancel" type="button" hidden>Отменить передачу</button>
-      <a id="files-save" hidden>Сохранить</a><p>На iPhone файл сохраняется средствами Safari в «Файлы»; при открытии предпросмотра выберите «Поделиться → Сохранить в Файлы».</p>
+      <div class="files-toolbar"><button id="files-up" type="button" aria-label="В родительскую папку">↑ Выше</button><button id="files-home" type="button">Домой</button><button id="files-drives" type="button">Диски</button><button id="files-refresh" type="button" aria-label="Обновить папку">↻</button></div>
+      <div class="files-location-row"><nav id="files-breadcrumbs" aria-label="Текущая папка"></nav>
+      <details id="files-location"><summary aria-label="Перейти по пути">Путь</summary><form id="files-folder-form"><label for="files-path">Путь на компьютере</label><div class="files-actions"><input id="files-path" maxlength="4096" autocomplete="off"><button id="files-folder-go" type="submit">Перейти</button></div></form></details></div>
+      <div class="files-filter"><input id="files-search" type="search" placeholder="Найти в этой папке" aria-label="Найти в этой папке" autocomplete="off"><select id="files-sort" aria-label="Сортировка"><option value="name">Имя А–Я</option><option value="reverse">Имя Я–А</option><option value="size">Размер ↓</option><option value="date">Новые сверху</option></select></div>
+      <div id="files-scroll"><ul id="files-list" aria-label="Содержимое папки"></ul><p id="files-empty" hidden></p></div>
+      <div class="files-footer">
+        <button id="files-choose" type="button">↑ Отправить файл</button><input id="files-pick" type="file" hidden aria-label="Файл или фото с этого устройства">
+        <form id="files-upload" hidden><div class="files-selected"><strong id="files-picked-name"></strong><span id="files-picked-size"></span></div>
+          <details id="files-rename"><summary>Изменить имя</summary><label for="files-name">Имя на компьютере</label><input id="files-name" maxlength="255" autocomplete="off"></details>
+          <div class="files-actions"><button id="files-send" type="submit">Отправить в эту папку</button><button id="files-unpick" type="button">Отмена</button></div></form>
+        <progress id="files-progress" hidden aria-label="Прогресс передачи"></progress><button id="files-cancel" type="button" hidden>Отменить передачу</button>
+        <a id="files-save" hidden>Сохранить на устройство</a><p id="files-save-help" hidden>Safari предложит скачать файл. Если откроется просмотр: «Поделиться → Сохранить в Файлы».</p>
+        <p id="files-status" role="status" aria-live="polite"></p><small>До 50 МБ · без перезаписи</small>
+      </div>
     </section>
-    <p id="files-status" role="status" aria-live="polite"></p>
+    <p id="files-login-status" role="status" aria-live="polite"></p>
   </dialog>
 </body>
 </html>
