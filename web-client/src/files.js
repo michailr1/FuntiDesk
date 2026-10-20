@@ -7,7 +7,8 @@ export class Files {
   async connect(id, password, expectedKey) {
     try {
       await ready;
-      if (!/^[0-9]{6,16}$/.test(id) || !password || password.length > 256 || expectedKey?.length !== 32 || this.closed) throw Error('invalid_credentials');
+      // null explicitly starts files-only; an existing screen session still requires its exact peer key.
+      if (!/^[0-9]{6,16}$/.test(id) || !password || password.length > 256 || (expectedKey !== null && expectedKey?.length !== 32) || this.closed) throw Error('invalid_credentials');
       const signal = new Socket(ORIGIN + '/ws/rendezvous', rendezvous); this.sockets.push(signal); await signal.opened;
       if (this.closed) throw Error('cancelled');
       signal.send({punch_hole_request: {id, licence_key: SERVER_KEY, conn_type: 1, nat_type: 2, force_relay: true, version: '1.5.0'}});
@@ -18,7 +19,8 @@ export class Files {
       socket.send({request_relay: {id, uuid: response.uuid, secure: true, licence_key: SERVER_KEY, conn_type: 1}}); socket.type = wire;
       const first = await socket.next(), exchange = handshake(response.pk, first.signed_id?.id, id);
       this.keys = [exchange.sendKey, exchange.receiveKey];
-      if (!exchange.peerKey.every((n, i) => n === expectedKey[i]) || this.closed) throw Error('invalid_identity');
+      if ((expectedKey !== null && !exchange.peerKey.every((n, i) => n === expectedKey[i])) || this.closed) throw Error('invalid_identity');
+      this.peerKey = exchange.peerKey;
       socket.send({public_key: exchange.public_key}); socket.secure(this.keys);
       const hash = (await socket.next()).hash;
       if (typeof hash?.salt !== 'string' || !hash.salt || hash.salt.length > 256 || typeof hash.challenge !== 'string' || !hash.challenge || hash.challenge.length > 256 || this.closed) throw Error('invalid_handshake');

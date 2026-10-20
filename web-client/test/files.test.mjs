@@ -107,3 +107,9 @@ test('closing the local panel invalidates delayed folder reads and handles permi
  const pending=local.load([blocked]);local.clear();finish();await pending;assert.deepEqual(local.entries,[]);assert.deepEqual(local.stack,[]);assert.equal(local.busy,false);
  await local.load([{async *values(){throw Error('Permission denied');}}]);assert.equal(local.error,'local_access');assert.equal(local.busy,false);
 });
+
+test('files-only trust must be requested explicitly; missing or malformed parent keys fail before networking',async()=>{
+ for(const key of [undefined,new Uint8Array(31)]){
+  const client=new Files();await assert.rejects(client.connect('123456789','password',key),/invalid_credentials/);assert.deepEqual(client.sockets,[]);
+ }
+});

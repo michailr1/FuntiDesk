@@ -9,7 +9,7 @@ let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
 if (location.hash) history.replaceState(null, '', location.pathname);
-function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); files?.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
+function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); files?.close(); files?.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
 async function connect(id, password) {
   const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); files?.sync(); } });
   session.onFilePermission = () => files?.sync();
@@ -89,7 +89,7 @@ function key(e, down) {
 canvas.addEventListener('keydown', (e) => key(e, true));
 canvas.addEventListener('keyup', (e) => key(e, false));
 const phone = new PhoneConsole(canvas, () => active, () => $('disconnect').click());
-files = new FilePanel(() => active, () => {phone.reset();$('phone-panel').hidden = true;$('phone-text').blur();$('phone-keys').hidden = true;});
+files = new FilePanel(() => active, () => {phone.reset();$('phone-panel').hidden = true;$('phone-text').blur();$('phone-keys').hidden = true;}, () => recovery?.clear());
 
 const recovery = phone.enabled ? new Recovery((id) => connect(id, null), () => { stop(); $('status').textContent = errorText('recovery_expired'); }) : null;
 
