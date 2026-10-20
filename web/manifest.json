@@ -44,8 +44,8 @@
     },
     {
       "file": "connect/index.html",
-      "bytes": 12563,
-      "sha256": "553841462b5e5993af388e7ab04682269da6ac5bc88dc1041d9bdd5db23e53c4",
+      "bytes": 12568,
+      "sha256": "db4d210adde5b9271b1635078656d3d5c8c02f7d16c9ea2874bda10dfc5babc2",
       "content_type": "text/html"
     },
     {
@@ -62,8 +62,8 @@
     },
     {
       "file": "connect/session.js",
-      "bytes": 1136117,
-      "sha256": "fc88f36eba8a3656750aaeb94e8928556b42424f59902f0ce49b82efc2b88456",
+      "bytes": 1136689,
+      "sha256": "e6662cd2a93b85f528308b9193ead2a9d66bbcf6bb7e23d37c864e18d8930c6f",
       "content_type": "text/javascript"
     },
     {

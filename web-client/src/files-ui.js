@@ -26,14 +26,22 @@ function icon(type) {
 }
 const messages = {local_limit:'Выберите не больше 10 000 файлов.',file_size:'Один файл — не больше 50 МБ.',file_name:'Выберите другое имя файла без служебных символов.',file_exists:'Файл с таким именем уже есть. Укажите другое имя: перезапись не выполнялась.',files_denied:'Компьютер не разрешил файловый сеанс. Проверьте пароль и право передачи файлов.',file_directory:'Не удалось открыть папку. Проверьте путь и права доступа.',file_busy:'Дождитесь завершения или отмените текущую передачу.',file_remote:'Компьютер отклонил передачу. Проверьте имя, папку и права доступа.',file_block:'Компьютер прислал некорректные данные файла.',file_compression:'Не удалось проверить сжатый блок файла.',file_path:'Откройте папку для отправки файла.'};
 export class FilePanel {
-  constructor(session, beforeOpen = () => {}) {
+  constructor(session, beforeOpen = () => {}, beforeDirect = () => {}) {
     this.session = session; this.beforeOpen = beforeOpen; this.dialog = $('files-dialog');
     this.local = new LocalFiles(() => {if(this.dialog.open)this.render();});
     for (const side of ['local','remote']) $('files-tab-'+side).onclick = () => this.side(side);
     for (const side of ['local','remote']) $('files-tab-'+side).onkeydown = e => {
       if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {e.preventDefault();this.side(e.key === 'Home' ? 'local' : e.key === 'End' ? 'remote' : side === 'local' ? 'remote' : 'local');$('files-tab-'+this.activeSide).focus();}
     };
-    for (const id of ['files-open','phone-files']) $(id).onclick = () => this.open();
+    $('phone-files').onclick = () => this.open();
+    $('files-open').onclick = () => {
+      if(this.session()?.connected)return this.open();
+      if(this.session() || location.origin !== 'https://desk.funti.cc' || !$('connection-form').reportValidity())return;
+      beforeDirect();
+      let password = $('password').value; $('password').value = ''; $('password').blur();
+      this.open({id:$('peer-id').value.trim(),peerKey:null},true);
+      this.login(password); password = '';
+    };
     $('files-close').onclick = () => this.close(); this.dialog.oncancel = e => {e.preventDefault();this.close();};
     $('files-login').onsubmit = e => {e.preventDefault();this.login();};
     $('files-folder-form').onsubmit = e => {e.preventDefault();this.act(() => {this.client.list($('files-path').value);$('files-location').open = false;});};
@@ -78,29 +86,31 @@ export class FilePanel {
   act(action) { try { action(); } catch(error) { this.error(error); } }
   sync() {
     const s = this.session(), enabled = s?.connected && s.filesAllowed === true;
-    for (const id of ['files-open','phone-files']) $(id).hidden = !enabled;
-    if (this.dialog.open && (!enabled || s !== this.owner)) this.close();
+    $('phone-files').hidden = !enabled;
+    $('files-open').hidden = !!s && !enabled;
+    if (this.dialog.open && (this.standalone ? !!s : !enabled || s !== this.owner)) this.close();
   }
-  open() {
-    const s = this.session(); if (!s?.connected || !s.filesAllowed) return;
-    this.close(); this.owner = s; this.beforeOpen(); this.connecting = false;
+  open(s = this.session(), standalone = false) {
+    if (!standalone && (!s?.connected || !s.filesAllowed)) return;
+    this.close(); this.owner = s; this.standalone = standalone; this.beforeOpen(); this.connecting = false;
     $('files-id').value = s.id; $('files-password').value = '';
     $('files-computer').textContent = 'Компьютер ' + s.id;
     this.side('remote');
     $('files-pick').value = ''; $('files-name').value = ''; $('files-path').value = '';
-    this.render(); this.dialog.showModal(); $('files-password').focus();
+    this.render(); this.dialog.showModal(); if(!standalone)$('files-password').focus();
   }
-  async login() {
+  async login(provided) {
     if (this.connecting || this.client?.connected) return;
     this.client?.close();
     const c = new Files(() => { if (this.client === c) this.render(); }); this.client = c;
-    this.connecting = true; let password = $('files-password').value; $('files-password').value = ''; $('files-password').blur(); this.render();
+    const owner = this.owner;
+    this.connecting = true; let password = provided === undefined ? $('files-password').value : provided; provided = ''; $('files-password').value = ''; $('files-password').blur(); this.render();
     try {
-      const attempt = c.connect(this.owner.id,password,this.owner.peerKey); password = ''; await attempt;
+      const attempt = c.connect(owner.id,password,owner.peerKey); password = ''; await attempt;
       if (this.client !== c || !this.dialog.open) return;
       this.connecting = false; this.render();
     } catch(error) { if (this.client === c) {this.connecting = false;this.render();this.error(error);} }
-    finally { password = ''; }
+    finally { password = ''; if(this.client === c && this.owner === owner && this.standalone && c.peerKey)owner.peerKey = c.peerKey; }
   }
   release() {
     if (this.url) URL.revokeObjectURL(this.url);
@@ -172,7 +182,7 @@ export class FilePanel {
   }
   render() {
     const c = this.client, connected = c?.connected === true, busy = !!c?.job || !!c?.listing;
-    $('files-login').hidden = connected; $('files-browser').hidden = !connected;
+    $('files-login').hidden = connected || this.connecting; $('files-browser').hidden = !connected;
     $('files-login-status').hidden = connected;
     $('files-login-button').disabled = this.connecting; $('files-password').disabled = this.connecting;
     if (!connected) { this.release(); this.message(this.connecting ? 'Проверяем пароль и разрешение на компьютере…' : c?.error ? (messages[c.error] || errorText(c.error)) : 'Введите пароль компьютера для файлового сеанса.'); return; }
@@ -203,6 +213,7 @@ export class FilePanel {
   }
   close() {
     const c = this.client; this.client = null; c?.close(); this.release(); this.connecting = false; this.owner = null; this.result = null; this.entries = null; this.busy = null; this.path = null; this.query = '';
+    this.standalone = false;
     this.local.clear(); this.localEntries = null; this.localSelected = null; this.remote = null; this.remotePath = null; this.selection = null; this.pickOwner = null; this.pickGeneration = -1;
     $('files-local-search').value = ''; $('files-local-list').replaceChildren();
     for(const id of ['files-picked-name','files-picked-size','files-remote-picked','files-local-path','files-status','files-login-status'])$(id).textContent = '';

@@ -14,26 +14,29 @@ const signedId=sodium.crypto_sign(encode(hbb.IdPk,{id,pk:box.publicKey,kx_versio
 const vector=JSON.parse(await readFile(new URL('./fixtures/file-zstd.json',import.meta.url)))[1];
 const html=await readFile(new URL('../../web/connect/index.html',import.meta.url));
 const bundle=await build({stdin:{contents:"import {Files} from './src/files.js';import {FilePanel} from './src/files-ui.js';window.files=new Files();window.makePanel=owner=>{window.owner=owner;window.panel=new FilePanel(()=>window.owner);};",resolveDir:root},bundle:true,write:false,format:'esm',target:'chrome120',plugins:[{name:'test-pin',setup(b){b.onLoad({filter:/\/protocol\.js$/},async a=>({contents:(await readFile(a.path,'utf8')).replace(SERVER_KEY,pin),loader:'js'}));}}]});
+const production=await build({entryPoints:[root+'src/main.js'],bundle:true,write:false,format:'esm',target:'chrome120',plugins:[{name:'test-pin',setup(b){b.onLoad({filter:/\/protocol\.js$/},async a=>({contents:(await readFile(a.path,'utf8')).replace(SERVER_KEY,pin),loader:'js'}));}}]});
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
-try{for(const scenario of ['valid','wrong-password','wrong-key','revoked']){
- const page=await browser.newPage();const errors=[];let proofSent=false,cancelled=false,received=[],send,job,hold=false,writes=0,reads=0,uiMode=false;
+try{for(const scenario of ['valid','wrong-password','wrong-key','revoked','direct','direct-denied','direct-identity','direct-host-identity']){
+ const direct=scenario.startsWith('direct');const page=await browser.newPage(direct?{viewport:{width:390,height:700},isMobile:true,hasTouch:true}:{});const errors=[];let signals=0,logins=0;
+ if(direct)await page.addInitScript(()=>{Object.defineProperty(window,'VideoDecoder',{value:undefined,configurable:true});Object.defineProperty(window,'EncodedVideoChunk',{value:undefined,configurable:true});});let proofSent=false,cancelled=false,received=[],send,job,hold=false,writes=0,reads=0,uiMode=false;
  const listing=()=>uiMode ? [{name:'zebra.txt',entry_type:4,size:20},{name:'Folder10',entry_type:0},{name:'data.txt',entry_type:4,size:4096},{name:'Folder2',entry_type:0},{name:'Photos',entry_type:0},{name:'Report10.txt',entry_type:4,size:10},{name:'Report2.txt',entry_type:4,size:2},{name:'big.zip',entry_type:4,size:60*1024*1024}] : [{name:'data.txt',entry_type:4,size:4096}];
  page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://desk.funti.cc/**',async r=>{
   const url=new URL(r.request().url());
-  if(url.pathname==='/connect/session.js')return r.fulfill({contentType:'application/javascript',body:Buffer.from(bundle.outputFiles[0].contents)});
+  if(url.pathname==='/connect/session.js')return r.fulfill({contentType:'application/javascript',body:Buffer.from((direct?production:bundle).outputFiles[0].contents)});
   if(url.pathname==='/'||url.pathname==='/connect/')return r.fulfill({contentType:'text/html',body:html});
   const file=fileURLToPath(new URL('../../web'+url.pathname,import.meta.url));
   return r.fulfill({contentType:url.pathname.endsWith('.css')?'text/css':'image/svg+xml',body:await readFile(file)});
  });
- await page.routeWebSocket('wss://desk.funti.cc/ws/rendezvous',ws=>ws.onMessage(bytes=>{const m=decode(rendezvous,Buffer.from(bytes));assert.equal(m.punch_hole_request.conn_type,1);ws.send(Buffer.from(encode(rendezvous,{relay_response:{uuid:'files',pk:signedPeer,relay_server:'attacker.invalid:1'}})));}));
+ await page.routeWebSocket('wss://desk.funti.cc/ws/rendezvous',ws=>ws.onMessage(bytes=>{const m=decode(rendezvous,Buffer.from(bytes));assert.equal(m.punch_hole_request.conn_type,1);signals++;const key=Buffer.from(signedPeer);if(scenario==='direct-identity')key[0]^=1;ws.send(Buffer.from(encode(rendezvous,{relay_response:{uuid:'files',pk:key,relay_server:'attacker.invalid:1'}})));}));
  await page.routeWebSocket('wss://desk.funti.cc/ws/relay',ws=>{
   let state=0,keys,rx=0,tx=0;send=m=>ws.send(Buffer.from(encrypt(encode(wire,m),++tx,keys[1])));
   ws.onMessage(async bytes=>{bytes=Buffer.from(bytes);
-   if(state===0){assert.equal(decode(rendezvous,bytes).request_relay.conn_type,1);state=1;ws.send(Buffer.from(encode(wire,{signed_id:{id:signedId}})));return;}
+   if(state===0){assert.equal(decode(rendezvous,bytes).request_relay.conn_type,1);state=1;const signed=Buffer.from(signedId);if(scenario==='direct-host-identity')signed[0]^=1;ws.send(Buffer.from(encode(wire,{signed_id:{id:signed}})));return;}
    if(state===1){const p=decode(wire,bytes).public_key;const secret=sodium.crypto_box_open_easy(p.symmetric_value,new Uint8Array(24),p.asymmetric_value,box.privateKey);keys=splitKeys(secret,p.asymmetric_value,box.publicKey,1);state=2;send({hash:{salt:'salt',challenge:'challenge'}});return;}
    const m=decode(wire,decrypt(bytes,++rx,keys[0]));
-   if(m.login_request){proofSent=true;assert.ok(m.login_request.file_transfer);assert.equal(m.login_request.username,id);assert.deepEqual(m.login_request.password,await passwordProof(scenario==='wrong-password'?'bad':'password','salt','challenge'));
+   if(m.login_request){logins++;proofSent=true;assert.ok(m.login_request.file_transfer);assert.equal(m.login_request.username,id);assert.deepEqual(m.login_request.password,await passwordProof(scenario==='wrong-password'?'bad':'password','salt','challenge'));
+    if(scenario==='direct-denied'){send({misc:{permission_info:{permission:4,enabled:false}}});return;}
     send({login_response:scenario==='wrong-password'?{error:'Wrong password'}:{peer_info:{username:'fixture',platform:'Windows'}}});if(scenario!=='wrong-password')send({file_response:{dir:{path:'C:\\Family',entries:listing()}}});return;}
    if(m.file_action?.read_dir){const path=m.file_action.read_dir.path||'C:\\Family';send({file_response:{dir:{path,entries:path==='C:\\Family'?listing():[]}}});return;}
    if(m.file_action?.send){reads++;job=m.file_action.send.id;if(scenario==='revoked'){send({misc:{permission_info:{permission:4,enabled:false}}});return;}
@@ -46,7 +49,26 @@ try{for(const scenario of ['valid','wrong-password','wrong-key','revoked']){
    if(m.file_action?.cancel){cancelled=true;send({file_response:{done:{id:m.file_action.cancel.id}}});}
   });
  });
- await page.goto('https://desk.funti.cc/');await page.waitForFunction(()=>window.files);
+ await page.goto('https://desk.funti.cc/');
+ if(direct){
+  await page.waitForFunction(()=>document.getElementById('files-open').onclick);
+  assert.equal(await page.locator('#files-open').isVisible(),true);
+  await page.locator('#password').fill('password');await page.locator('#files-open').click();assert.equal(signals,0,'invalid initial form must not connect');
+  await page.locator('#peer-id').fill(id);await page.locator('#files-open').click();
+  if(scenario==='direct'){
+   await page.getByRole('button',{name:'Выбрать удалённый файл data.txt',exact:true}).waitFor();
+   assert.equal(signals,1);assert.equal(logins,1,'only one files login, no screen login');assert.equal(await page.evaluate(()=>typeof VideoDecoder),'undefined');
+   assert.equal(await page.locator('#password').inputValue(),'');assert.equal(await page.locator('#files-password').inputValue(),'');assert.equal(await page.locator('#files-login').isVisible(),false);
+   await page.getByRole('button',{name:'Выбрать удалённый файл data.txt',exact:true}).click();await page.locator('#files-download').click();await page.locator('#files-save').waitFor({state:'visible'});
+   await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));assert.equal(await page.locator('#files-dialog').evaluate(d=>d.open),false);
+   assert.deepEqual(await page.evaluate(()=>Object.keys(sessionStorage)),[]);assert.equal(await page.locator('#connect').isEnabled(),true);
+  }else{
+   await page.locator('#files-login:visible').waitFor();assert.equal(proofSent,scenario==='direct-denied');assert.equal(await page.locator('#files-browser').isVisible(),false);
+   assert.notEqual(await page.locator('#files-login-status').textContent(),'');assert.equal(await page.locator('#password').inputValue(),'');
+  }
+  assert.deepEqual(errors,[]);console.log('DIRECT_FILES_OK '+scenario);await page.close();continue;
+ }
+ await page.waitForFunction(()=>window.files);
  const expected=scenario==='wrong-key'?new Uint8Array(32):peer.publicKey;
  const failure=await page.evaluate(async({id,key,password})=>{try{await files.connect(id,password,Uint8Array.from(key));return null}catch(e){return e.message}}, {id,key:[...expected],password:scenario==='wrong-password'?'bad':'password'});
  if(scenario==='wrong-key'||scenario==='wrong-password'){
