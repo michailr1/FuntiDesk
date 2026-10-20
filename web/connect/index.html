@@ -67,18 +67,32 @@
       <button id="files-login-button" type="submit">Открыть файлы</button>
     </form>
     <section id="files-browser" hidden aria-label="Папки и передача файлов">
+      <div class="files-tabs" role="tablist" aria-label="Сторона передачи"><button id="files-tab-local" role="tab" aria-controls="files-local" aria-selected="false" tabindex="-1" type="button">Это устройство</button><button id="files-tab-remote" role="tab" aria-controls="files-remote" aria-selected="true" type="button">Удалённый компьютер</button></div>
+      <div class="files-panes">
+      <section id="files-local" class="files-pane" aria-labelledby="files-local-title">
+        <h3 id="files-local-title">Это устройство</h3>
+        <div class="files-toolbar"><button id="files-choose" type="button">Выбрать файлы</button><button id="files-local-folder" type="button" hidden>Открыть папку</button><input id="files-pick" type="file" multiple hidden aria-label="Файлы с этого устройства"></div>
+        <div class="files-local-path"><button id="files-local-up" type="button" aria-label="В родительскую локальную папку">↑</button><span id="files-local-path">Выбранные файлы</span></div>
+        <p id="files-local-note">Доступны только выбранные вами файлы. Скачивание сохраняет браузер, а не эта панель.</p>
+        <div class="files-filter"><input id="files-local-search" type="search" placeholder="Найти локальный файл" aria-label="Найти локальный файл" autocomplete="off"></div>
+        <div id="files-local-scroll" class="files-scroller"><p id="files-local-empty">Выберите файлы для отправки.</p><ul id="files-local-list" class="files-items" aria-label="Локальные файлы"></ul></div>
+      </section>
+      <section id="files-remote" class="files-pane" aria-labelledby="files-remote-title">
+      <h3 id="files-remote-title">Удалённый компьютер</h3>
       <div class="files-toolbar"><button id="files-up" type="button" aria-label="В родительскую папку">↑ Выше</button><button id="files-home" type="button">Домой</button><button id="files-drives" type="button">Диски</button><button id="files-refresh" type="button" aria-label="Обновить папку">↻</button></div>
       <div class="files-location-row"><nav id="files-breadcrumbs" aria-label="Текущая папка"></nav>
       <details id="files-location"><summary aria-label="Перейти по пути">Путь</summary><form id="files-folder-form"><label for="files-path">Путь на компьютере</label><div class="files-actions"><input id="files-path" maxlength="4096" autocomplete="off"><button id="files-folder-go" type="submit">Перейти</button></div></form></details></div>
       <div class="files-filter"><input id="files-search" type="search" placeholder="Найти в этой папке" aria-label="Найти в этой папке" autocomplete="off"><select id="files-sort" aria-label="Сортировка"><option value="name">Имя А–Я</option><option value="reverse">Имя Я–А</option><option value="size">Размер ↓</option><option value="date">Новые сверху</option></select></div>
-      <div id="files-scroll"><ul id="files-list" aria-label="Содержимое папки"></ul><p id="files-empty" hidden></p></div>
+      <div id="files-scroll" class="files-scroller"><ul id="files-list" class="files-items" aria-label="Содержимое папки"></ul><p id="files-empty" hidden></p></div>
+      </section></div>
       <div class="files-footer">
-        <button id="files-choose" type="button">↑ Отправить файл</button><input id="files-pick" type="file" hidden aria-label="Файл или фото с этого устройства">
-        <form id="files-upload" hidden><div class="files-selected"><strong id="files-picked-name"></strong><span id="files-picked-size"></span></div>
-          <details id="files-rename"><summary>Изменить имя</summary><label for="files-name">Имя на компьютере</label><input id="files-name" maxlength="255" autocomplete="off"></details>
-          <div class="files-actions"><button id="files-send" type="submit">Отправить в эту папку</button><button id="files-unpick" type="button">Отмена</button></div></form>
+        <div class="files-directions"><form id="files-upload"><span id="files-upload-target">Это устройство → удалённый компьютер</span><div class="files-selected"><strong id="files-picked-name">Выберите локальный файл</strong><span id="files-picked-size"></span></div>
+          <details id="files-rename" hidden><summary>Изменить имя</summary><label for="files-name">Имя на компьютере</label><input id="files-name" maxlength="255" autocomplete="off"></details>
+          <div class="files-actions"><button id="files-send" type="submit" disabled>Отправить →</button><button id="files-unpick" type="button" hidden>Снять выбор</button></div></form>
+          <div class="files-download"><span>Удалённый компьютер → это устройство</span><strong id="files-remote-picked">Выберите удалённый файл</strong><button id="files-download" type="button" disabled>← Скачать</button></div>
+        </div>
         <progress id="files-progress" hidden aria-label="Прогресс передачи"></progress><button id="files-cancel" type="button" hidden>Отменить передачу</button>
-        <a id="files-save" hidden>Сохранить на устройство</a><p id="files-save-help" hidden>Safari предложит скачать файл. Если откроется просмотр: «Поделиться → Сохранить в Файлы».</p>
+        <a id="files-save" hidden>Сохранить скачанный файл</a><p id="files-save-help" hidden>Safari предложит скачать файл. Если откроется просмотр: «Поделиться → Сохранить в Файлы».</p>
         <p id="files-status" role="status" aria-live="polite"></p><small>До 50 МБ · без перезаписи</small>
       </div>
     </section>

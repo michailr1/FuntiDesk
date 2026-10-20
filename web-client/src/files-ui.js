@@ -1,6 +1,7 @@
 import {Files} from './files.js';
 import {LIMIT, fileSize, fileName, joinPath} from './file-codec.js';
 import {errorText} from './session.js';
+import {LocalFiles} from './local-files.js';
 const $ = id => document.getElementById(id);
 const collator = new Intl.Collator('ru', {numeric:true, sensitivity:'base'});
 const directory = e => [0,2,3].includes(e.entry_type || 0);
@@ -23,10 +24,15 @@ function icon(type) {
   path.setAttribute('d', type === 3 ? 'M3 5h18v14H3z M6 15h2 M17 15h1' : directory({entry_type:type}) ? 'M3 7V4h6l3 3h9v13H3z' : 'M14 3H5v18h14V8z M14 3v6h5');
   svg.append(path); return svg;
 }
-const messages = {file_size:'Один файл — не больше 50 МБ.',file_name:'Выберите другое имя файла без служебных символов.',file_exists:'Файл с таким именем уже есть. Укажите другое имя: перезапись не выполнялась.',files_denied:'Компьютер не разрешил файловый сеанс. Проверьте пароль и право передачи файлов.',file_directory:'Не удалось открыть папку. Проверьте путь и права доступа.',file_busy:'Дождитесь завершения или отмените текущую передачу.',file_remote:'Компьютер отклонил передачу. Проверьте имя, папку и права доступа.',file_block:'Компьютер прислал некорректные данные файла.',file_compression:'Не удалось проверить сжатый блок файла.',file_path:'Откройте папку для отправки файла.'};
+const messages = {local_limit:'Выберите не больше 10 000 файлов.',file_size:'Один файл — не больше 50 МБ.',file_name:'Выберите другое имя файла без служебных символов.',file_exists:'Файл с таким именем уже есть. Укажите другое имя: перезапись не выполнялась.',files_denied:'Компьютер не разрешил файловый сеанс. Проверьте пароль и право передачи файлов.',file_directory:'Не удалось открыть папку. Проверьте путь и права доступа.',file_busy:'Дождитесь завершения или отмените текущую передачу.',file_remote:'Компьютер отклонил передачу. Проверьте имя, папку и права доступа.',file_block:'Компьютер прислал некорректные данные файла.',file_compression:'Не удалось проверить сжатый блок файла.',file_path:'Откройте папку для отправки файла.'};
 export class FilePanel {
   constructor(session, beforeOpen = () => {}) {
     this.session = session; this.beforeOpen = beforeOpen; this.dialog = $('files-dialog');
+    this.local = new LocalFiles(() => {if(this.dialog.open)this.render();});
+    for (const side of ['local','remote']) $('files-tab-'+side).onclick = () => this.side(side);
+    for (const side of ['local','remote']) $('files-tab-'+side).onkeydown = e => {
+      if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {e.preventDefault();this.side(e.key === 'Home' ? 'local' : e.key === 'End' ? 'remote' : side === 'local' ? 'remote' : 'local');$('files-tab-'+this.activeSide).focus();}
+    };
     for (const id of ['files-open','phone-files']) $(id).onclick = () => this.open();
     $('files-close').onclick = () => this.close(); this.dialog.oncancel = e => {e.preventDefault();this.close();};
     $('files-login').onsubmit = e => {e.preventDefault();this.login();};
@@ -39,22 +45,33 @@ export class FilePanel {
       this.client.list(/^[A-Za-z]:$/.test(path) ? '/' : path.replace(/[\\/][^\\/]*$/, '') || '/');
     });
     for (const id of ['files-search','files-sort']) $(id).oninput = () => {this.entries = null;this.render();};
-    $('files-choose').onclick = () => $('files-pick').click();
+    $('files-choose').onclick = () => {this.pickGeneration = this.local.generation;this.pickOwner = this.owner;$('files-pick').click();};
+    $('files-local-folder').hidden = typeof window.showDirectoryPicker !== 'function';
+    $('files-local-folder').onclick = () => this.local.folder();
+    $('files-local-up').onclick = () => this.local.up();
+    $('files-local-search').oninput = () => {this.localEntries = null;this.render();};
     $('files-unpick').onclick = () => {this.unpick();this.render();};
     $('files-pick').onchange = () => {
-      const file = $('files-pick').files[0]; if(!file)return;
-      this.client.blob = null; this.release(); $('files-name').value = file.name;
-      try {fileSize(file.size);} catch(error) {this.unpick();this.error(error);return;}
-      this.render();
+      if(!this.dialog.open || !this.client?.connected || this.pickOwner !== this.owner || this.pickGeneration !== this.local.generation) {$('files-pick').value = '';return;}
+      if(!$('files-pick').files.length)return;
+      this.act(() => this.local.pick($('files-pick').files)); $('files-pick').value = '';
     };
     $('files-upload').onsubmit = e => {e.preventDefault();this.act(() => {
-      const file = $('files-pick').files[0]; if (!file) throw Error('file_name');
+      const file = this.local.selected; if (!file) throw Error('file_name');
       const name = fileName($('files-name').value); fileSize(file.size);
       if (this.client.entries?.some(v => v.name.toLocaleLowerCase() === name.toLocaleLowerCase())) throw Error('file_exists');
       this.release(); this.client.upload(file,name);
     });};
+    $('files-download').onclick = () => this.act(() => {
+      if(!this.remote || this.remotePath !== this.client.path)throw Error('file_name');
+      this.release(); this.client.download({...this.remote,size:this.remote.size || 0});
+    });
     $('files-cancel').onclick = () => this.client?.cancel();
     this.sync();
+  }
+  side(side) {
+    this.activeSide = side; this.dialog.dataset.side = side;
+    for(const value of ['local','remote']) {const button = $('files-tab-'+value);button.setAttribute('aria-selected',String(value === side));button.tabIndex = value === side ? 0 : -1;}
   }
   message(text) { const node = $(this.client?.connected ? 'files-status' : 'files-login-status'); if(node.textContent !== text)node.textContent = text; }
   error(error) { this.message(messages[error.message] || errorText(error.message)); }
@@ -69,6 +86,7 @@ export class FilePanel {
     this.close(); this.owner = s; this.beforeOpen(); this.connecting = false;
     $('files-id').value = s.id; $('files-password').value = '';
     $('files-computer').textContent = 'Компьютер ' + s.id;
+    this.side('remote');
     $('files-pick').value = ''; $('files-name').value = ''; $('files-path').value = '';
     this.render(); this.dialog.showModal(); $('files-password').focus();
   }
@@ -89,7 +107,28 @@ export class FilePanel {
     this.url = null; this.blob = null; $('files-save').hidden = true; $('files-save').removeAttribute('href'); $('files-save').removeAttribute('download');
     $('files-save-help').hidden = true;
   }
-  unpick() { $('files-pick').value = ''; $('files-name').value = ''; $('files-rename').open = false; }
+  unpick() { this.local.selected = null; this.picked = null; $('files-pick').value = ''; $('files-name').value = ''; $('files-rename').open = false; }
+  renderLocal(busy) {
+    const local = this.local, selected = local.selected;
+    if(this.localEntries !== local.entries || this.localSelected !== selected || this.localBusy !== (busy || local.busy)) {
+      const list = $('files-local-list'); list.replaceChildren();
+      for(const entry of displayEntries(local.entries,$('files-local-search').value)) {
+        const row = document.createElement('li'), button = text('button','','files-row' + (directory(entry) ? ' files-directory' : ''));
+        button.type = 'button'; button.disabled = busy || local.busy || (!directory(entry) && entry.size > LIMIT);
+        button.setAttribute('aria-label',`${directory(entry) ? 'Открыть локальную папку' : 'Выбрать локальный файл'} ${entry.name}`);
+        if(!directory(entry))button.setAttribute('aria-pressed',String(entry.file === selected));
+        const label = text('span','','files-label');label.append(text('span',entry.name,'files-name'),text('small',directory(entry) ? 'Папка' : entry.size > LIMIT ? 'Больше 50 МБ' : displaySize(entry.size)));
+        button.append(icon(entry.entry_type),label,text('span',directory(entry) ? '›' : entry.file === selected ? '✓' : '', 'files-row-action'));
+        button.onclick = () => this.local.choose(entry); row.append(button);list.append(row);
+      }
+      this.localEntries = local.entries; this.localSelected = selected; this.localBusy = busy || local.busy;
+    }
+    $('files-local-empty').hidden = $('files-local-list').childElementCount > 0 && !local.error && !local.busy;
+    $('files-local-empty').textContent = local.busy ? 'Открываем папку…' : local.error === 'local_access' ? 'Не удалось прочитать папку. Выберите её заново или выберите файлы.' : local.error === 'local_limit' ? 'Слишком много файлов: выберите папку поменьше.' : $('files-local-search').value ? 'Ничего не найдено' : 'Выберите файлы для отправки.';
+    $('files-local-path').textContent = local.stack.map(h=>h.name).join(' / ') || 'Выбранные файлы';
+    $('files-local-up').disabled = busy || local.busy || local.stack.length < 2;
+    for(const id of ['files-choose','files-local-folder'])$(id).disabled = busy || local.busy;
+  }
   breadcrumbs(path) {
     const nav = $('files-breadcrumbs'); nav.replaceChildren();
     const windows = /^[A-Za-z]:[\\/]/.test(path), separator = windows ? '\\' : '/', parts = path.split(/[\\/]/).filter(Boolean);
@@ -117,9 +156,13 @@ export class FilePanel {
       const unsupported = ![0,3,4].includes(type), large = type === 4 && (!Number.isSafeInteger(entry.size || 0) || entry.size < 0 || entry.size > LIMIT);
       button.className = directory(entry) ? 'files-row files-directory' : 'files-row'; button.disabled = busy || unsupported || large;
       const label = text('span','','files-label'); label.append(text('span',entry.name,'files-name'),text('small',unsupported ? 'Ссылка · недоступна' : large ? 'Больше 50 МБ · недоступен' : type === 3 ? 'Диск' : type === 0 ? 'Папка' : displaySize(entry.size)));
-      button.append(icon(type),label,text('span',directory(entry) ? '›' : '↓','files-row-action'));
-      button.setAttribute('aria-label',`${directory(entry) ? 'Открыть папку' : 'Скачать'} ${entry.name}${large ? ': больше 50 МБ' : unsupported ? ': недоступно' : ''}`);
-      button.onclick = () => this.act(() => {c.blob = null;this.release();this.unpick();if(type === 4)c.download({...entry,size:entry.size || 0});else c.list(type === 3 ? entry.name + '\\' : joinPath(c.path,entry.name));});
+      button.append(icon(type),label,text('span',directory(entry) ? '›' : entry === this.remote ? '✓' : '', 'files-row-action'));
+      if(type === 4)button.setAttribute('aria-pressed',String(entry === this.remote));
+      button.setAttribute('aria-label',`${directory(entry) ? 'Открыть папку' : 'Выбрать удалённый файл'} ${entry.name}${large ? ': больше 50 МБ' : unsupported ? ': недоступно' : ''}`);
+      button.onclick = () => this.act(() => {
+        if(type === 4) {this.remote = entry;this.remotePath = c.path;this.render();}
+        else c.list(type === 3 ? entry.name + '\\' : joinPath(c.path,entry.name));
+      });
       row.append(button); list.append(row);
     }
     $('files-empty').hidden = entries.length > 0 || busy;
@@ -133,26 +176,36 @@ export class FilePanel {
     $('files-login-status').hidden = connected;
     $('files-login-button').disabled = this.connecting; $('files-password').disabled = this.connecting;
     if (!connected) { this.release(); this.message(this.connecting ? 'Проверяем пароль и разрешение на компьютере…' : c?.error ? (messages[c.error] || errorText(c.error)) : 'Введите пароль компьютера для файлового сеанса.'); return; }
-    for (const id of ['files-home','files-drives','files-up','files-refresh','files-path','files-folder-go','files-pick','files-name','files-send','files-choose','files-unpick']) $(id).disabled = busy;
-    if(this.path !== c.path) {this.path = c.path;$('files-search').value = '';this.unpick();$('files-location').open = false;}
-    const picked = $('files-pick').files[0];
-    $('files-choose').hidden = !!picked || !!c.job; $('files-upload').hidden = !picked || !!c.job;
-    $('files-picked-name').textContent = picked?.name || ''; $('files-picked-size').textContent = picked ? displaySize(picked.size) : '';
+    for (const id of ['files-home','files-drives','files-up','files-refresh','files-path','files-folder-go','files-pick','files-name','files-unpick']) $(id).disabled = busy;
+    if(this.path !== c.path || (this.remote && !c.entries?.includes(this.remote))) {this.remote = null;this.entries = null;}
+    if(this.path !== c.path) {this.path = c.path;$('files-search').value = '';$('files-location').open = false;}
+    const picked = this.local.selected;
+    if(this.picked !== picked) {this.picked = picked;$('files-name').value = picked?.name || '';$('files-rename').open = false;}
+    $('files-rename').hidden = !picked; $('files-unpick').hidden = !picked;
+    $('files-send').disabled = busy || this.local.busy || !picked || picked.size > LIMIT || !c.path;
+    $('files-download').disabled = busy || !this.remote;
+    $('files-remote-picked').textContent = this.remote?.name || 'Выберите удалённый файл';
+    $('files-upload-target').textContent = c.path ? `Отправить в ${c.path}` : 'Откройте папку на удалённом компьютере';
+    $('files-picked-name').textContent = picked?.name || 'Выберите локальный файл'; $('files-picked-size').textContent = picked ? displaySize(picked.size) : '';
+    this.renderLocal(busy);
     $('files-path').value = c.path || ''; $('files-cancel').hidden = !c.job;
     $('files-progress').hidden = !c.job; $('files-progress').max = c.job?.size || 1; $('files-progress').value = c.job?.bytes || 0;
     const progress = c.job ? `${c.job.type === 'upload' ? 'Отправка' : 'Скачивание'} ${c.job.name}: ${displaySize(c.job.bytes)} из ${displaySize(c.job.size)}${c.job.awaitingDone ? '. Ждём подтверждения.' : ''}` : '';
-    this.message(c.error ? messages[c.error] || errorText(c.error) : progress || (c.listing ? 'Открываем папку…' : c.result?.type === 'upload' ? 'Файл передан на компьютер.' : c.blob ? `Получен ${c.result.name}. Сохраните на устройство.` : picked ? 'Файл выбран. Отправить в текущую папку?' : 'Нажмите на файл, чтобы скачать.'));
-    if (this.entries !== c.entries || this.busy !== busy) {
-      this.breadcrumbs(c.path || ''); this.renderList(c,busy); this.entries = c.entries; this.busy = busy;
+    this.message(c.error ? messages[c.error] || errorText(c.error) : progress || (c.listing ? 'Открываем папку…' : c.result?.type === 'upload' ? 'Файл передан на компьютер.' : c.blob ? `Получен ${c.result.name}. Сохраните на устройство.` : 'Выберите файл на нужной стороне и направление передачи.'));
+    if (this.entries !== c.entries || this.busy !== busy || this.selection !== this.remote) {
+      this.breadcrumbs(c.path || ''); this.renderList(c,busy); this.entries = c.entries; this.busy = busy; this.selection = this.remote;
     }
     if (c.blob !== this.blob) { this.release(); if (c.blob) {this.blob = c.blob;this.url = URL.createObjectURL(c.blob);$('files-save').href = this.url;$('files-save').download = c.result.name;$('files-save').hidden = false;$('files-save-help').hidden = false;} }
     if (c.result?.type === 'upload' && this.result !== c.result) {
-      this.unpick(); $('files-upload').hidden = true; $('files-choose').hidden = false;
+      this.unpick();
       this.result = c.result; queueMicrotask(() => {if(this.client === c && c.connected && !c.job && !c.listing)c.list(c.path);});
     }
   }
   close() {
     const c = this.client; this.client = null; c?.close(); this.release(); this.connecting = false; this.owner = null; this.result = null; this.entries = null; this.busy = null; this.path = null; this.query = '';
+    this.local.clear(); this.localEntries = null; this.localSelected = null; this.remote = null; this.remotePath = null; this.selection = null; this.pickOwner = null; this.pickGeneration = -1;
+    $('files-local-search').value = ''; $('files-local-list').replaceChildren();
+    for(const id of ['files-picked-name','files-picked-size','files-remote-picked','files-local-path','files-status','files-login-status'])$(id).textContent = '';
     this.unpick(); $('files-search').value = ''; $('files-sort').value = 'name'; $('files-location').open = false; $('files-breadcrumbs').replaceChildren();
     $('files-password').value = ''; $('files-password').disabled = false; $('files-pick').value = ''; $('files-id').value = ''; $('files-path').value = ''; $('files-name').value = ''; $('files-list').replaceChildren();
     if(this.dialog.open)this.dialog.close();
