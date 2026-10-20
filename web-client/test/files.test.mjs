@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fileBlock, fileName, fileSize, BLOCK, LIMIT} from '../src/file-codec.js';
 import {Files} from '../src/files.js';
+import {LocalFiles} from '../src/local-files.js';
 import {displayEntries,displaySize} from '../src/files-ui.js';
 const frames=JSON.parse(await readFile(new URL('./fixtures/file-zstd.json',import.meta.url)));
 const decode = hex => fileBlock(Uint8Array.from(Buffer.from(hex,'hex')),true);
@@ -84,4 +85,25 @@ test('file display keeps folders first, uses natural names and does not mutate n
 test('human file sizes include zero and unknown, with the same binary units as the transport limit',()=>{
  assert.equal(displaySize(0),'0 Б');assert.equal(displaySize(1024),'1 КБ');assert.equal(displaySize(50*1024*1024),'50 МБ');assert.equal(displaySize(-1),'Размер неизвестен');
  assert.deepEqual(displayEntries([{name:'older',entry_type:4,modified_time:1},{name:'folder',entry_type:0},{name:'new',entry_type:4,modified_time:10}], '', 'date').map(e=>e.name),['folder','new','older']);
+});
+
+test('local files require explicit selection, keep separate files and release references on close',()=>{
+ const local=new LocalFiles(()=>{}),photo=new File(['data'],'photo.jpg'),other=new File(['text'],'other.txt');
+ local.pick([photo,other]);assert.equal(local.selected,null);local.choose(local.entries[1]);assert.equal(local.selected,other);
+ local.clear();assert.deepEqual(local.entries,[]);assert.deepEqual(local.stack,[]);assert.equal(local.selected,null);
+ assert.throws(()=>local.pick(Array(10001).fill(photo)),/local_limit/);
+});
+test('local folder reading stays inside the chosen hierarchy without recursive scans or writes',async()=>{
+ let childReads=0;const file=new File(['data'],'photo.jpg'),handle={name:file.name,kind:'file',getFile:async()=>file};
+ const child={name:'Pictures',kind:'directory',async *values(){childReads++;yield handle;}};
+ const root={name:'Root',async *values(){yield child;yield handle;}};
+ const local=new LocalFiles(()=>{});await local.load([root]);assert.equal(childReads,0);assert.equal(local.stack.length,1);
+ await local.up();assert.equal(local.stack.length,1);await local.choose(local.entries[0]);assert.equal(childReads,1);assert.equal(local.stack.length,2);
+ await local.up();assert.equal(local.stack.length,1);local.clear();
+});
+test('closing the local panel invalidates delayed folder reads and handles permission errors',async()=>{
+ const local=new LocalFiles(()=>{});let finish;
+ const blocked={name:'Root',async *values(){await new Promise(resolve=>finish=resolve);yield {name:'late',kind:'directory'};}};
+ const pending=local.load([blocked]);local.clear();finish();await pending;assert.deepEqual(local.entries,[]);assert.deepEqual(local.stack,[]);assert.equal(local.busy,false);
+ await local.load([{async *values(){throw Error('Permission denied');}}]);assert.equal(local.error,'local_access');assert.equal(local.busy,false);
 });
