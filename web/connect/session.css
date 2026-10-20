@@ -24,7 +24,7 @@ main{max-width:1500px}#connection-form{max-width:560px}#screen{display:block;max
 #files-dialog[open]{display:flex;flex-direction:column}#files-dialog::backdrop{background:#0009}
 #files-dialog [hidden]{display:none!important}#files-dialog button,#files-dialog summary,#files-dialog select{min-height:44px;min-width:44px;font:inherit}
 #files-dialog button{font-weight:550}#files-dialog button:disabled{cursor:default}
-#files-dialog input{width:100%;min-width:0;font-size:16px;margin:6px 0;border:1px solid #ddd7ce;border-radius:10px;padding:11px 12px}
+#files-dialog input{width:100%;min-width:0;min-height:44px;font-size:16px;margin:6px 0;border:1px solid #ddd7ce;border-radius:10px;padding:11px 12px}
 #files-dialog label{display:block;font-size:14px}#files-dialog p{overflow-wrap:anywhere}
 #files-dialog .files-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid #ddd7ce;flex-shrink:0;background:#fffdf9}
 #files-title{font-size:22px;margin:0}#files-computer{font-size:13px;color:#686157}#files-close{color:#145bc1}

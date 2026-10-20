@@ -95,7 +95,7 @@ try{for(const scenario of ['valid','wrong-password','wrong-key','revoked']){
    assert.equal(await page.evaluate(()=>panel.client.blob),null);hold=false;
    await page.evaluate(()=>document.body.classList.add('phone-session'));
    for(const viewport of [{width:320,height:700},{width:844,height:390},{width:390,height:700}]){await page.setViewportSize(viewport);assert.ok(await page.locator('#files-dialog').evaluate(d=>d.getBoundingClientRect().width<=innerWidth&&d.scrollWidth<=d.clientWidth));
-    assert.ok(await page.locator('#files-scroll').evaluate(d=>d.clientHeight>=64));
+    assert.ok(await page.locator('#files-scroll').evaluate(d=>d.clientHeight>=64));assert.ok(await page.locator('#files-search').evaluate(d=>d.getBoundingClientRect().height>=44));
     assert.ok(await page.locator('#files-choose').evaluate(b=>b.getBoundingClientRect().bottom<=innerHeight&&b.getBoundingClientRect().height>=44));
     if(process.env.FUNTI_WEB_SCREENSHOTS)await page.screenshot({path:process.env.FUNTI_WEB_SCREENSHOTS+'/files-'+viewport.width+'.png'});}
    if(process.env.FUNTI_WEB_SCREENSHOTS){await mkdir(process.env.FUNTI_WEB_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.FUNTI_WEB_SCREENSHOTS+'/files-phone.png'});}
