@@ -1,9 +1,21 @@
 name: Browser client checks
 on:
+  workflow_dispatch:
   push:
+    # Work branches are checked by pull_request; keep direct integration/tag checks.
+    branches:
+      - main
+      - claude/rustdesk-fork-planning-324gyk
+      - michailr/r-01-relay-key-auth
+      - michailr/m2-security-review-fixes
+      - michailr/m2-funtidesk-identity-refactor
+    tags: ['**']
     paths: ['web/index.html', 'web/style.css', 'web/app.js', 'web/theme*', 'web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
   pull_request:
     paths: ['web/index.html', 'web/style.css', 'web/app.js', 'web/theme*', 'web-client/**', 'web/connect/**', 'client/libs/base/protos/message.proto', 'client/libs/hbb_common/protos/rendezvous.proto', '.github/workflows/web-client-ci.yml']
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:

@@ -1,7 +1,16 @@
 name: FuntiDesk CI
 
 on:
+  workflow_dispatch:
   push:
+    # Work branches are checked by pull_request; keep direct integration/tag checks.
+    branches:
+      - main
+      - claude/rustdesk-fork-planning-324gyk
+      - michailr/r-01-relay-key-auth
+      - michailr/m2-security-review-fixes
+      - michailr/m2-funtidesk-identity-refactor
+    tags: ['**']
   pull_request:
 
 concurrency:
