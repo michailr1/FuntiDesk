@@ -39,6 +39,7 @@
 | Обновление кнопкой, оповещение о новой версии | `funti_update.rs`, `funti_update_notice.dart` | `core_main.rs` (`--funti-finish-update`, очистка), `flutter_ffi.rs`, «О программе», `funti_home_view.dart` (окошко на главном экране), `libs/portable/src/main.rs` (`FUNTIDESK_PORTABLE_EXE`, `--funti-wait-pid`); служба — `ipc.rs` (`FuntiUpdateService`), `core_main.rs` (`--server`: `cleanup_service`) |
 | Номер сборки `X.Y.Z-ft.N` | `build.rs` | `core_main.rs` (`--version`), `ui_interface.rs` |
 | Пересчёт NAT при смене сети (бывший MIK-16) | `funti_network.rs` | `rendezvous_mediator.rs` (`start_all`: запуск монитора), `common.rs` (`test_nat_type`: один тест за раз; `test_nat_type_`: перерегистрация при смене типа NAT) |
+| Надзор службы за `--server`: журнал запусков и выходов, перезапуск незарегистрированного (2026-10-22, `docs/reviews/2026-10-22-unattended-after-reboot.md`) | `platform/windows/funti_service.rs` | `platform/windows.rs` (`run_service`), `platform/windows.cc` (`LaunchProcessWin`: код ошибки), `rendezvous_mediator.rs` (журнал `PunchHole`/`RequestRelay`) |
 | Сигнализация по TCP | — | `rendezvous_mediator.rs`, `server/src/rendezvous_server.rs` (ADR-004) |
 | Передача файлов: `%переменные%`, быстрые папки | — | `common.rs` (`funti_expand_env`), `ui_cm_interface.rs`, `flutter_ffi.rs`, `file_manager_page.dart`, `file_model.dart` |
 | Звук: подбор формата микрофона | — | `server/audio_service.rs` |
