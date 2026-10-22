@@ -97,7 +97,7 @@ use windows_service::{
 use winreg::{enums::*, RegKey};
 
 mod acl;
-// FUNTIDESK: --server supervision logs and restart (unattended access, 2026-10-22).
+// FUNTIDESK: --server launch and exit logs (unattended access, 2026-10-22).
 mod funti_service;
 mod installer_handoff;
 mod installer_shell;
@@ -704,7 +704,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
     let mut h_process = funti_service::launch(session_id, true, "service start").await;
     let mut incoming = ipc::new_listener(crate::POSTFIX_SERVICE).await?;
     let mut stored_usid = None;
-    let mut funti_health = funti_service::Health::new();
     loop {
         let sids: Vec<_> = get_available_sessions(false)
             .iter()
@@ -719,7 +718,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 if count == 0 {
                     h_process =
                         funti_service::launch(session_id, true, "active session changed").await;
-                    funti_health.reset();
                 }
             }
         }
@@ -762,7 +760,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                                             "session reported by user process",
                                         )
                                         .await;
-                                        funti_health.reset();
                                     }
                                 }
                             }
@@ -793,11 +790,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                         }
                     }
                     let mut exit_code: DWORD = 0;
-                    // FUNTIDESK: an unregistered --server is replaced like a dead one.
-                    if !h_process.is_null() && !close_sent && funti_health.check().await {
-                        funti_service::stop(h_process).await;
-                        close_sent = true;
-                    }
                     let funti_pid = funti_service::pid(h_process);
                     if h_process.is_null()
                         || (GetExitCodeProcess(h_process, &mut exit_code) == TRUE
@@ -810,7 +802,6 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                         h_process =
                             funti_service::launch(session_id, !close_sent, "no running --server")
                                 .await;
-                        funti_health.reset();
                     }
                 }
             }
