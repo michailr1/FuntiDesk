@@ -40,7 +40,7 @@
 
 ## Сборка
 
-Windows-сборка: workflow `R21 Windows clean build` (`workflow_dispatch`, без публикации релиза), артефакт `funtidesk-windows-x64-<sha>`. Релиз не выпускался.
+Windows-сборка: workflow `R21 Windows clean build` (`workflow_dispatch`, без публикации релиза), [run 39807232123](https://github.com/michailr1/FuntiDesk/actions/runs/39807232123) на `f94fd42` — успешно (сборка, тест хранилища кабинета), артефакт `funtidesk-windows-x64-f94fd4288267c92edc5ff083883d14765dc997e0`, хранится 14 дней. Релиз не выпускался.
 
 ## Установка на MINIPC (вручную, через RDP `minipc\admin`)
 
