@@ -97,6 +97,8 @@ use windows_service::{
 use winreg::{enums::*, RegKey};
 
 mod acl;
+// FUNTIDESK: --server supervision logs and restart (unattended access, 2026-10-22).
+mod funti_service;
 mod installer_handoff;
 mod installer_shell;
 mod msi_registry;
@@ -699,9 +701,10 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
 
     let mut session_id = unsafe { get_current_session(share_rdp()) };
     log::info!("session id {}", session_id);
-    let mut h_process = launch_server(session_id, true).await.unwrap_or(NULL);
+    let mut h_process = funti_service::launch(session_id, true, "service start").await;
     let mut incoming = ipc::new_listener(crate::POSTFIX_SERVICE).await?;
     let mut stored_usid = None;
+    let mut funti_health = funti_service::Health::new();
     loop {
         let sids: Vec<_> = get_available_sessions(false)
             .iter()
@@ -714,7 +717,9 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 // https://github.com/rustdesk/rustdesk/discussions/10039
                 let count = ipc::get_port_forward_session_count(1000).await.unwrap_or(0);
                 if count == 0 {
-                    h_process = launch_server(session_id, true).await.unwrap_or(NULL);
+                    h_process =
+                        funti_service::launch(session_id, true, "active session changed").await;
+                    funti_health.reset();
                 }
             }
         }
@@ -751,8 +756,13 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                                         );
                                         session_id = usid;
                                         stored_usid = Some(session_id);
-                                        h_process =
-                                            launch_server(session_id, true).await.unwrap_or(NULL);
+                                        h_process = funti_service::launch(
+                                            session_id,
+                                            true,
+                                            "session reported by user process",
+                                        )
+                                        .await;
+                                        funti_health.reset();
                                     }
                                 }
                             }
@@ -766,11 +776,14 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 // timeout
                 unsafe {
                     let tmp = get_current_session(share_rdp());
-                    if tmp == 0xFFFFFFFF {
-                        continue;
-                    }
                     let mut close_sent = false;
-                    if tmp != session_id && stored_usid != Some(session_id) {
+                    // FUNTIDESK: with no console session (boot, session switch)
+                    // upstream skipped the exit check below too, leaving a dead
+                    // --server unreplaced; only skip the session change.
+                    if tmp != funti_service::NO_SESSION
+                        && tmp != session_id
+                        && stored_usid != Some(session_id)
+                    {
                         log::info!("session changed from {} to {}", session_id, tmp);
                         session_id = tmp;
                         let count = ipc::get_port_forward_session_count(1000).await.unwrap_or(0);
@@ -780,19 +793,24 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                         }
                     }
                     let mut exit_code: DWORD = 0;
+                    // FUNTIDESK: an unregistered --server is replaced like a dead one.
+                    if !h_process.is_null() && !close_sent && funti_health.check().await {
+                        funti_service::stop(h_process).await;
+                        close_sent = true;
+                    }
+                    let funti_pid = funti_service::pid(h_process);
                     if h_process.is_null()
                         || (GetExitCodeProcess(h_process, &mut exit_code) == TRUE
                             && exit_code != STILL_ACTIVE
                             && CloseHandle(h_process) == TRUE)
                     {
-                        match launch_server(session_id, !close_sent).await {
-                            Ok(ptr) => {
-                                h_process = ptr;
-                            }
-                            Err(err) => {
-                                log::error!("Failed to launch server: {}", err);
-                            }
+                        if funti_pid != 0 {
+                            funti_service::log_exit(funti_pid, exit_code, session_id);
                         }
+                        h_process =
+                            funti_service::launch(session_id, !close_sent, "no running --server")
+                                .await;
+                        funti_health.reset();
                     }
                 }
             }

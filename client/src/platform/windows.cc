@@ -261,14 +261,23 @@ extern "C"
             {
                 dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT;
             }
+            DWORD dwError = ERROR_SUCCESS;
             if (CreateProcessAsUserW(hToken, NULL, buf, NULL, NULL, FALSE, dwCreationFlags, lpEnvironment, NULL, &si, &pi))
             {
                 CloseHandle(pi.hThread);
                 hProcess = pi.hProcess;
             }
+            else
+            {
+                dwError = GetLastError();
+            }
             CloseHandle(hToken);
             if (lpEnvironment)
                 DestroyEnvironmentBlock(lpEnvironment);
+            // FUNTIDESK: the caller logs GetLastError(); keep the error of
+            // CreateProcessAsUserW, not the one of the cleanup above.
+            if (!hProcess)
+                SetLastError(dwError);
         }
         return hProcess;
     }
