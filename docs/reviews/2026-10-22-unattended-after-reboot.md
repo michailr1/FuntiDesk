@@ -6,7 +6,7 @@
 
 ## Причина (по журналам MINIPC)
 
-**Установленный узел работает в режиме UDP-сигнализации, а не TCP.** Во всех настройках MINIPC сохранено явное `disable-udp = "N"`: у службы (`ServiceProfiles\LocalService\...\FuntiDesk2.toml`) и у пользователей `micha` и `share`. Явное значение перекрывает значение по умолчанию ADR-004 (`DEFAULT_SETTINGS`: `disable-udp = Y`, `client/src/common.rs`; поиск в `Config::get_option`: сохранённое значение выше значения по умолчанию). Все запуски `--server` в журналах с 2026-10-19 по 2026-10-22, включая запуски после RDP, — `start udp: desk.funti.cc:21116`, ни одного `start tcp`.
+**Установленный узел работает в режиме UDP-сигнализации, а не TCP.** Во всех настройках MINIPC сохранено явное `disable-udp = "N"`: у службы (`ServiceProfiles\LocalService\...\FuntiDesk2.toml`) и у двух пользователей. Явное значение перекрывает значение по умолчанию ADR-004 (`DEFAULT_SETTINGS`: `disable-udp = Y`, `client/src/common.rs`; поиск в `Config::get_option`: сохранённое значение выше значения по умолчанию). Все запуски `--server` в журналах с 2026-10-19 по 2026-10-22, включая запуски после RDP, — `start udp: desk.funti.cc:21116`, ни одного `start tcp`.
 
 В режиме UDP узел регистрируется и виден «в сети», но запросы на подключение (`PunchHole`/`RequestRelay`) приходят входящим UDP. Именно такая сеть описана в ADR-004: регистрация проходит, входящие запросы теряются. Журнал `--server` второй загрузки (17:14:38–17:38:22, сессия 1, экран входа): регистрация с 17:14:45, за 24 минуты дошёл один запрос (17:22:29, `Punch tcp hole … Nothing connected … None of 1 punches was met`), остальных нет.
 
@@ -42,9 +42,9 @@
 
 Windows-сборка: workflow `R21 Windows clean build` (`workflow_dispatch`, без публикации релиза), [run 39807232123](https://github.com/michailr1/FuntiDesk/actions/runs/39807232123) на `f94fd42` — успешно (сборка, тест хранилища кабинета), артефакт `funtidesk-windows-x64-f94fd4288267c92edc5ff083883d14765dc997e0`, хранится 14 дней. Релиз не выпускался.
 
-## Установка на MINIPC (вручную, через RDP `minipc\admin`)
+## Установка на MINIPC (вручную, через RDP локального администратора)
 
-1. Убедиться, что RDP-доступ `minipc\admin` работает. Не завершать RDP-сеанс, не перезагружать без готовности.
+1. Убедиться, что RDP-доступ локального администратора работает. Не завершать RDP-сеанс, не перезагружать без готовности.
 2. Резервная копия: `Copy-Item 'C:\Program Files\FuntiDesk' 'C:\FuntiDesk-backup-<дата>' -Recurse` и запись `& 'C:\Program Files\FuntiDesk\FuntiDesk.exe' --version`.
 3. Скопировать журналы (выше).
 4. `sc stop FuntiDesk`; дождаться остановки; закрыть FuntiDesk в сеансе (трей).
