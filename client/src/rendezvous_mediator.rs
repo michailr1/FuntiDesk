@@ -540,6 +540,13 @@ impl RendezvousMediator {
                 }
             }
             Some(rendezvous_message::Union::PunchHole(ph)) => {
+                // FUNTIDESK: shows whether connection requests reach this device.
+                hbb_common::throttled_log!(
+                    Duration::from_secs(10),
+                    info,
+                    "PunchHole received from {}",
+                    self.host
+                );
                 let rz = self.clone();
                 let server = server.clone();
                 tokio::spawn(async move {
@@ -547,6 +554,13 @@ impl RendezvousMediator {
                 });
             }
             Some(rendezvous_message::Union::RequestRelay(rr)) => {
+                // FUNTIDESK: shows whether connection requests reach this device.
+                hbb_common::throttled_log!(
+                    Duration::from_secs(10),
+                    info,
+                    "RequestRelay received from {}",
+                    self.host
+                );
                 let rz = self.clone();
                 let server = server.clone();
                 tokio::spawn(async move {
