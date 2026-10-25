@@ -1,0 +1,18 @@
+#!/bin/bash
+# FUNTIDESK: from upstream res/DEBIAN/prerm with FuntiDesk names.
+
+set -e
+
+case $1 in
+	remove|upgrade)
+		rm -f /usr/bin/funtidesk
+
+		if [ -d /run/systemd/system ]; then
+			systemctl stop funtidesk || true
+			systemctl disable funtidesk || true
+			rm -f /etc/systemd/system/funtidesk.service /usr/lib/systemd/system/funtidesk.service || true
+		fi
+		;;
+esac
+
+exit 0
