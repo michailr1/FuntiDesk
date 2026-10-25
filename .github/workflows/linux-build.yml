@@ -96,6 +96,22 @@ jobs:
       - name: Build deb
         run: bash scripts/linux/build-deb.sh
 
+      - name: Check package
+        # Unpacked, not installed: installing would start the service and
+        # register a throwaway device on the production server.
+        run: |
+          deb=$(ls funtidesk-*.deb)
+          dpkg-deb -I "$deb"
+          root=$(mktemp -d)
+          dpkg-deb -x "$deb" "$root"
+          app="$root/usr/share/funtidesk"
+          test -x "$app/funtidesk"
+          test -f "$root/usr/share/funtidesk/files/systemd/funtidesk.service"
+          test -f "$root/usr/share/applications/funtidesk.desktop"
+          if ldd "$app/funtidesk" "$app/lib/"*.so | grep 'not found'; then exit 1; fi
+          LD_LIBRARY_PATH="$app/lib" timeout 60 "$app/funtidesk" --version | tee version.txt
+          grep -q "$(echo "$deb" | sed 's/^funtidesk-\(.*\)-x86_64\.deb$/\1/')" version.txt
+
       - name: SHA256
         run: sha256sum funtidesk-*.deb | tee SHA256SUMS.txt
 
