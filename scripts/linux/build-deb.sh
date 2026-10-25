@@ -43,10 +43,12 @@ restore_pubspec() {
 }
 trap restore_pubspec EXIT
 sed -i 's/extended_text: 14.0.0/extended_text: 13.0.0/' flutter/pubspec.yaml
-(cd flutter && "$FLUTTER_BRIDGE/bin/flutter" pub get)
-"$HOME/.cargo/bin/flutter_rust_bridge_codegen" --rust-input ./src/flutter_ffi.rs \
-  --dart-output ./flutter/lib/generated_bridge.dart \
-  --c-output ./flutter/macos/Runner/bridge_generated.h
+# The codegen calls `flutter` and `dart` from PATH.
+(export PATH="$FLUTTER_BRIDGE/bin:$PATH"
+ cd flutter && flutter pub get && cd .. &&
+ "$HOME/.cargo/bin/flutter_rust_bridge_codegen" --rust-input ./src/flutter_ffi.rs \
+   --dart-output ./flutter/lib/generated_bridge.dart \
+   --c-output ./flutter/macos/Runner/bridge_generated.h)
 restore_pubspec
 trap - EXIT
 
@@ -63,8 +65,8 @@ if git -C "$FLUTTER_BUILD" apply --check "$patch" 2>/dev/null; then
 else
   git -C "$FLUTTER_BUILD" apply --reverse --check "$patch"
 fi
-(cd flutter && "$FLUTTER_BUILD/bin/flutter" config --enable-linux-desktop \
-  && "$FLUTTER_BUILD/bin/flutter" build linux --release)
+(export PATH="$FLUTTER_BUILD/bin:$PATH"
+ cd flutter && flutter config --enable-linux-desktop && flutter build linux --release)
 
 echo '== deb =='
 res="$client/res/funtidesk-linux"
