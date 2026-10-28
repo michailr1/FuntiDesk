@@ -54,7 +54,6 @@ pub const READ_TIMEOUT: u64 = 18_000;
 pub const REG_INTERVAL: i64 = 15_000;
 pub const COMPRESS_LEVEL: i32 = 3;
 pub const FUNTIDESK_APP_NAME: &str = "FuntiDesk";
-pub const LEGACY_APP_NAME: &str = "RustDesk";
 const SERIAL: i32 = 3;
 
 #[cfg(target_os = "macos")]
@@ -658,31 +657,9 @@ impl Config {
     fn load_<T: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug>(
         suffix: &str,
     ) -> T {
-        let file = Self::file_(suffix);
-        let cfg = if file.exists() {
-            load_path(file)
-        } else {
-            let legacy_file = Self::file_for_app(LEGACY_APP_NAME, suffix);
-            if legacy_file.exists() {
-                let cfg = load_path(legacy_file.clone());
-                match Self::copy_legacy_config_file(&legacy_file, &file) {
-                    Ok(_) => log::info!(
-                        "Migrated legacy config '{}' to '{}'",
-                        legacy_file.display(),
-                        file.display()
-                    ),
-                    Err(err) => log::warn!(
-                        "Failed to migrate legacy config '{}' to '{}': {}",
-                        legacy_file.display(),
-                        file.display(),
-                        err
-                    ),
-                }
-                cfg
-            } else {
-                load_path(file)
-            }
-        };
+        // FUNTIDESK: never read a RustDesk profile; FuntiDesk keeps its own
+        // identity and settings even where RustDesk is installed.
+        let cfg = load_path(Self::file_(suffix));
         if suffix.is_empty() {
             log::trace!("{:?}", cfg);
         }
@@ -836,6 +813,7 @@ impl Config {
         Config::with_extension(Self::path_for_app(app_name, name))
     }
 
+    #[cfg(target_os = "macos")]
     fn copy_legacy_config_file(legacy_file: &Path, file: &Path) -> std::io::Result<()> {
         let metadata = fs::symlink_metadata(legacy_file)?;
         if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
@@ -843,17 +821,6 @@ impl Config {
                 std::io::ErrorKind::InvalidInput,
                 "legacy config source is not a regular file",
             ));
-        }
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::fs::MetadataExt;
-            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-            if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "legacy config source is a reparse point",
-                ));
-            }
         }
         if let Some(parent) = file.parent() {
             fs::create_dir_all(parent)?;
@@ -925,11 +892,7 @@ impl Config {
             if app_name == FUNTIDESK_APP_NAME {
                 Self::migrate_macos_legacy_profile();
             }
-            let org = if app_name == LEGACY_APP_NAME {
-                LEGACY_ORG.to_owned()
-            } else {
-                ORG.read().unwrap().clone()
-            };
+            let org = ORG.read().unwrap().clone();
             return Self::path_for_macos_identity(&org, app_name, p);
         }
         #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "macos")))]
@@ -1059,16 +1022,12 @@ impl Config {
         if target_root.as_os_str().is_empty() {
             return;
         }
-        let sources = [
-            (
-                Self::path_for_macos_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, ""),
-                FUNTIDESK_APP_NAME,
-            ),
-            (
-                Self::path_for_macos_identity(LEGACY_ORG, LEGACY_APP_NAME, ""),
-                LEGACY_APP_NAME,
-            ),
-        ];
+        // FUNTIDESK: only FuntiDesk's own earlier location; a RustDesk profile
+        // is never read.
+        let sources = [(
+            Self::path_for_macos_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, ""),
+            FUNTIDESK_APP_NAME,
+        )];
         Self::migrate_macos_profile_from_roots(&target_root, &sources);
     }
 
@@ -1935,51 +1894,8 @@ const PEERS: &str = "peers";
 impl PeerConfig {
     pub fn load(id: &str) -> PeerConfig {
         let _lock = CONFIG.read().unwrap();
-        let path = Self::path(id);
-        let legacy_path = Self::path_for_app(LEGACY_APP_NAME, id);
-        let load_path = if path.exists() {
-            path
-        } else if legacy_path.exists()
-            && fs::symlink_metadata(&legacy_path)
-                .map(|metadata| metadata.file_type().is_file())
-                .unwrap_or(false)
-        {
-            if let Some(parent) = path.parent() {
-                if let Err(err) = fs::create_dir_all(parent) {
-                    log::warn!(
-                        "Failed to create FuntiDesk peer directory '{}': {}",
-                        parent.display(),
-                        err
-                    );
-                    legacy_path
-                } else {
-                    match Config::copy_legacy_config_file(&legacy_path, &path) {
-                        Ok(_) => {
-                            log::info!(
-                                "Migrated legacy peer config '{}' to '{}'",
-                                legacy_path.display(),
-                                path.display()
-                            );
-                            path
-                        }
-                        Err(err) => {
-                            log::warn!(
-                                "Failed to migrate legacy peer config '{}' to '{}': {}",
-                                legacy_path.display(),
-                                path.display(),
-                                err
-                            );
-                            legacy_path
-                        }
-                    }
-                }
-            } else {
-                legacy_path
-            }
-        } else {
-            path
-        };
-        match confy::load_path(load_path) {
+        // FUNTIDESK: only FuntiDesk's own peers, never RustDesk's.
+        match confy::load_path(Self::path(id)) {
             Ok(config) => {
                 let mut config: PeerConfig = config;
                 let mut store = false;
@@ -2059,55 +1975,6 @@ impl PeerConfig {
         Config::with_extension(Config::path_for_app(app_name, path))
     }
 
-    fn migrate_legacy_peers() {
-        let app_name = APP_NAME.read().unwrap().clone();
-        if app_name == LEGACY_APP_NAME {
-            return;
-        }
-        let legacy_dir = Config::path_for_app(LEGACY_APP_NAME, PEERS);
-        let target_dir = Config::path_for_app(&app_name, PEERS);
-        let Ok(entries) = fs::read_dir(&legacy_dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            if !file_type.is_file() {
-                continue;
-            }
-            let source = entry.path();
-            if source.extension().and_then(|ext| ext.to_str()) != Some("toml") {
-                continue;
-            }
-            let target = target_dir.join(entry.file_name());
-            if target.exists() {
-                continue;
-            }
-            if let Err(err) = fs::create_dir_all(&target_dir) {
-                log::warn!(
-                    "Failed to create FuntiDesk peer directory '{}': {}",
-                    target_dir.display(),
-                    err
-                );
-                return;
-            }
-            match Config::copy_legacy_config_file(&source, &target) {
-                Ok(_) => log::info!(
-                    "Migrated legacy peer config '{}' to '{}'",
-                    source.display(),
-                    target.display()
-                ),
-                Err(err) => log::warn!(
-                    "Failed to migrate legacy peer config '{}' to '{}': {}",
-                    source.display(),
-                    target.display(),
-                    err
-                ),
-            }
-        }
-    }
-
     // The number of peers to load in the first round when showing the peers card list in the main window.
     // When there're too many peers, loading all of them at once will take a long time.
     // We can load them in two rouds, the first round loads the first 100 peers, and the second round loads the rest.
@@ -2117,7 +1984,6 @@ impl PeerConfig {
     pub fn get_vec_id_modified_time_path(
         id_filters: &Option<Vec<String>>,
     ) -> Vec<(String, SystemTime, PathBuf)> {
-        Self::migrate_legacy_peers();
         if let Ok(peers) = Config::path(PEERS).read_dir() {
             let mut vec_id_modified_time_path = peers
                 .into_iter()
@@ -2649,13 +2515,7 @@ impl LanPeers {
     }
 
     pub fn modify_time() -> crate::ResultType<u64> {
-        let current = Config::file_("_lan_peers");
-        let p = if current.exists() {
-            current
-        } else {
-            Config::file_for_app(LEGACY_APP_NAME, "_lan_peers")
-        };
-        Ok(fs::metadata(p)?
+        Ok(fs::metadata(Config::file_("_lan_peers"))?
             .modified()?
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_millis() as _)
@@ -2874,45 +2734,6 @@ impl Ab {
         Config::path_for_app(app_name, filename)
     }
 
-    fn readable_path() -> PathBuf {
-        let path = Self::path();
-        if path.exists() {
-            return path;
-        }
-        let legacy = Self::path_for_app(LEGACY_APP_NAME);
-        if !fs::symlink_metadata(&legacy)
-            .map(|metadata| metadata.file_type().is_file())
-            .unwrap_or(false)
-        {
-            return path;
-        }
-        if let Some(parent) = path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                log::warn!("Failed to create FuntiDesk address-book directory: {}", err);
-                return legacy;
-            }
-        }
-        match Config::copy_legacy_config_file(&legacy, &path) {
-            Ok(_) => {
-                log::info!(
-                    "Migrated legacy address book '{}' to '{}'",
-                    legacy.display(),
-                    path.display()
-                );
-                path
-            }
-            Err(err) => {
-                log::warn!(
-                    "Failed to migrate legacy address book '{}' to '{}': {}",
-                    legacy.display(),
-                    path.display(),
-                    err
-                );
-                legacy
-            }
-        }
-    }
-
     pub fn store(json: String) {
         if let Ok(mut file) = std::fs::File::create(Self::path()) {
             let data = compress(json.as_bytes());
@@ -2929,7 +2750,7 @@ impl Ab {
     }
 
     pub fn load() -> Ab {
-        if let Ok(mut file) = std::fs::File::open(Self::readable_path()) {
+        if let Ok(mut file) = std::fs::File::open(Self::path()) {
             let mut data = vec![];
             if file.read_to_end(&mut data).is_ok() {
                 if let Ok(data) = symmetric_crypt(&data, false) {
@@ -3048,45 +2869,6 @@ impl Group {
         Config::path_for_app(app_name, filename)
     }
 
-    fn readable_path() -> PathBuf {
-        let path = Self::path();
-        if path.exists() {
-            return path;
-        }
-        let legacy = Self::path_for_app(LEGACY_APP_NAME);
-        if !fs::symlink_metadata(&legacy)
-            .map(|metadata| metadata.file_type().is_file())
-            .unwrap_or(false)
-        {
-            return path;
-        }
-        if let Some(parent) = path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                log::warn!("Failed to create FuntiDesk group directory: {}", err);
-                return legacy;
-            }
-        }
-        match Config::copy_legacy_config_file(&legacy, &path) {
-            Ok(_) => {
-                log::info!(
-                    "Migrated legacy group data '{}' to '{}'",
-                    legacy.display(),
-                    path.display()
-                );
-                path
-            }
-            Err(err) => {
-                log::warn!(
-                    "Failed to migrate legacy group data '{}' to '{}': {}",
-                    legacy.display(),
-                    path.display(),
-                    err
-                );
-                legacy
-            }
-        }
-    }
-
     pub fn store(json: String) {
         if let Ok(mut file) = std::fs::File::create(Self::path()) {
             let data = compress(json.as_bytes());
@@ -3102,7 +2884,7 @@ impl Group {
     }
 
     pub fn load() -> Self {
-        if let Ok(mut file) = std::fs::File::open(Self::readable_path()) {
+        if let Ok(mut file) = std::fs::File::open(Self::path()) {
             let mut data = vec![];
             if file.read_to_end(&mut data).is_ok() {
                 if let Ok(data) = symmetric_crypt(&data, false) {
@@ -3438,7 +3220,7 @@ mod tests {
         };
         let current = path_for_identity(FUNTIDESK_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
         let intermediate = path_for_identity(LEGACY_ORG, FUNTIDESK_APP_NAME, "FuntiDesk.toml");
-        let original = path_for_identity(LEGACY_ORG, LEGACY_APP_NAME, "RustDesk.toml");
+        let original = path_for_identity(LEGACY_ORG, "RustDesk", "RustDesk.toml");
         assert_ne!(current, intermediate);
         assert_ne!(current, original);
         assert!(current.to_string_lossy().contains("FuntiDesk"));
@@ -3459,20 +3241,17 @@ mod tests {
         ));
         let target = root.join("target");
         let intermediate = root.join("intermediate");
-        let original = root.join("original");
         fs::create_dir_all(intermediate.join(PEERS)).unwrap();
-        fs::create_dir_all(original.join(PEERS)).unwrap();
 
         fs::write(intermediate.join("FuntiDesk.toml"), b"intermediate").unwrap();
-        fs::write(original.join("RustDesk.toml"), b"original").unwrap();
-        fs::write(original.join("RustDesk_custom.txt"), b"must-not-migrate").unwrap();
+        fs::write(
+            intermediate.join("FuntiDesk_custom.txt"),
+            b"must-not-migrate",
+        )
+        .unwrap();
         fs::write(intermediate.join(PEERS).join("peer.toml"), b"first-peer").unwrap();
-        fs::write(original.join(PEERS).join("peer.toml"), b"second-peer").unwrap();
 
-        let sources = [
-            (intermediate.clone(), FUNTIDESK_APP_NAME),
-            (original.clone(), LEGACY_APP_NAME),
-        ];
+        let sources = [(intermediate.clone(), FUNTIDESK_APP_NAME)];
         Config::migrate_macos_profile_from_roots(&target, &sources);
 
         assert_eq!(
@@ -3485,7 +3264,6 @@ mod tests {
         );
         assert!(!target.join("FuntiDesk_custom.txt").exists());
         assert!(intermediate.join("FuntiDesk.toml").exists());
-        assert!(original.join("RustDesk.toml").exists());
 
         fs::write(target.join("FuntiDesk.toml"), b"keep-existing").unwrap();
         Config::migrate_macos_profile_from_roots(&target, &sources);
@@ -3558,7 +3336,7 @@ mod tests {
     #[test]
     fn test_config_files_use_explicit_app_names() {
         let funtidesk_file = Config::file_for_app(FUNTIDESK_APP_NAME, "2");
-        let legacy_file = Config::file_for_app(LEGACY_APP_NAME, "2");
+        let legacy_file = Config::file_for_app("RustDesk", "2");
 
         assert_eq!(
             funtidesk_file.file_name().and_then(|name| name.to_str()),
@@ -3575,7 +3353,7 @@ mod tests {
     #[test]
     fn test_peer_files_use_explicit_app_names() {
         let funtidesk_file = PeerConfig::path_for_app(FUNTIDESK_APP_NAME, "123456789");
-        let legacy_file = PeerConfig::path_for_app(LEGACY_APP_NAME, "123456789");
+        let legacy_file = PeerConfig::path_for_app("RustDesk", "123456789");
         assert_eq!(
             funtidesk_file.file_name().and_then(|name| name.to_str()),
             Some("123456789.toml")
@@ -3587,9 +3365,9 @@ mod tests {
     #[test]
     fn test_auxiliary_data_paths_use_explicit_app_names() {
         let funtidesk_ab = Ab::path_for_app(FUNTIDESK_APP_NAME);
-        let legacy_ab = Ab::path_for_app(LEGACY_APP_NAME);
+        let legacy_ab = Ab::path_for_app("RustDesk");
         let funtidesk_group = Group::path_for_app(FUNTIDESK_APP_NAME);
-        let legacy_group = Group::path_for_app(LEGACY_APP_NAME);
+        let legacy_group = Group::path_for_app("RustDesk");
         assert_eq!(
             funtidesk_ab.file_name().and_then(|name| name.to_str()),
             Some("FuntiDesk_ab")

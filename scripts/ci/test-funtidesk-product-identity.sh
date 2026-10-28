@@ -62,14 +62,18 @@ if grep -Eq 'VALUE "(FileDescription|InternalName|OriginalFilename|ProductName)"
 fi
 
 grep -Fq 'pub const FUNTIDESK_APP_NAME: &str = "FuntiDesk";' "$config" || fail 'FuntiDesk config namespace constant is missing'
-grep -Fq 'pub const LEGACY_APP_NAME: &str = "RustDesk";' "$config" || fail 'legacy RustDesk migration boundary is missing'
-grep -Fq 'create_new(true)' "$config" || fail 'legacy config migration can overwrite an existing FuntiDesk target'
-grep -Fq 'legacy config source is a reparse point' "$config" || fail 'Windows reparse-point rejection is missing from legacy migration'
-if grep -Fq 'fs::copy(' "$config"; then
-  fail 'direct fs::copy remains in config migration; use the hardened legacy copy helper'
+# FUNTIDESK (2026-10-28): FuntiDesk never reads a RustDesk profile — no ID, keys,
+# settings, peers, address book or groups — even where RustDesk is installed.
+# Outside its tests, the config module must not name the RustDesk profile.
+config_runtime="$(sed '/^#\[cfg(test)\]$/,$d' "$config")"
+if grep -Eq '"RustDesk"|LEGACY_APP_NAME' <<<"$config_runtime"; then
+  fail 'the config module reads a RustDesk profile; FuntiDesk configuration must stay separate'
 fi
-test "$(grep -Fc 'Config::copy_legacy_config_file' "$config")" -eq 4 || fail 'auxiliary migrations do not all use the hardened legacy copy helper'
-grep -Fq 'Self::copy_legacy_config_file' "$config" || fail 'primary config migration does not use the hardened legacy copy helper'
+# The only remaining copy (macOS: FuntiDesk's own earlier location) never overwrites.
+grep -Fq 'create_new(true)' "$config" || fail 'config migration can overwrite an existing FuntiDesk target'
+if grep -Fq 'fs::copy(' "$config"; then
+  fail 'direct fs::copy remains in config migration; use the hardened copy helper'
+fi
 
 grep -Fq 'std::wstring app_name = L"FuntiDesk";' "$runner" || fail 'Windows runner fallback app name is not FuntiDesk'
 grep -Fq 'const ISSUER: &str = "FuntiDesk";' "$auth_2fa" || fail '2FA issuer is not FuntiDesk'
@@ -153,8 +157,8 @@ grep -Fq 'name: funtidesk-windows-x64-${{ github.sha }}' "$r21" || fail 'R21 art
 #   upstream-derived ABI names.
 # - Android Kotlin package names and external applicationId currently remain
 #   com.carriez.flutter_hbb until a dedicated data/update migration is designed.
-# - legacy RustDesk profile identifiers remain only where required for one-time migration.
-# - passive legacy profile data migrates only through the hardened non-overwriting copy helper.
+# - no RustDesk profile is read; macOS copies only FuntiDesk's own earlier
+#   location, through the hardened non-overwriting copy helper.
 # - legacy executable plugins are retained on disk; the client has no plugin framework (upstream 1.5.0).
 # - upstream update-feed filenames (rustdesk-<version>.*) remain until FuntiDesk owns
 #   its update endpoint and artifact contract.
