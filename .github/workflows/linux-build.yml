@@ -1,0 +1,126 @@
+name: Linux build
+
+# FUNTIDESK (ADR-016): FuntiDesk .deb for Linux x86_64. Builds and uploads an
+# artifact only; publishes no release.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/linux-build
+    paths:
+      - ".github/workflows/linux-build.yml"
+      - "scripts/linux/**"
+      - "client/res/funtidesk-linux/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+
+jobs:
+  linux-x64:
+    # The glibc of this image (2.35) is the oldest the package runs on.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # FUNTIDESK: the build number is the commit count (client/build.rs).
+          fetch-depth: 0
+
+      - name: Guard FuntiDesk product identity
+        run: bash scripts/ci/test-funtidesk-product-identity.sh
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /opt/ghc /usr/local/lib/android /usr/share/dotnet
+          df -h /
+
+      - name: System packages
+        run: |
+          sudo apt-get update -y
+          # The image's libunwind-14-dev blocks libunwind-dev, which libgstreamer1.0-dev needs.
+          sudo apt-get remove -y libunwind-14-dev || true
+          sudo apt-get install -y build-essential clang cmake curl git nasm ninja-build \
+            pkg-config python3 unzip wget xz-utils libssl-dev \
+            libayatana-appindicator3-dev libasound2-dev libclang-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libgtk-3-dev libpulse-dev libva-dev \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev \
+            libpam0g-dev llvm-dev
+          # vcpkg builds its own libopus.
+          sudo apt-get remove -y libopus-dev || true
+
+      - name: Rust 1.75
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: 1.75.0
+          components: rustfmt
+
+      - name: vcpkg cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-x64-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('client/vcpkg.json', 'client/res/vcpkg/**') }}
+
+      - name: vcpkg dependencies
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          git -C "$RUNNER_TEMP/vcpkg" checkout --detach "$VCPKG_COMMIT_ID"
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          cd client
+          if ! "$RUNNER_TEMP/vcpkg/vcpkg" install --triplet x64-linux \
+              --x-install-root="$RUNNER_TEMP/vcpkg/installed"; then
+            find "$RUNNER_TEMP/vcpkg/buildtrees" -name '*.log' -exec tail -n 40 {} +
+            exit 1
+          fi
+          echo "VCPKG_ROOT=$RUNNER_TEMP/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Flutter SDKs
+        run: |
+          for v in 3.22.3 3.24.5; do
+            mkdir -p "$RUNNER_TEMP/flutter-$v"
+            curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$v-stable.tar.xz" \
+              | tar xJ -C "$RUNNER_TEMP/flutter-$v" --strip-components=1
+          done
+          git config --global --add safe.directory '*'
+          echo "FLUTTER_BRIDGE=$RUNNER_TEMP/flutter-3.22.3" >> "$GITHUB_ENV"
+          echo "FLUTTER_BUILD=$RUNNER_TEMP/flutter-3.24.5" >> "$GITHUB_ENV"
+
+      - name: Build deb
+        run: bash scripts/linux/build-deb.sh
+
+      - name: Check package
+        # Unpacked, not installed: installing would start the service and
+        # register a throwaway device on the production server.
+        run: |
+          deb=$(ls funtidesk-*.deb)
+          dpkg-deb -I "$deb"
+          root=$(mktemp -d)
+          dpkg-deb -x "$deb" "$root"
+          app="$root/usr/share/funtidesk"
+          test -x "$app/funtidesk"
+          test -f "$root/usr/share/funtidesk/files/systemd/funtidesk.service"
+          test -f "$root/usr/share/applications/funtidesk.desktop"
+          if ldd "$app/funtidesk" "$app/lib/"*.so | grep 'not found'; then exit 1; fi
+          LD_LIBRARY_PATH="$app/lib" timeout 60 "$app/funtidesk" --version | tee version.txt
+          grep -q "$(echo "$deb" | sed 's/^funtidesk-\(.*\)-x86_64\.deb$/\1/')" version.txt
+
+      - name: SHA256
+        run: sha256sum funtidesk-*.deb | tee SHA256SUMS.txt
+
+      - name: Upload deb
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: funtidesk-linux-x64-${{ github.sha }}
+          path: |
+            funtidesk-*.deb
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

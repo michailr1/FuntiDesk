@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=FuntiDesk
+NoDisplay=true
+MimeType=x-scheme-handler/funtidesk;
+TryExec=funtidesk
+Exec=funtidesk %u
+Icon=funtidesk
+Terminal=false
+Type=Application
+StartupNotify=false
+StartupWMClass=funtidesk
