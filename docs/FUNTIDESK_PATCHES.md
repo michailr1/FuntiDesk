@@ -10,7 +10,7 @@
 
 | Где | Что | Проверка |
 |---|---|---|
-| `client/libs/hbb_common/src/config.rs` | сервер `desk.funti.cc` и его ключ зашиты, без запасных публичных серверов; имя `FuntiDesk`, перенос старого профиля | `test-r12-production-binding.sh`, `test-funtidesk-product-identity.sh` |
+| `client/libs/hbb_common/src/config.rs` | сервер `desk.funti.cc` и его ключ зашиты, без запасных публичных серверов; имя `FuntiDesk`; профиль RustDesk никогда не читается (решение владельца 2026-10-28), на macOS переносится только прежний каталог самого FuntiDesk | `test-r12-production-binding.sh`, `test-funtidesk-product-identity.sh` |
 | `client/src/client.rs` (`secure_connection`), `client/src/server.rs` (`identity_handshake`) | рукопожатие только шифрованное, только со встроенным ключом сервера; любой сбой — отказ; WebRTC — отказ | `test-r10-fail-closed.sh` |
 | `client/src/client.rs` (relay) | relay всегда `secure = true`; при сбое прямого рукопожатия — одна попытка через relay | `test-r10-fail-closed.sh` |
 | `client/src/common.rs` | `key_exchange` только со встроенным ключом; WebSocket выключен; `get_webrtc_enabled() = false`; свой адрес API/обновлений не настраивается | `test-r14-runtime-endpoints.sh` |
@@ -21,7 +21,7 @@
 
 ## Идентичность продукта
 
-Имя FuntiDesk, иконки, `FuntiDesk.exe`, метаданные Windows/Android/macOS, пространства имён службы, каналов, временных папок (`.funtidesk*`), однофайловый exe (`libs/portable`: `%LOCALAPPDATA%\FuntiDesk\portable`), переводы без «RustDesk» в интерфейсе. Проверка — `scripts/ci/test-funtidesk-product-identity.sh`.
+Имя FuntiDesk, иконки, `FuntiDesk.exe`, метаданные Windows/Android/macOS, пространства имён службы, каналов, временных папок (`.funtidesk*`), однофайловый exe (`libs/portable`: `%LOCALAPPDATA%\FuntiDesk\portable`), переводы без «RustDesk» в интерфейсе. Настройки полностью отдельные: ID, ключи, параметры, сохранённые устройства, адресная книга и группы RustDesk на том же компьютере FuntiDesk не читает и не копирует (найдено на Kali 2026-10-28: в FuntiDesk появлялись устройства RustDesk). Проверка — `scripts/ci/test-funtidesk-product-identity.sh`.
 
 ## Протокол (номера от 1000)
 
