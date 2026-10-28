@@ -39,6 +39,9 @@ pub mod funti_update;
 // FUNTIDESK: re-test the NAT after a network change (former MIK-16).
 #[cfg(windows)]
 mod funti_network;
+// FUNTIDESK: paste files from the clipboard in the file transfer window.
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+mod funti_clipboard_files;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

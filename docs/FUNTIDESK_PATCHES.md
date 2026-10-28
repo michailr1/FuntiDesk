@@ -41,6 +41,7 @@
 | Пересчёт NAT при смене сети (бывший MIK-16) | `funti_network.rs` | `rendezvous_mediator.rs` (`start_all`: запуск монитора), `common.rs` (`test_nat_type`: один тест за раз; `test_nat_type_`: перерегистрация при смене типа NAT) |
 | Сигнализация по TCP | — | `rendezvous_mediator.rs`, `server/src/rendezvous_server.rs` (ADR-004) |
 | Передача файлов: `%переменные%`, быстрые папки | — | `common.rs` (`funti_expand_env`), `ui_cm_interface.rs`, `flutter_ffi.rs`, `file_manager_page.dart`, `file_model.dart` |
+| Передача файлов: вставка из буфера обмена (кнопка и Ctrl+V на панели удалённого компьютера) | `funti_clipboard_files.rs` (Windows — `CF_HDROP`, Linux/macOS — `arboard`) | `lib.rs`, `flutter_ffi.rs` (`main_funti_clipboard_files`), `file_manager_page.dart` (`_funtiPasteFromClipboard`), `file_model.dart` (`funtiSendPaths`: пустые подпапки — от папки самого файла, а не от открытой слева) |
 | Звук: подбор формата микрофона | — | `server/audio_service.rs` |
 | Камера: режим, кадры | — | `libs/scrap/src/common/camera.rs` |
 | Интерфейс | `funti_home_view.dart`, `funti_home_scene.dart`, `funti_theme.dart`, `funti_quotes.dart` | `desktop_home_page.dart`, `desktop_setting_page.dart` («О программе»; окно настроек по макету 2026-10-12: вкладки `access`/`family`/`calls`/`advanced`, старые вкладки показываются частями через `_FuntiPart`, `funtiSettingsTab` переводит старые ключи `safety`/`network`/`display`/`printer` на новые), `server_page.dart`, `common.dart`, `consts.dart` |
