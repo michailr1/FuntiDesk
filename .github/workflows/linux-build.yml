@@ -1,7 +1,8 @@
 name: Linux build
 
-# FUNTIDESK (ADR-016): FuntiDesk .deb for Linux x86_64. Builds and uploads an
-# artifact only; publishes no release.
+# FUNTIDESK (ADR-016): FuntiDesk .deb for Linux x86_64. Every run uploads an
+# artifact; a run on main also publishes a GitHub release (never "latest",
+# which belongs to the Windows client used by install.ps1 and the updater).
 on:
   workflow_dispatch:
   push:
@@ -27,6 +28,8 @@ jobs:
     # The glibc of this image (2.35) is the oldest the package runs on.
     runs-on: ubuntu-22.04
     timeout-minutes: 180
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -124,3 +127,31 @@ jobs:
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish Linux release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deb=$(ls funtidesk-*.deb)
+          version="${deb#funtidesk-}"
+          version="${version%-x86_64.deb}"
+          tag="funtidesk-linux-${GITHUB_SHA:0:12}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists"
+            exit 0
+          fi
+          repo="https://github.com/$GITHUB_REPOSITORY"
+          # ADR-003: every binary release points to its own source and license.
+          notes="FuntiDesk $version для Linux x86_64 (Debian, Ubuntu 22.04 и новее, Kali; X11).
+
+          Установка: \`sudo apt install ./$deb\`. Обновление — так же, поверх. Удаление вместе с настройками: \`sudo apt purge funtidesk\`, затем удалить \`~/.config/funtidesk\` и \`/root/.config/funtidesk\`.
+
+          Тестовая сборка: проверка на Kali идёт. Обновления кнопкой на Linux пока нет.
+
+          Исходный код этой сборки: $repo/tree/$GITHUB_SHA (коммит $GITHUB_SHA).
+          Лицензия: GNU AGPL-3.0, $repo/blob/$GITHUB_SHA/client/LICENCE. FuntiDesk основан на RustDesk (© Purslane Tech Pte. Ltd.)."
+          gh release create "$tag" "$deb" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Linux x64 — FuntiDesk $version" \
+            --notes "$notes"
