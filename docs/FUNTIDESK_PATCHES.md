@@ -21,7 +21,7 @@
 
 ## Идентичность продукта
 
-Имя FuntiDesk, иконки, `FuntiDesk.exe`, метаданные Windows/Android/macOS, пространства имён службы, каналов, временных папок (`.funtidesk*`), однофайловый exe (`libs/portable`: `%LOCALAPPDATA%\FuntiDesk\portable`), переводы без «RustDesk» в интерфейсе. Настройки полностью отдельные: ID, ключи, параметры, сохранённые устройства, адресная книга и группы RustDesk на том же компьютере FuntiDesk не читает и не копирует (найдено на Kali 2026-10-28: в FuntiDesk появлялись устройства RustDesk). Проверка — `scripts/ci/test-funtidesk-product-identity.sh`.
+Имя FuntiDesk, иконки, `FuntiDesk.exe`, метаданные Windows/Android/macOS, пространства имён службы, каналов, временных папок (`.funtidesk*`), однофайловый exe (`libs/portable`: `%LOCALAPPDATA%\FuntiDesk\portable`), переводы без «RustDesk» в интерфейсе. Настройки полностью отдельные: ID, ключи, параметры, сохранённые устройства, адресная книга и группы RustDesk на том же компьютере FuntiDesk не копирует (найдено на Kali 2026-10-28: в FuntiDesk появлялись устройства RustDesk). ID новой установки выводится из MAC иначе, чем в RustDesk, и не совпадает с ним (`funti_id_from_mac`). `client/src/funti_separation.rs` однократно, когда впервые находит профиль RustDesk, только читает его для сравнения: равный ID заменяется новым, а сохранённые устройства, избранное, адресная книга и группы, которые есть и в RustDesk, удаляются из FuntiDesk. Проверка — `scripts/ci/test-funtidesk-product-identity.sh`.
 
 ## Протокол (номера от 1000)
 

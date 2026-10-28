@@ -39,6 +39,9 @@ pub mod funti_update;
 // FUNTIDESK: re-test the NAT after a network change (former MIK-16).
 #[cfg(windows)]
 mod funti_network;
+// FUNTIDESK: one-time separation from a RustDesk on the same machine.
+#[cfg(any(windows, target_os = "linux"))]
+mod funti_separation;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

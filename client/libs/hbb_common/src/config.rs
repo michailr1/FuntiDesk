@@ -469,6 +469,20 @@ pub fn get_online_state() -> i64 {
     *ONLINE.lock().unwrap().values().max().unwrap_or(&0)
 }
 
+/// FUNTIDESK: stable per machine like the upstream MAC-derived ID, but in
+/// 1_000_000_000..2_000_000_000, which the upstream derivation (below 2^29)
+/// never reaches, so FuntiDesk and RustDesk on one machine get different IDs.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn funti_id_from_mac(mac: &[u8]) -> u32 {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::new()
+        .chain_update(b"FuntiDesk ID\0")
+        .chain_update(mac)
+        .finalize();
+    let n = u32::from_be_bytes([digest[0], digest[1], digest[2], digest[3]]);
+    1_000_000_000 + n % 1_000_000_000
+}
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn patch(path: PathBuf) -> PathBuf {
     if let Some(_tmp) = path.to_str() {
@@ -880,7 +894,8 @@ impl Config {
         Self::path_for_app(&app_name, p)
     }
 
-    fn path_for_app<P: AsRef<Path>>(app_name: &str, p: P) -> PathBuf {
+    // FUNTIDESK: public for the separation check in src/funti_separation.rs.
+    pub fn path_for_app<P: AsRef<Path>>(app_name: &str, p: P) -> PathBuf {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let mut path: PathBuf = APP_DIR.read().unwrap().clone().into();
@@ -1245,12 +1260,8 @@ impl Config {
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
-            let mut id = 0u32;
             if let Ok(Some(ma)) = mac_address::get_mac_address() {
-                for x in &ma.bytes()[2..] {
-                    id = (id << 8) | (*x as u32);
-                }
-                id &= 0x1FFFFFFF;
+                let id = funti_id_from_mac(&ma.bytes());
                 log::info!("Generated id {}", id);
                 Some(id.to_string())
             } else {
@@ -3142,6 +3153,21 @@ mod tests {
     use super::{permanent_password::PERMANENT_PASSWORD_ENC_VERSION, *};
 
     static CONFIG_STATE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn test_funti_id_from_mac_differs_from_rustdesk_id() {
+        let mac = [0x00, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e];
+        let mut rustdesk_id = 0u32;
+        for x in &mac[2..] {
+            rustdesk_id = (rustdesk_id << 8) | (*x as u32);
+        }
+        rustdesk_id &= 0x1FFFFFFF;
+        let id = funti_id_from_mac(&mac);
+        assert_eq!(id, funti_id_from_mac(&mac));
+        assert!((1_000_000_000..2_000_000_000).contains(&id));
+        assert_ne!(id, rustdesk_id);
+    }
 
     struct ConfigStateTestGuard {
         original_config: Config,
