@@ -1,0 +1,15 @@
+#!/bin/bash
+# FUNTIDESK: from upstream res/DEBIAN/preinst with FuntiDesk names.
+
+set -e
+
+case $1 in
+	install|upgrade)
+		if [ -d /run/systemd/system ]; then
+			systemctl stop funtidesk >/dev/null 2>&1 || true
+			sleep 1
+		fi
+		;;
+esac
+
+exit 0

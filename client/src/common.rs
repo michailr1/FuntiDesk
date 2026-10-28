@@ -2333,6 +2333,25 @@ pub fn apply_funtidesk_security_policy() {
         // receives connection requests. Requires the own server build.
         defaults.insert(keys::OPTION_DISABLE_UDP.to_owned(), "Y".to_owned());
     }
+    funti_drop_stale_udp_choice();
+}
+
+// FUNTIDESK ADR-004: a stored disable-udp = "N" from before the TCP default
+// (the Advanced switch, a migrated profile) silently kept UDP signaling: the
+// device showed online but missed connection requests (MINIPC, 2026-10-22).
+// Dropped once, so TCP applies; an "N" the user sets later is kept.
+const FUNTI_OPTION_TCP_DEFAULT_APPLIED: &str = "funti-tcp-default-applied";
+
+fn funti_drop_stale_udp_choice() {
+    if Config::get_option(FUNTI_OPTION_TCP_DEFAULT_APPLIED) == "Y" {
+        return;
+    }
+    if Config::get_option(keys::OPTION_DISABLE_UDP) == "N" {
+        log::info!("FuntiDesk: stored disable-udp = N dropped, TCP signaling (ADR-004)");
+        // Equal to the default, so the stored value is removed.
+        Config::set_option(keys::OPTION_DISABLE_UDP.to_owned(), "Y".to_owned());
+    }
+    Config::set_option(FUNTI_OPTION_TCP_DEFAULT_APPLIED.to_owned(), "Y".to_owned());
 }
 
 pub fn load_custom_client() {

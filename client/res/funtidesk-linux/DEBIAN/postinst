@@ -1,0 +1,18 @@
+#!/bin/bash
+# FUNTIDESK: from upstream res/DEBIAN/postinst with FuntiDesk names.
+
+set -e
+
+if [ "$1" = configure ]; then
+
+	ln -f -s /usr/share/funtidesk/funtidesk /usr/bin/funtidesk
+
+	if [ -d /run/systemd/system ]; then
+		rm -f /etc/systemd/system/funtidesk.service >/dev/null 2>&1
+		mkdir -p /usr/lib/systemd/system/
+		cp /usr/share/funtidesk/files/systemd/funtidesk.service /usr/lib/systemd/system/funtidesk.service
+		systemctl daemon-reload
+		systemctl enable funtidesk
+		systemctl start funtidesk
+	fi
+fi

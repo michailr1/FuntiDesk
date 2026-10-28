@@ -1,0 +1,17 @@
+[Desktop Entry]
+Name=FuntiDesk
+GenericName=Remote Desktop
+Comment=Remote Desktop
+Exec=funtidesk %u
+Icon=funtidesk
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Network;RemoteAccess;GTK;
+Keywords=remote-control;remote-desktop;
+Actions=new-window;
+StartupWMClass=funtidesk
+
+[Desktop Action new-window]
+Name=Open a New Window
+Exec=funtidesk %u

@@ -272,6 +272,8 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
+        #[cfg(any(windows, target_os = "linux"))]
+        crate::funti_separation::separate_id_once();
         crate::test_nat_type();
         // FUNTIDESK: re-test the NAT after a network change.
         #[cfg(target_os = "windows")]
@@ -540,6 +542,13 @@ impl RendezvousMediator {
                 }
             }
             Some(rendezvous_message::Union::PunchHole(ph)) => {
+                // FUNTIDESK: shows whether connection requests reach this device.
+                hbb_common::throttled_log!(
+                    Duration::from_secs(10),
+                    info,
+                    "PunchHole received from {}",
+                    self.host
+                );
                 let rz = self.clone();
                 let server = server.clone();
                 tokio::spawn(async move {
@@ -547,6 +556,13 @@ impl RendezvousMediator {
                 });
             }
             Some(rendezvous_message::Union::RequestRelay(rr)) => {
+                // FUNTIDESK: shows whether connection requests reach this device.
+                hbb_common::throttled_log!(
+                    Duration::from_secs(10),
+                    info,
+                    "RequestRelay received from {}",
+                    self.host
+                );
                 let rz = self.clone();
                 let server = server.clone();
                 tokio::spawn(async move {

@@ -1,0 +1,12 @@
+#!/bin/bash
+# FUNTIDESK: from upstream res/DEBIAN/postrm with FuntiDesk names.
+
+set -e
+
+case $1 in
+	purge)
+		rm -rf /root/.config/funtidesk || true
+		;;
+esac
+
+exit 0
