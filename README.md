@@ -76,7 +76,7 @@
 
 ## Linux (в работе)
 
-Пакет `.deb` для x86_64 (Debian, Ubuntu, Kali; X11) собирается в CI — [PR #93](../../pull/93). Пока это тестовая сборка, проверка на Kali идёт.
+Пакет `.deb` для x86_64 (Debian, Ubuntu 22.04 и новее, Kali; X11) — в релизах `funtidesk-linux-<коммит>` на [странице релизов](../../releases?q=funtidesk-linux-&expanded=true). Установка: `sudo apt install ./funtidesk-<версия>-x86_64.deb`. Пока это тестовая сборка, проверка на Kali идёт ([ADR-016](docs/ADR-016-linux-client.md)).
 
 ## Android (тестовая сборка)
 
