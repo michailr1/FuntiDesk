@@ -3923,8 +3923,8 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match current FuntiDesk update files and legacy RustDesk update files.
-                if (file_name.starts_with("funtidesk-") || file_name.starts_with("rustdesk-"))
+                // FUNTIDESK: only our own update files; a RustDesk installed alongside owns its own.
+                if file_name.starts_with("funtidesk-")
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
                 {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
