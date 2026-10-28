@@ -500,7 +500,8 @@ class _FileManagerViewState extends State<FileManagerView> {
                   },
                   onExit: (evt) =>
                       widget._mouseFocusScope.value = MouseFocusScope.none,
-                  child: _buildFileList(context, _fileListScrollController),
+                  child: _funtiPasteShortcut(
+                      _buildFileList(context, _fileListScrollController)),
                 ))
               ],
             )),
@@ -570,6 +571,50 @@ class _FileManagerViewState extends State<FileManagerView> {
         ],
       ).marginOnly(top: 8);
     });
+  }
+
+  // FUNTIDESK: Ctrl+V (Cmd+V) over the remote list pastes the files copied
+  // on this computer into the open remote folder, as "Send" does.
+  Widget _funtiPasteShortcut(Widget list) {
+    if (isLocal || isWeb) return list;
+    return CallbackShortcuts(bindings: {
+      SingleActivator(LogicalKeyboardKey.keyV,
+          control: !Platform.isMacOS,
+          meta: Platform.isMacOS,
+          includeRepeats: false): () {
+        if (!_isTyping()) _funtiPasteFromClipboard();
+      },
+    }, child: list);
+  }
+
+  Future<void> _funtiPasteFromClipboard() async {
+    final fileModel = _ffi.fileModel;
+    final remote = fileModel.remoteController.directoryData();
+    // On Windows, "/" is the list of drives, not a folder.
+    final path = remote.directory.path;
+    if (path.isEmpty || (remote.options.isWindows && path == '/')) {
+      showToast(translate('funti-ft-paste-open-folder'));
+      return;
+    }
+    final items = <Entry>[];
+    for (final file in await bind.mainFuntiClipboardFiles()) {
+      final isDir = FileSystemEntity.isDirectorySync(file);
+      if (!isDir && !File(file).existsSync()) continue;
+      final name = file
+          .split(Platform.pathSeparator)
+          .lastWhere((e) => e.isNotEmpty, orElse: () => '');
+      if (name.isEmpty) continue;
+      items.add(Entry()
+        ..entryType = isDir ? 0 : 4
+        ..path = file
+        ..name = name
+        ..size = isDir ? 0 : File(file).lengthSync());
+    }
+    if (items.isEmpty) {
+      showToast(translate('funti-ft-paste-empty'));
+      return;
+    }
+    fileModel.localController.funtiSendPaths(items, remote);
   }
 
   void onLocationFocusChanged() {
@@ -907,6 +952,15 @@ class _FileManagerViewState extends State<FileManagerView> {
                           hoverColor: Theme.of(context).hoverColor,
                         )),
                     menu(isLocal: isLocal),
+                    if (!isLocal && !isWeb)
+                      MenuButton(
+                        tooltip: translate('funti-ft-paste'),
+                        onPressed: _funtiPasteFromClipboard,
+                        child: Icon(Icons.content_paste_rounded,
+                            color: Theme.of(context).tabBarTheme.labelColor),
+                        color: Theme.of(context).cardColor,
+                        hoverColor: Theme.of(context).hoverColor,
+                      ),
                   ],
                 ),
               ),

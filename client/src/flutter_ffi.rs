@@ -1002,6 +1002,15 @@ pub fn cm_funti_ring(on: bool) {
     crate::funti_ring::set(on);
 }
 
+// FUNTIDESK: paths of the files copied on this computer, for "Paste" in the
+// file transfer window. Empty when the clipboard holds no files.
+pub fn main_funti_clipboard_files() -> Vec<String> {
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+    return crate::funti_clipboard_files::paths();
+    #[allow(unreachable_code)]
+    Vec::new()
+}
+
 // FUNTIDESK (ADR-006): family access. Start (or cancel) pairing on this
 // computer; returns the one-time code, empty if the service is unreachable.
 pub fn main_funti_family_code(start: bool) -> String {

@@ -683,6 +683,48 @@ class FileController {
     });
   }
 
+  // FUNTIDESK: send local files and folders that are not in the open folder
+  // (pasted from the clipboard) to the other side. As sendFiles, but empty
+  // subfolders are placed relative to each item's own parent folder.
+  Future<void> funtiSendPaths(
+      List<Entry> entries, DirectoryData otherSideData) async {
+    if (!isLocal) return;
+    final toPath = otherSideData.directory.path;
+    final isWindows = otherSideData.options.isWindows;
+    final showHidden = otherSideData.options.showHidden;
+    final jobs = <(Entry, int)>[];
+    for (final from in entries) {
+      jobs.add((from, jobController.addTransferJob(from, false)));
+    }
+    jobController.registerTransferConflictBatch([for (final j in jobs) j.$2]);
+    for (final (from, jobID) in jobs) {
+      bind.sessionSendFiles(
+          sessionId: sessionId,
+          actId: jobID,
+          path: from.path,
+          to: PathUtil.join(toPath, from.name, isWindows),
+          fileNum: 0,
+          includeHidden: showHidden,
+          isRemote: false,
+          isDir: from.isDirectory);
+    }
+    final localContext = options.value.isWindows
+        ? PathUtil.windowsContext
+        : PathUtil.posixContext;
+    for (final item in entries) {
+      if (!item.isDirectory) continue;
+      final root = localContext.dirname(item.path);
+      final emptyDirs =
+          await fileFetcher.readEmptyDirs(item.path, true, showHidden);
+      for (final dir in emptyDirs) {
+        createDirWithRemote(
+            PathUtil.getOtherSidePath(root, dir.path, options.value.isWindows,
+                toPath, isWindows),
+            true);
+      }
+    }
+  }
+
   bool _removeCheckboxRemember = false;
 
   Future<void> removeAction(SelectedItems items) async {

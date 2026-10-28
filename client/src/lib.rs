@@ -42,6 +42,9 @@ mod funti_network;
 // FUNTIDESK: one-time separation from a RustDesk on the same machine.
 #[cfg(any(windows, target_os = "linux"))]
 mod funti_separation;
+// FUNTIDESK: paste files from the clipboard in the file transfer window.
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+mod funti_clipboard_files;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(
