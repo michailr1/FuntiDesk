@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ListSearchActionListener extends StatelessWidget {
   final FocusNode node;
@@ -22,7 +23,14 @@ class ListSearchActionListener extends StatelessWidget {
         autofocus: true,
         onKeyEvent: (kv) {
           final ch = kv.character;
-          if (ch == null) {
+          // FUNTIDESK: Ctrl+C, Delete and other control characters are
+          // shortcuts of the file list, not letters to search for.
+          if (ch == null ||
+              ch.isEmpty ||
+              ch.codeUnitAt(0) < 0x20 ||
+              ch.codeUnitAt(0) == 0x7f ||
+              HardwareKeyboard.instance.isControlPressed ||
+              HardwareKeyboard.instance.isMetaPressed) {
             return;
           }
           final action = buffer.input(ch);

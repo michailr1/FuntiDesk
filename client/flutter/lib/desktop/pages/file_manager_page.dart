@@ -500,7 +500,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                   },
                   onExit: (evt) =>
                       widget._mouseFocusScope.value = MouseFocusScope.none,
-                  child: _funtiPasteShortcut(
+                  child: _funtiShortcuts(
                       _buildFileList(context, _fileListScrollController)),
                 ))
               ],
@@ -573,21 +573,308 @@ class _FileManagerViewState extends State<FileManagerView> {
     });
   }
 
-  // FUNTIDESK: Ctrl+V (Cmd+V) over the remote list pastes the files copied
-  // on this computer into the open remote folder, as "Send" does.
-  Widget _funtiPasteShortcut(Widget list) {
-    if (isLocal || isWeb) return list;
+  // FUNTIDESK: keys as in Explorer (owner's request 2026-11-03): Ctrl+C and
+  // Ctrl+V between the panels, Delete, F2 to rename. Ctrl+V on the remote
+  // panel also pastes the files copied on this computer (Explorer).
+  Widget _funtiShortcuts(Widget list) {
+    if (isWeb) return list;
+    void run(void Function() action) {
+      if (!_isTyping()) action();
+    }
+
     return CallbackShortcuts(bindings: {
+      SingleActivator(LogicalKeyboardKey.keyC,
+          control: !isMacOS,
+          meta: isMacOS,
+          includeRepeats: false): () => run(_funtiCopy),
       SingleActivator(LogicalKeyboardKey.keyV,
-          control: !Platform.isMacOS,
-          meta: Platform.isMacOS,
-          includeRepeats: false): () {
-        if (!_isTyping()) _funtiPasteFromClipboard();
-      },
+          control: !isMacOS,
+          meta: isMacOS,
+          includeRepeats: false): () => run(_funtiPaste),
+      const SingleActivator(LogicalKeyboardKey.delete, includeRepeats: false):
+          () => run(_funtiDelete),
+      const SingleActivator(LogicalKeyboardKey.f2, includeRepeats: false): () =>
+          run(_funtiRename),
     }, child: list);
   }
 
-  Future<void> _funtiPasteFromClipboard() async {
+  String get _funtiCmd => isMacOS ? '⌘' : 'Ctrl+';
+
+  List<Entry> get _funtiSelection =>
+      selectedItems.items.where((e) => !e.isDrive).toList();
+
+  // On Windows, "/" is the list of drives, not a folder.
+  bool _funtiFolderOpen(DirectoryData data) {
+    final path = data.directory.path;
+    return path.isNotEmpty && !(data.options.isWindows && path == '/');
+  }
+
+  void _funtiCopy() {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    final fileModel = _ffi.fileModel;
+    fileModel.funtiCopied = items;
+    fileModel.funtiCopiedFromLocal = isLocal;
+    showToast(translate(
+            isLocal ? 'funti-ft-copied-to-remote' : 'funti-ft-copied-to-local')
+        .replaceAll('{}', '${items.length}'));
+  }
+
+  // Files copied on the other panel go to the folder open here. Copying
+  // within one computer is not in the protocol.
+  Future<void> _funtiPaste() async {
+    final fileModel = _ffi.fileModel;
+    final copied = fileModel.funtiCopied;
+    final fromOtherSide =
+        copied.isNotEmpty && fileModel.funtiCopiedFromLocal != isLocal;
+    if (!fromOtherSide) {
+      final sameSide = copied.isNotEmpty;
+      if (!isLocal) {
+        return _funtiPasteFromClipboard(
+            emptyHint: sameSide ? 'funti-ft-copy-same-side' : null);
+      }
+      showToast(translate(
+          sameSide ? 'funti-ft-copy-same-side' : 'funti-ft-paste-local-empty'));
+      return;
+    }
+    final target = controller.directoryData();
+    if (!_funtiFolderOpen(target)) {
+      showToast(translate(isLocal
+          ? 'funti-ft-paste-open-local-folder'
+          : 'funti-ft-paste-open-folder'));
+      return;
+    }
+    fileModel.funtiCopied = [];
+    final source =
+        isLocal ? fileModel.remoteController : fileModel.localController;
+    await source.funtiSendPaths(copied, target);
+  }
+
+  void _funtiRename() {
+    final items = _funtiSelection;
+    if (items.length != 1) return;
+    controller.renameAction(items.first, isLocal);
+  }
+
+  Future<void> _funtiDelete() async {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    if (await _funtiConfirmDelete(items) != true) return;
+    final selection = SelectedItems(isLocal: isLocal)..items.addAll(items);
+    selectedItems.clear();
+    await controller.removeAction(selection, funtiConfirmed: true);
+  }
+
+  // One question for everything selected, instead of one per file.
+  Future<bool?> _funtiConfirmDelete(List<Entry> items) {
+    final title = items.length == 1
+        ? translate('funti-ft-delete-one').replaceAll('{}', items.first.name)
+        : translate('funti-ft-delete-many').replaceAll('{}', '${items.length}');
+    final names = items.take(5).map((e) => e.name).join('\n') +
+        (items.length > 5 ? '\n…' : '');
+    return _ffi.dialogManager.show<bool>((setState, close, context) {
+      cancel() => close(false);
+      submit() => close(true);
+      return CustomAlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_rounded, color: Colors.red),
+            Expanded(
+              child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis)
+                  .paddingOnly(left: 10),
+            ),
+          ],
+        ),
+        contentBoxConstraints: BoxConstraints(minWidth: 400, maxWidth: 400),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (items.length > 1) Text(names).paddingOnly(bottom: 16),
+            Text(
+              translate('funti-ft-delete-note'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          dialogButton("Cancel",
+              icon: Icon(Icons.close_rounded),
+              onPressed: cancel,
+              isOutline: true),
+          dialogButton("Delete",
+              icon: Icon(Icons.delete_outline_rounded), onPressed: submit),
+        ],
+        onSubmit: submit,
+        onCancel: cancel,
+      );
+    }, useAnimation: false);
+  }
+
+  mod_menu.PopupMenuEntry<void> _funtiMenuItem(
+      String label, void Function()? onTap,
+      {String hint = ''}) {
+    return mod_menu.PopupMenuItem<void>(
+      height: CustomPopupMenuTheme.height,
+      enabled: onTap != null,
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 200),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(translate(label)),
+            if (hint.isNotEmpty)
+              Text(hint,
+                      style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
+                  .paddingOnly(left: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _funtiShowMenu(
+      Offset at, List<mod_menu.PopupMenuEntry<void>> items) async {
+    if (items.isEmpty) return;
+    await mod_menu.showMenu<void>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: items,
+      elevation: 8,
+    );
+  }
+
+  // Right click on a file or folder: it becomes the selection unless it is
+  // already in it, as in Explorer.
+  Future<void> _funtiShowEntryMenu(
+      Entry entry, Offset at, Rx<Entry?> rightClickEntry) async {
+    if (!entry.isDrive && !selectedItems.items.contains(entry)) {
+      selectedItems.clear();
+      selectedItems.add(entry);
+      setState(() {});
+    }
+    final items = _funtiSelection;
+    final menu = <mod_menu.PopupMenuEntry<void>>[
+      if (!entry.isFile)
+        _funtiMenuItem('funti-ft-open', () {
+          selectedItems.clear();
+          controller.openDirectory(entry.path);
+        }),
+      if (items.isNotEmpty && !isWeb) ...[
+        _funtiMenuItem(isLocal ? 'funti-ft-send' : 'funti-ft-receive', () {
+          controller.sendFiles(
+              SelectedItems(isLocal: isLocal)..items.addAll(items),
+              controller.getOtherSideDirectoryData());
+          selectedItems.clear();
+        }),
+        _funtiMenuItem('funti-ft-copy', _funtiCopy, hint: '${_funtiCmd}C'),
+      ],
+      if (items.isNotEmpty) ...[
+        const mod_menu.PopupMenuDivider(),
+        _funtiMenuItem('Rename', items.length == 1 ? _funtiRename : null,
+            hint: 'F2'),
+        _funtiMenuItem('Delete', _funtiDelete, hint: 'Del'),
+      ],
+    ];
+    rightClickEntry.value = entry;
+    await _funtiShowMenu(at, menu);
+    rightClickEntry.value = null;
+  }
+
+  // Right click on the empty part of the list.
+  Future<void> _funtiShowFolderMenu(Offset at) async {
+    await _funtiShowMenu(at, [
+      if (!isWeb)
+        _funtiMenuItem('funti-ft-paste-here', _funtiPaste,
+            hint: '${_funtiCmd}V'),
+      _funtiMenuItem('Create Folder', _funtiCreateFolder),
+      _funtiMenuItem('funti-ft-refresh', () => controller.refresh()),
+      _funtiMenuItem(
+          'Select All',
+          () => setState(() =>
+              selectedItems.selectAll(controller.directory.value.entries))),
+    ]);
+  }
+
+  void _funtiCreateFolder() {
+    final name = TextEditingController();
+    String? errorText;
+    _ffi.dialogManager.show((setState, close, context) {
+      name.addListener(() {
+        if (errorText != null) {
+          setState(() {
+            errorText = null;
+          });
+        }
+      });
+      submit() {
+        if (name.value.text.isNotEmpty) {
+          if (!PathUtil.validName(
+              name.value.text, controller.options.value.isWindows)) {
+            setState(() {
+              errorText = translate("Invalid folder name");
+            });
+            return;
+          }
+          controller.createDir(PathUtil.join(
+            controller.directory.value.path,
+            name.value.text,
+            controller.options.value.isWindows,
+          ));
+          close();
+        }
+      }
+
+      cancel() => close(false);
+      return CustomAlertDialog(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset("assets/folder_new.svg",
+                colorFilter: svgColor(MyTheme.accent)),
+            Text(
+              translate("Create Folder"),
+            ).paddingOnly(
+              left: 10,
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              decoration: InputDecoration(
+                labelText: translate(
+                  "Please enter the folder name",
+                ),
+                errorText: errorText,
+              ),
+              controller: name,
+              autofocus: true,
+            ).workaroundFreezeLinuxMint(),
+          ],
+        ),
+        actions: [
+          dialogButton(
+            "Cancel",
+            icon: Icon(Icons.close_rounded),
+            onPressed: cancel,
+            isOutline: true,
+          ),
+          dialogButton(
+            "Ok",
+            icon: Icon(Icons.done_rounded),
+            onPressed: submit,
+          ),
+        ],
+        onSubmit: submit,
+        onCancel: cancel,
+      );
+    });
+  }
+
+  Future<void> _funtiPasteFromClipboard({String? emptyHint}) async {
     final fileModel = _ffi.fileModel;
     final remote = fileModel.remoteController.directoryData();
     // On Windows, "/" is the list of drives, not a folder.
@@ -611,7 +898,7 @@ class _FileManagerViewState extends State<FileManagerView> {
         ..size = isDir ? 0 : File(file).lengthSync());
     }
     if (items.isEmpty) {
-      showToast(translate('funti-ft-paste-empty'));
+      showToast(translate(emptyHint ?? 'funti-ft-paste-empty'));
       return;
     }
     fileModel.localController.funtiSendPaths(items, remote);
@@ -850,82 +1137,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     ),
                     MenuButton(
                       tooltip: translate('Create Folder'),
-                      onPressed: () {
-                        final name = TextEditingController();
-                        String? errorText;
-                        _ffi.dialogManager.show((setState, close, context) {
-                          name.addListener(() {
-                            if (errorText != null) {
-                              setState(() {
-                                errorText = null;
-                              });
-                            }
-                          });
-                          submit() {
-                            if (name.value.text.isNotEmpty) {
-                              if (!PathUtil.validName(name.value.text,
-                                  controller.options.value.isWindows)) {
-                                setState(() {
-                                  errorText = translate("Invalid folder name");
-                                });
-                                return;
-                              }
-                              controller.createDir(PathUtil.join(
-                                controller.directory.value.path,
-                                name.value.text,
-                                controller.options.value.isWindows,
-                              ));
-                              close();
-                            }
-                          }
-
-                          cancel() => close(false);
-                          return CustomAlertDialog(
-                            title: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SvgPicture.asset("assets/folder_new.svg",
-                                    colorFilter: svgColor(MyTheme.accent)),
-                                Text(
-                                  translate("Create Folder"),
-                                ).paddingOnly(
-                                  left: 10,
-                                ),
-                              ],
-                            ),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: translate(
-                                      "Please enter the folder name",
-                                    ),
-                                    errorText: errorText,
-                                  ),
-                                  controller: name,
-                                  autofocus: true,
-                                ).workaroundFreezeLinuxMint(),
-                              ],
-                            ),
-                            actions: [
-                              dialogButton(
-                                "Cancel",
-                                icon: Icon(Icons.close_rounded),
-                                onPressed: cancel,
-                                isOutline: true,
-                              ),
-                              dialogButton(
-                                "Ok",
-                                icon: Icon(Icons.done_rounded),
-                                onPressed: submit,
-                              ),
-                            ],
-                            onSubmit: submit,
-                            onCancel: cancel,
-                          );
-                        });
-                      },
+                      onPressed: _funtiCreateFolder,
                       child: SvgPicture.asset(
                         "assets/folder_new.svg",
                         colorFilter:
@@ -937,11 +1149,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     Obx(() => MenuButton(
                           tooltip: translate('Delete'),
                           onPressed: SelectedItems.valid(selectedItems.items)
-                              ? () async {
-                                  await (controller
-                                      .removeAction(selectedItems));
-                                  selectedItems.clear();
-                                }
+                              ? _funtiDelete
                               : null,
                           child: SvgPicture.asset(
                             "assets/trash.svg",
@@ -1231,7 +1439,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           final lastModifiedStr = entry.isDrive
               ? " "
               : "${entry.lastModified().toString().replaceAll(".000", "")}   ";
-          var secondaryPosition = RelativeRect.fromLTRB(0, 0, 0, 0);
+          var secondaryPosition = Offset.zero;
           onTap() {
             final items = selectedItems;
             // handle double click
@@ -1244,39 +1452,11 @@ class _FileManagerViewState extends State<FileManagerView> {
           }
 
           onSecondaryTap() {
-            final items = [
-              if (!entry.isDrive &&
-                  versionCmp(_ffi.ffiModel.pi.version, "1.3.0") >= 0)
-                mod_menu.PopupMenuItem(
-                  child: Text(translate("Rename")),
-                  height: CustomPopupMenuTheme.height,
-                  onTap: () {
-                    controller.renameAction(entry, isLocal);
-                  },
-                )
-            ];
-            if (items.isNotEmpty) {
-              rightClickEntry.value = entry;
-              final future = mod_menu.showMenu(
-                context: context,
-                position: secondaryPosition,
-                items: items,
-              );
-              future.then((value) {
-                rightClickEntry.value = null;
-              });
-              future.onError((error, stackTrace) {
-                rightClickEntry.value = null;
-              });
-            }
+            _funtiShowEntryMenu(entry, secondaryPosition, rightClickEntry);
           }
 
-          onSecondaryTapDown(details) {
-            secondaryPosition = RelativeRect.fromLTRB(
-                details.globalPosition.dx,
-                details.globalPosition.dy,
-                details.globalPosition.dx,
-                details.globalPosition.dy);
+          onSecondaryTapDown(TapDownDetails details) {
+            secondaryPosition = details.globalPosition;
           }
 
           return Padding(
@@ -1419,13 +1599,18 @@ class _FileManagerViewState extends State<FileManagerView> {
             ),
             // Body
             Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemExtent: kDesktopFileTransferRowHeight,
-                itemBuilder: (context, index) {
-                  return rows.elementAt(index);
-                },
-                itemCount: rows.length,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onSecondaryTapUp: (details) =>
+                    _funtiShowFolderMenu(details.globalPosition),
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemExtent: kDesktopFileTransferRowHeight,
+                  itemBuilder: (context, index) {
+                    return rows.elementAt(index);
+                  },
+                  itemCount: rows.length,
+                ),
               ),
             ),
           ],
