@@ -235,6 +235,12 @@ pub enum FS {
         include_hidden: bool,
         conn_id: i32,
     },
+    // FUNTIDESK (ADR-017).
+    FuntiReadThumbnail {
+        id: i32,
+        path: String,
+        max_side: i32,
+    },
 }
 
 #[cfg(target_os = "windows")]

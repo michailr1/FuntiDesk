@@ -422,6 +422,21 @@ message FileRename {
   string new_name = 3;
 }
 
+// FUNTIDESK (ADR-017): a small JPEG preview of a picture. Field numbers
+// from 1001 stay clear of the upstream ones; older peers ignore them.
+message FuntiReadThumbnail {
+  int32 id = 1;
+  string path = 2;
+  int32 max_side = 3;
+}
+
+message FuntiThumbnail {
+  int32 id = 1;
+  string path = 2;
+  bytes jpeg = 3;
+  string error = 4;
+}
+
 message FileAction {
   oneof union {
     ReadDir read_dir = 1;
@@ -435,6 +450,7 @@ message FileAction {
     FileTransferSendConfirmRequest send_confirm = 9;
     FileRename rename = 10;
     ReadEmptyDirs read_empty_dirs = 11;
+    FuntiReadThumbnail funti_read_thumbnail = 1001;
   }
 }
 
@@ -448,6 +464,7 @@ message FileResponse {
     FileTransferDone done = 4;
     FileTransferDigest digest = 5;
     ReadEmptyDirsResponse empty_dirs = 6;
+    FuntiThumbnail funti_thumbnail = 1001;
   }
 }
 

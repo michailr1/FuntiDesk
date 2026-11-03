@@ -3804,6 +3804,9 @@ impl Connection {
                                 Some(file_action::Union::Rename(r)) => {
                                     Some((r.path.as_str(), r.id, false))
                                 }
+                                Some(file_action::Union::FuntiReadThumbnail(t)) => {
+                                    Some((t.path.as_str(), -1, false))
+                                }
                                 _ => None,
                             };
                             if let Some((path, job_id, allow_empty)) = checked {
@@ -3841,6 +3844,15 @@ impl Connection {
                             }
                         }
                         match fa.union {
+                            // FUNTIDESK (ADR-017): made by the user's process,
+                            // as folder reads are.
+                            Some(file_action::Union::FuntiReadThumbnail(t)) => {
+                                self.send_fs(ipc::FS::FuntiReadThumbnail {
+                                    id: t.id,
+                                    path: t.path,
+                                    max_side: t.max_side,
+                                });
+                            }
                             Some(file_action::Union::ReadEmptyDirs(rd)) => {
                                 self.read_empty_dirs(&rd.path, rd.include_hidden);
                             }
