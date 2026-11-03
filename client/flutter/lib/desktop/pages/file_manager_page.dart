@@ -744,6 +744,73 @@ class _FileManagerViewState extends State<FileManagerView> {
     }
   }
 
+  // Names that are already in the target folder are asked about once for
+  // the whole batch: replace, keep both ("name (2).ext") or skip. Files
+  // inside folders that are merged on "Replace" are replaced without asking.
+  Future<void> _funtiSendChecked(FileController source, List<Entry> items,
+      DirectoryData target) async {
+    String norm(String n) => target.options.isWindows ? n.toLowerCase() : n;
+    final taken = {for (final e in target.directory.entries) norm(e.name)};
+    final clashes = items.where((e) => taken.contains(norm(e.name))).toList();
+    String? choice;
+    if (clashes.isNotEmpty) {
+      choice = await _funtiAskConflict(clashes);
+      if (choice == null) return;
+    }
+    final send = <Entry>[];
+    final names = <String>[];
+    for (final e in items) {
+      var name = e.name;
+      if (clashes.contains(e)) {
+        if (choice == 'skip') continue;
+        if (choice == 'both') {
+          name = funtiFreeName(e.name, (n) => taken.contains(norm(n)));
+        }
+      }
+      taken.add(norm(name));
+      send.add(e);
+      names.add(name);
+    }
+    if (send.isEmpty) return;
+    await source.funtiSendPaths(send, target,
+        names: names, overwrite: choice == 'replace');
+  }
+
+  Future<String?> _funtiAskConflict(List<Entry> clashes) {
+    final title = clashes.length == 1
+        ? translate('funti-ft-exists-one').replaceAll('{}', clashes.first.name)
+        : translate('funti-ft-exists-many')
+            .replaceAll('{}', '${clashes.length}');
+    final names = clashes.take(5).map((e) => e.name).join('\n') +
+        (clashes.length > 5 ? '\n…' : '');
+    return _ffi.dialogManager.show<String?>((setState, close, context) {
+      cancel() => close(null);
+      return CustomAlertDialog(
+        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        contentBoxConstraints: BoxConstraints(minWidth: 440, maxWidth: 440),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (clashes.length > 1) Text(names).paddingOnly(bottom: 12),
+            Text(translate('funti-ft-exists-hint'),
+                style: TextStyle(fontSize: 13, color: MyTheme.darkGray)),
+          ],
+        ),
+        actions: [
+          dialogButton('Cancel', onPressed: cancel, isOutline: true),
+          dialogButton('funti-ft-skip',
+              onPressed: () => close('skip'), isOutline: true),
+          dialogButton('funti-ft-replace',
+              onPressed: () => close('replace'), isOutline: true),
+          dialogButton('funti-ft-keep-both', onPressed: () => close('both')),
+        ],
+        onSubmit: () => close('both'),
+        onCancel: cancel,
+      );
+    }, useAnimation: false);
+  }
+
   // A file on this computer opens in its program. A remote one is downloaded
   // to Downloads\FuntiDesk under a free name first and opens when it is
   // there.
@@ -811,7 +878,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           fileModel.localController.options.value);
     }
     selectedItems.clear();
-    await controller.funtiSendPaths(items, target);
+    await _funtiSendChecked(controller, items, target);
   }
 
   void _funtiCopyPath() {
@@ -940,7 +1007,7 @@ class _FileManagerViewState extends State<FileManagerView> {
     fileModel.funtiCopied = [];
     final source =
         isLocal ? fileModel.remoteController : fileModel.localController;
-    await source.funtiSendPaths(copied, target);
+    await _funtiSendChecked(source, copied, target);
   }
 
   void _funtiRename() {
@@ -1059,10 +1126,9 @@ class _FileManagerViewState extends State<FileManagerView> {
             hint: 'Enter'),
       if (items.isNotEmpty && !isWeb) ...[
         _funtiMenuItem(isLocal ? 'funti-ft-send' : 'funti-ft-receive', () {
-          controller.sendFiles(
-              SelectedItems(isLocal: isLocal)..items.addAll(items),
-              controller.getOtherSideDirectoryData());
           selectedItems.clear();
+          _funtiSendChecked(
+              controller, items, controller.getOtherSideDirectoryData());
         }),
         if (isLocal) ...[
           _funtiMenuItem(
@@ -1212,7 +1278,7 @@ class _FileManagerViewState extends State<FileManagerView> {
       showToast(translate(emptyHint ?? 'funti-ft-paste-empty'));
       return;
     }
-    fileModel.localController.funtiSendPaths(items, remote);
+    await _funtiSendChecked(fileModel.localController, items, remote);
   }
 
   void onLocationFocusChanged() {
@@ -1559,7 +1625,13 @@ class _FileManagerViewState extends State<FileManagerView> {
                         ? () {
                             final otherSideData =
                                 controller.getOtherSideDirectoryData();
-                            controller.sendFiles(selectedItems, otherSideData);
+                            if (isWeb) {
+                              controller.sendFiles(
+                                  selectedItems, otherSideData);
+                            } else {
+                              _funtiSendChecked(controller,
+                                  selectedItems.items.toList(), otherSideData);
+                            }
                             selectedItems.clear();
                           }
                         : null,
