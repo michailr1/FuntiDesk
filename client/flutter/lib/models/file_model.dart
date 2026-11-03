@@ -1551,7 +1551,8 @@ class FileFetcher {
     return c.future;
   }
 
-  Future<FileDirectory> registerReadRecursiveTask(int actID) {
+  Future<FileDirectory> registerReadRecursiveTask(int actID,
+      {Duration timeout = const Duration(seconds: 2)}) {
     final tasks = readRecursiveTasks;
     if (tasks.containsKey(actID)) {
       throw "Failed to registerRemoveTask, already have same ReadRecursive job";
@@ -1559,7 +1560,7 @@ class FileFetcher {
     final c = Completer<FileDirectory>();
     tasks[actID] = c;
 
-    Timer(Duration(seconds: 2), () {
+    Timer(timeout, () {
       tasks.remove(actID);
       if (c.isCompleted) return;
       c.completeError("Failed to read dir, timeout");
@@ -1691,8 +1692,10 @@ class FileFetcher {
     }
   }
 
+  // FUNTIDESK: timeout — "Size" reads big folders longer than deleting waits.
   Future<FileDirectory> fetchDirectoryRecursiveToRemove(
-      int actID, String path, bool isLocal, bool showHidden) async {
+      int actID, String path, bool isLocal, bool showHidden,
+      {Duration timeout = const Duration(seconds: 2)}) async {
     // TODO test Recursive is show hidden default?
     try {
       await bind.sessionReadDirToRemoveRecursive(
@@ -1701,7 +1704,7 @@ class FileFetcher {
           path: path,
           isRemote: !isLocal,
           showHidden: showHidden);
-      return registerReadRecursiveTask(actID);
+      return registerReadRecursiveTask(actID, timeout: timeout);
     } catch (e) {
       return Future.error(e);
     }
