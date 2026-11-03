@@ -641,6 +641,39 @@ class _FileManagerViewState extends State<FileManagerView> {
 
   String get _funtiCmd => isMacOS ? '⌘' : 'Ctrl+';
 
+  // FUNTIDESK (ADR-017): "Pictures" mode — taller rows with previews,
+  // remembered for each panel.
+  String get _funtiThumbsKey =>
+      isLocal ? 'funti-ft-thumbs-local' : 'funti-ft-thumbs-remote';
+  late final _funtiThumbs =
+      (!isWeb && bind.mainGetLocalOption(key: _funtiThumbsKey) == 'Y').obs;
+  static const _funtiThumbRowHeight = 56.0;
+  double get _funtiRowHeight => _funtiThumbs.value
+      ? _funtiThumbRowHeight
+      : kDesktopFileTransferRowHeight;
+
+  void _funtiToggleThumbs() {
+    _funtiThumbs.value = !_funtiThumbs.value;
+    bind.mainSetLocalOption(
+        key: _funtiThumbsKey, value: _funtiThumbs.value ? 'Y' : '');
+  }
+
+  Widget _funtiIcon(Entry entry) {
+    final icon = SvgPicture.asset(
+      entry.isFile ? "assets/file.svg" : "assets/folder.svg",
+      colorFilter: svgColor(Theme.of(context).tabBarTheme.labelColor),
+    );
+    if (!_funtiThumbs.value || !entry.isFile || !funtiIsPicture(entry.name)) {
+      return icon;
+    }
+    return _FuntiThumb(
+        key: ValueKey(entry.path),
+        entry: entry,
+        isLocal: isLocal,
+        thumbs: _ffi.fileModel.funtiThumbs,
+        fallback: icon);
+  }
+
   List<Entry> get _funtiSelection =>
       selectedItems.items.where((e) => !e.isDrive).toList();
 
@@ -695,7 +728,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   void _funtiScrollTo(int index) {
     final c = _fileListScrollController;
     if (!c.hasClients) return;
-    const row = kDesktopFileTransferRowHeight;
+    final row = _funtiRowHeight;
     final top = index * row;
     final view = c.position.viewportDimension;
     if (top < c.offset) {
@@ -1537,6 +1570,22 @@ class _FileManagerViewState extends State<FileManagerView> {
                           hoverColor: Theme.of(context).hoverColor,
                         )),
                     menu(isLocal: isLocal),
+                    if (!isWeb)
+                      Obx(() => MenuButton(
+                            tooltip: translate(_funtiThumbs.value
+                                ? 'funti-ft-thumbs-off'
+                                : 'funti-ft-thumbs-on'),
+                            onPressed: _funtiToggleThumbs,
+                            child: Icon(
+                                _funtiThumbs.value
+                                    ? Icons.view_list_rounded
+                                    : Icons.photo_library_outlined,
+                                color: Theme.of(context)
+                                    .tabBarTheme
+                                    .labelColor),
+                            color: Theme.of(context).cardColor,
+                            hoverColor: Theme.of(context).hoverColor,
+                          )),
                     if (!isLocal && !isWeb)
                       MenuButton(
                         tooltip: translate('funti-ft-paste'),
@@ -1793,7 +1842,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           return;
         }
         _jumpToEntry(isLocal, searchResult.first, scrollController,
-            kDesktopFileTransferRowHeight);
+            _funtiRowHeight);
       },
       onSearch: (buffer) {
         debugPrint("searching for $buffer");
@@ -1806,7 +1855,7 @@ class _FileManagerViewState extends State<FileManagerView> {
           return;
         }
         _jumpToEntry(isLocal, searchResult.first, scrollController,
-            kDesktopFileTransferRowHeight);
+            _funtiRowHeight);
       },
       child: Obx(() {
         final entries = controller.directory.value.entries;
@@ -1864,7 +1913,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                       : null,
                 ),
                 key: ValueKey(entry.name),
-                height: kDesktopFileTransferRowHeight,
+                height: _funtiRowHeight,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -1889,15 +1938,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                                                         .color
                                                         ?.withOpacity(0.7))
                                                 .paddingAll(4)
-                                            : SvgPicture.asset(
-                                                entry.isFile
-                                                    ? "assets/file.svg"
-                                                    : "assets/folder.svg",
-                                                colorFilter: svgColor(
-                                                    Theme.of(context)
-                                                        .tabBarTheme
-                                                        .labelColor),
-                                              ),
+                                            : _funtiIcon(entry),
                                         Expanded(
                                             child: Text(entry.name.nonBreaking,
                                                 style: TextStyle(
@@ -1992,7 +2033,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     _funtiShowFolderMenu(details.globalPosition),
                 child: ListView.builder(
                   controller: scrollController,
-                  itemExtent: kDesktopFileTransferRowHeight,
+                  itemExtent: _funtiRowHeight,
                   itemBuilder: (context, index) {
                     return rows.elementAt(index);
                   },
@@ -2405,5 +2446,71 @@ void _funtiShowInFolder(String path) {
     Process.run('open', ['-R', path]);
   } else {
     launchUrl(Uri.directory(File(path).parent.path));
+  }
+}
+
+// FUNTIDESK (ADR-017): the preview of a picture in the "Pictures" mode. A
+// file on this computer is decoded here; a remote one is asked for.
+class _FuntiThumb extends StatefulWidget {
+  final Entry entry;
+  final bool isLocal;
+  final FuntiThumbnails thumbs;
+  final Widget fallback;
+
+  const _FuntiThumb(
+      {super.key,
+      required this.entry,
+      required this.isLocal,
+      required this.thumbs,
+      required this.fallback});
+
+  @override
+  State<_FuntiThumb> createState() => _FuntiThumbState();
+}
+
+class _FuntiThumbState extends State<_FuntiThumb> {
+  static const _side = 48.0;
+  Future<Uint8List?>? _remote;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isLocal) _remote = widget.thumbs.get(widget.entry);
+  }
+
+  @override
+  void dispose() {
+    if (!widget.isLocal) widget.thumbs.forget(widget.entry);
+    super.dispose();
+  }
+
+  Widget _box(Widget image) => Container(
+        width: _side,
+        height: _side,
+        margin: const EdgeInsets.only(right: 6),
+        child: ClipRRect(borderRadius: BorderRadius.circular(4), child: image),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = widget.entry;
+    if (widget.isLocal) {
+      if (entry.size > funtiThumbMaxFileSize) return widget.fallback;
+      return _box(Image.file(File(entry.path),
+          cacheWidth: (_side * MediaQuery.of(context).devicePixelRatio).round(),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => widget.fallback));
+    }
+    return FutureBuilder<Uint8List?>(
+        future: _remote,
+        builder: (context, snapshot) {
+          final bytes = snapshot.data ?? widget.thumbs.cached(entry);
+          if (bytes == null) return widget.fallback;
+          return _box(Image.memory(bytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => widget.fallback));
+        });
   }
 }

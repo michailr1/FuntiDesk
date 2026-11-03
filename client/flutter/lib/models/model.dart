@@ -369,6 +369,8 @@ class FfiModel with ChangeNotifier {
         parent.target?.routeTerminalResponse(evt);
       } else if (name == 'file_dir') {
         parent.target?.fileModel.receiveFileDir(evt);
+      } else if (name == 'funti_thumbnail') {
+        parent.target?.fileModel.funtiThumbs.onEvent(evt);
       } else if (name == 'empty_dirs') {
         parent.target?.fileModel.receiveEmptyDirs(evt);
       } else if (name == 'job_progress') {
