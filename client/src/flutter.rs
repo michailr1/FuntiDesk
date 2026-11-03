@@ -789,6 +789,20 @@ impl InvokeUiSession for FlutterHandler {
         }
     }
 
+    // FUNTIDESK (ADR-017): a picture preview from the other computer.
+    fn funti_thumbnail(&self, t: FuntiThumbnail) {
+        self.push_event(
+            "funti_thumbnail",
+            &[
+                ("id", t.id.to_string()),
+                ("path", t.path),
+                ("jpeg", crate::common::encode64(&t.jpeg)),
+                ("error", t.error),
+            ],
+            &[],
+        );
+    }
+
     fn update_empty_dirs(&self, res: ReadEmptyDirsResponse) {
         self.push_event(
             "empty_dirs",

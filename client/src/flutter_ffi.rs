@@ -758,6 +758,14 @@ pub fn session_input_os_password(session_id: SessionID, value: String) {
 }
 
 // File Action
+// FUNTIDESK (ADR-017): ask for the preview of a remote picture; the answer
+// comes as the "funti_thumbnail" event.
+pub fn session_funti_read_thumbnail(session_id: SessionID, id: i32, path: String, max_side: i32) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.funti_read_thumbnail(id, path, max_side);
+    }
+}
+
 pub fn session_read_remote_dir(session_id: SessionID, path: String, include_hidden: bool) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.read_remote_dir(path, include_hidden);

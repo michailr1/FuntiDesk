@@ -64,6 +64,20 @@ pub trait FileManager: Interface {
         self.send(Data::Message(msg_out));
     }
 
+    // FUNTIDESK (ADR-017): ask the other computer for a picture preview.
+    fn funti_read_thumbnail(&self, id: i32, path: String, max_side: i32) {
+        let mut msg_out = Message::new();
+        let mut file_action = FileAction::new();
+        file_action.set_funti_read_thumbnail(FuntiReadThumbnail {
+            id,
+            path,
+            max_side,
+            ..Default::default()
+        });
+        msg_out.set_file_action(file_action);
+        self.send(Data::Message(msg_out));
+    }
+
     fn read_remote_dir(&self, path: String, include_hidden: bool) {
         let mut msg_out = Message::new();
         let mut file_action = FileAction::new();

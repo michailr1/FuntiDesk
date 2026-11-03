@@ -997,6 +997,7 @@ async fn handle_fs(
                 Some((path.as_str(), *id, *file_num, false))
             }
             ipc::FS::ReadAllFiles { path, id, .. } => Some((path.as_str(), *id, -1, false)),
+            ipc::FS::FuntiReadThumbnail { path, .. } => Some((path.as_str(), -1, -1, false)),
             ipc::FS::NewWrite {
                 path, id, file_num, ..
             }
@@ -1035,6 +1036,9 @@ async fn handle_fs(
         }
     }
     match fs {
+        ipc::FS::FuntiReadThumbnail { id, path, max_side } => {
+            funti_read_thumbnail(id, path, max_side, tx).await;
+        }
         ipc::FS::ReadEmptyDirs {
             dir,
             include_hidden,
@@ -1572,6 +1576,28 @@ async fn read_all_files(
     }) {
         log::error!("error sending AllFilesResult via IPC: {}", e);
     }
+}
+
+// FUNTIDESK (ADR-017): the preview of one picture, or why there is none.
+#[cfg(not(any(target_os = "ios")))]
+async fn funti_read_thumbnail(id: i32, path: String, max_side: i32, tx: &UnboundedSender<Data>) {
+    let file = path.clone();
+    let result = spawn_blocking(move || crate::funti_thumbnail::make(&file, max_side)).await;
+    let mut thumbnail = FuntiThumbnail {
+        id,
+        path,
+        ..Default::default()
+    };
+    match result {
+        Ok(Ok(jpeg)) => thumbnail.jpeg = jpeg.into(),
+        Ok(Err(err)) => thumbnail.error = err,
+        Err(err) => thumbnail.error = err.to_string(),
+    }
+    let mut file_response = FileResponse::new();
+    file_response.set_funti_thumbnail(thumbnail);
+    let mut msg_out = Message::new();
+    msg_out.set_file_response(file_response);
+    send_raw(msg_out, tx);
 }
 
 #[cfg(not(any(target_os = "ios")))]
