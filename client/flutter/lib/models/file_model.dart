@@ -67,6 +67,11 @@ class FileModel {
   SessionID get sessionId => getSessionID();
   late final FileDialogEventLoop evtLoop;
 
+  // FUNTIDESK: files copied with "Copy" (Ctrl+C) on one panel of the file
+  // transfer window; "Paste" (Ctrl+V) on the other panel sends them there.
+  List<Entry> funtiCopied = [];
+  bool funtiCopiedFromLocal = true;
+
   FileModel(this.parent) {
     getSessionID = () => parent.target!.sessionId;
     getDialogManager = () => parent.target?.dialogManager;
@@ -683,18 +688,18 @@ class FileController {
     });
   }
 
-  // FUNTIDESK: send local files and folders that are not in the open folder
-  // (pasted from the clipboard) to the other side. As sendFiles, but empty
-  // subfolders are placed relative to each item's own parent folder.
+  // FUNTIDESK: send files and folders of this side that may be outside the
+  // open folder (pasted from the clipboard or copied earlier) to the other
+  // side. As sendFiles, but empty subfolders are placed relative to each
+  // item's own parent folder.
   Future<void> funtiSendPaths(
       List<Entry> entries, DirectoryData otherSideData) async {
-    if (!isLocal) return;
     final toPath = otherSideData.directory.path;
     final isWindows = otherSideData.options.isWindows;
     final showHidden = otherSideData.options.showHidden;
     final jobs = <(Entry, int)>[];
     for (final from in entries) {
-      jobs.add((from, jobController.addTransferJob(from, false)));
+      jobs.add((from, jobController.addTransferJob(from, !isLocal)));
     }
     jobController.registerTransferConflictBatch([for (final j in jobs) j.$2]);
     for (final (from, jobID) in jobs) {
@@ -705,9 +710,10 @@ class FileController {
           to: PathUtil.join(toPath, from.name, isWindows),
           fileNum: 0,
           includeHidden: showHidden,
-          isRemote: false,
+          isRemote: !isLocal,
           isDir: from.isDirectory);
     }
+    if (isWeb) return;
     final localContext = options.value.isWindows
         ? PathUtil.windowsContext
         : PathUtil.posixContext;
@@ -715,20 +721,23 @@ class FileController {
       if (!item.isDirectory) continue;
       final root = localContext.dirname(item.path);
       final emptyDirs =
-          await fileFetcher.readEmptyDirs(item.path, true, showHidden);
+          await fileFetcher.readEmptyDirs(item.path, isLocal, showHidden);
       for (final dir in emptyDirs) {
         createDirWithRemote(
-            PathUtil.getOtherSidePath(root, dir.path, options.value.isWindows,
-                toPath, isWindows),
-            true);
+            PathUtil.getOtherSidePath(
+                root, dir.path, options.value.isWindows, toPath, isWindows),
+            isLocal);
       }
     }
   }
 
   bool _removeCheckboxRemember = false;
 
-  Future<void> removeAction(SelectedItems items) async {
-    _removeCheckboxRemember = false;
+  // FUNTIDESK: funtiConfirmed — the user already confirmed deleting these
+  // items (folders with everything inside) in one dialog; no per-file dialogs.
+  Future<void> removeAction(SelectedItems items,
+      {bool funtiConfirmed = false}) async {
+    _removeCheckboxRemember = funtiConfirmed;
     if (items.isLocal != isLocal) {
       debugPrint("Failed to removeFile, wrong files");
       return;
@@ -768,11 +777,13 @@ class FileController {
         dialogManager?.dismissAll();
         if (fd.entries.isEmpty) {
           var deleteJobId = jobController.addDeleteDirJob(item, !isLocal, 0);
-          final confirm = await showRemoveDialog(
-              translate(
-                  "Are you sure you want to delete this empty directory?"),
-              item.name,
-              false);
+          final confirm = funtiConfirmed
+              ? true
+              : await showRemoveDialog(
+                  translate(
+                      "Are you sure you want to delete this empty directory?"),
+                  item.name,
+                  false);
           if (confirm == true) {
             await sendRemoveEmptyDir(
               item.path,
@@ -803,11 +814,13 @@ class FileController {
             : "";
         final count = entries.length > 1 ? "${i + 1}/${entries.length}" : "";
         content = "$dirShow\n\n${entries[i].path}".trim();
-        final confirm = await showRemoveDialog(
-          count.isEmpty ? title : "$title ($count)",
-          content,
-          item.isDirectory,
-        );
+        final confirm = funtiConfirmed
+            ? true
+            : await showRemoveDialog(
+                count.isEmpty ? title : "$title ($count)",
+                content,
+                item.isDirectory,
+              );
         try {
           if (confirm == true) {
             sendRemoveFile(entries[i].path, i, deleteJobId);
