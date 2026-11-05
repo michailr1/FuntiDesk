@@ -45,6 +45,9 @@ mod funti_separation;
 // FUNTIDESK: paste files from the clipboard in the file transfer window.
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 mod funti_clipboard_files;
+// FUNTIDESK (ADR-017): picture previews in the file transfer window.
+#[cfg(not(target_os = "ios"))]
+mod funti_thumbnail;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

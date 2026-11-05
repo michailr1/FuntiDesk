@@ -1805,6 +1805,8 @@ pub trait InvokeUiSession: Send + Sync + Clone + 'static + Sized + Default {
     fn is_multi_ui_session(&self) -> bool;
     fn update_record_status(&self, start: bool);
     fn update_empty_dirs(&self, _res: ReadEmptyDirsResponse) {}
+    // FUNTIDESK (ADR-017).
+    fn funti_thumbnail(&self, _thumbnail: FuntiThumbnail) {}
     fn printer_request(&self, id: i32, path: String);
     fn handle_screenshot_resp(&self, sid: String, msg: String);
     fn handle_terminal_response(&self, response: TerminalResponse);
