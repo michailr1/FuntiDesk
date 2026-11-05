@@ -347,6 +347,19 @@ class FileModel {
   }
 }
 
+// FUNTIDESK: "name.ext", "name (2).ext", ... — the first one not [taken].
+String funtiFreeName(String name, bool Function(String) taken) {
+  if (!taken(name)) return name;
+  final dot = name.lastIndexOf('.');
+  final hasExt = dot > 0;
+  final base = hasExt ? name.substring(0, dot) : name;
+  final ext = hasExt ? name.substring(dot) : '';
+  for (var n = 2;; n++) {
+    final candidate = '$base ($n)$ext';
+    if (!taken(candidate)) return candidate;
+  }
+}
+
 class DirectoryData {
   final DirectoryOptions options;
   final FileDirectory directory;
@@ -637,6 +650,8 @@ class FileController {
     }
     jobController.registerTransferConflictBatch(transferJobIds);
     for (final (from, jobID) in transferJobs) {
+      jobController.funtiSetTo(
+          jobID, PathUtil.join(toPath, from.name, isWindows));
       bind.sessionSendFiles(
           sessionId: sessionId,
           actId: jobID,
@@ -691,9 +706,11 @@ class FileController {
   // FUNTIDESK: send files and folders of this side that may be outside the
   // open folder (pasted from the clipboard or copied earlier) to the other
   // side. As sendFiles, but empty subfolders are placed relative to each
-  // item's own parent folder.
-  Future<void> funtiSendPaths(
-      List<Entry> entries, DirectoryData otherSideData) async {
+  // item's own parent folder. [names] gives other names on the other side;
+  // returns the job ids in the order of [entries].
+  Future<List<int>> funtiSendPaths(
+      List<Entry> entries, DirectoryData otherSideData,
+      {List<String>? names}) async {
     final toPath = otherSideData.directory.path;
     final isWindows = otherSideData.options.isWindows;
     final showHidden = otherSideData.options.showHidden;
@@ -701,34 +718,38 @@ class FileController {
     for (final from in entries) {
       jobs.add((from, jobController.addTransferJob(from, !isLocal)));
     }
-    jobController.registerTransferConflictBatch([for (final j in jobs) j.$2]);
-    for (final (from, jobID) in jobs) {
+    final ids = [for (final j in jobs) j.$2];
+    jobController.registerTransferConflictBatch(ids);
+    final targets = <String>[];
+    for (var i = 0; i < jobs.length; i++) {
+      final (from, jobID) = jobs[i];
+      final to = PathUtil.join(toPath, names?[i] ?? from.name, isWindows);
+      targets.add(to);
+      jobController.funtiSetTo(jobID, to);
       bind.sessionSendFiles(
           sessionId: sessionId,
           actId: jobID,
           path: from.path,
-          to: PathUtil.join(toPath, from.name, isWindows),
+          to: to,
           fileNum: 0,
           includeHidden: showHidden,
           isRemote: !isLocal,
           isDir: from.isDirectory);
     }
-    if (isWeb) return;
-    final localContext = options.value.isWindows
-        ? PathUtil.windowsContext
-        : PathUtil.posixContext;
-    for (final item in entries) {
+    if (isWeb) return ids;
+    for (var i = 0; i < entries.length; i++) {
+      final item = entries[i];
       if (!item.isDirectory) continue;
-      final root = localContext.dirname(item.path);
       final emptyDirs =
           await fileFetcher.readEmptyDirs(item.path, isLocal, showHidden);
       for (final dir in emptyDirs) {
         createDirWithRemote(
-            PathUtil.getOtherSidePath(
-                root, dir.path, options.value.isWindows, toPath, isWindows),
+            PathUtil.getOtherSidePath(item.path, dir.path,
+                options.value.isWindows, targets[i], isWindows),
             isLocal);
       }
     }
+    return ids;
   }
 
   bool _removeCheckboxRemember = false;
@@ -1158,6 +1179,24 @@ class JobController {
     }
   }
 
+  // FUNTIDESK: what to do when a transfer finishes ("Open" of a remote
+  // file), and where it was written ("Show in folder").
+  final funtiOnDone = <int, void Function(JobProgress)>{};
+
+  void funtiSetTo(int id, String to) {
+    final i = getJob(id);
+    if (i >= 0) jobTable[i].to = to;
+  }
+
+  void _funtiTransferFinished(JobProgress job) {
+    final action = funtiOnDone.remove(job.id);
+    if (job.state == JobState.done && job.err.isEmpty) action?.call(job);
+    if (!jobTable.any((j) =>
+        j.type == JobType.transfer && j.state == JobState.inProgress)) {
+      showToast(translate('funti-ft-transfers-done'));
+    }
+  }
+
   Future<bool> jobDone(Map<String, dynamic> evt) async {
     if (jobResultListener.isListening) {
       jobResultListener.complete(evt);
@@ -1199,6 +1238,7 @@ class JobController {
       job.state = JobState.done;
     }
     jobTable.refresh();
+    if (job.type == JobType.transfer) _funtiTransferFinished(job);
     if (job.state == JobState.done || job.state == JobState.error) {
       unregisterTransferConflictJob(id);
     }
@@ -1230,6 +1270,7 @@ class JobController {
           job.state = JobState.done;
           job.finishedSize = job.totalSize;
         }
+        funtiOnDone.remove(job.id);
       } else if (job.type == JobType.deleteDir) {
         if (jobResultListener.isListening) {
           jobResultListener.complete(evt);

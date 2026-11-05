@@ -17,6 +17,8 @@ import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/file_model.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_hbb/web/dummy.dart'
     if (dart.library.html) 'package:flutter_hbb/web/web_unique.dart';
 
@@ -325,6 +327,20 @@ class _FileManagerPageState extends State<FileManagerPage>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            if (!isWeb &&
+                                item.type == JobType.transfer &&
+                                item.isRemoteToLocal &&
+                                item.state == JobState.done &&
+                                item.err.isEmpty &&
+                                item.to.isNotEmpty)
+                              MenuButton(
+                                tooltip: translate('funti-ft-show-in-folder'),
+                                onPressed: () => _funtiShowInFolder(item.to),
+                                child: Icon(Icons.folder_open_rounded,
+                                    color: Colors.white, size: 18),
+                                color: MyTheme.accent,
+                                hoverColor: MyTheme.accent80,
+                              ).marginOnly(right: 8),
                             Offstage(
                               offstage: item.state != JobState.paused,
                               child: MenuButton(
@@ -691,9 +707,111 @@ class _FileManagerViewState extends State<FileManagerView> {
 
   void _funtiOpenSelected() {
     final items = _funtiSelection;
-    if (items.length != 1 || items.first.isFile) return;
+    if (items.length != 1) return;
+    if (items.first.isFile) {
+      _funtiOpenFile(items.first);
+      return;
+    }
     selectedItems.clear();
     controller.openDirectory(items.first.path);
+  }
+
+  // Programs and scripts are not started from here: "Open" shows them in
+  // the folder instead.
+  static const _funtiRunnable = {
+    'exe', 'msi', 'msix', 'appx', 'bat', 'cmd', 'com', 'scr', 'pif', 'cpl', //
+    'msc', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'hta', 'lnk', //
+    'url', 'reg', 'jar', 'sh', 'run', 'appimage', 'deb', 'command', 'app',
+  };
+
+  bool _funtiIsRunnable(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot >= 0 &&
+        _funtiRunnable.contains(name.substring(dot + 1).toLowerCase());
+  }
+
+  Future<String?> _funtiLocalDownloads({bool subfolder = false}) async {
+    try {
+      final dir = await getDownloadsDirectory();
+      if (dir == null) return null;
+      if (!subfolder) return dir.path;
+      final sub = Directory(PathUtil.join(dir.path, 'FuntiDesk', isWindows));
+      sub.createSync(recursive: true);
+      return sub.path;
+    } catch (e) {
+      debugPrint('Downloads folder: $e');
+      return null;
+    }
+  }
+
+  // A file on this computer opens in its program. A remote one is downloaded
+  // to Downloads\FuntiDesk under a free name first and opens when it is
+  // there.
+  Future<void> _funtiOpenFile(Entry entry) async {
+    if (isWeb) return;
+    if (isLocal) {
+      if (_funtiIsRunnable(entry.name)) {
+        _funtiShowInFolder(entry.path);
+      } else if (!await launchUrl(Uri.file(entry.path))) {
+        showToast(translate('funti-ft-open-file-failed'));
+      }
+      return;
+    }
+    final dir = await _funtiLocalDownloads(subfolder: true);
+    if (dir == null) {
+      showToast(translate('funti-ft-downloads-missing'));
+      return;
+    }
+    final name = funtiFreeName(entry.name,
+        (n) => File(PathUtil.join(dir, n, isWindows)).existsSync());
+    final fileModel = _ffi.fileModel;
+    final target = DirectoryData(FileDirectory()..path = dir,
+        fileModel.localController.options.value);
+    final ids = await fileModel.remoteController
+        .funtiSendPaths([entry], target, names: [name]);
+    final runnable = _funtiIsRunnable(name);
+    fileModel.jobController.funtiOnDone[ids.first] = (job) async {
+      if (runnable) {
+        _funtiShowInFolder(job.to);
+      } else if (!await launchUrl(Uri.file(job.to))) {
+        showToast(translate('funti-ft-open-file-failed'));
+      }
+    };
+    showToast(translate(runnable ? 'funti-ft-downloading' : 'funti-ft-opening')
+        .replaceAll('{}', entry.name));
+  }
+
+  // "To the Desktop / Downloads" of the other computer, without opening
+  // the folder there first.
+  Future<void> _funtiQuickSend(String folder) async {
+    final items = _funtiSelection;
+    if (items.isEmpty || isWeb) return;
+    final fileModel = _ffi.fileModel;
+    final DirectoryData target;
+    if (isLocal) {
+      final remote = fileModel.remoteController.options.value;
+      if (remote.home.isEmpty) return;
+      final path = PathUtil.join(remote.home, folder, remote.isWindows);
+      try {
+        final fd = await fileModel.fileFetcher
+            .fetchDirectory(path, false, remote.showHidden);
+        if (fd.path.isEmpty) fd.path = path;
+        target = DirectoryData(fd, remote);
+      } catch (e) {
+        showToast(translate('funti-ft-folder-missing').replaceAll('{}', path));
+        return;
+      }
+    } else {
+      final dir = await _funtiLocalDownloads();
+      if (dir == null) {
+        showToast(translate('funti-ft-downloads-missing'));
+        return;
+      }
+      target = DirectoryData(FileDirectory()..path = dir,
+          fileModel.localController.options.value);
+    }
+    selectedItems.clear();
+    await controller.funtiSendPaths(items, target);
   }
 
   void _funtiCopyPath() {
@@ -935,7 +1053,10 @@ class _FileManagerViewState extends State<FileManagerView> {
         _funtiMenuItem('funti-ft-open', () {
           selectedItems.clear();
           controller.openDirectory(entry.path);
-        }),
+        })
+      else if (!isWeb)
+        _funtiMenuItem('funti-ft-open', () => _funtiOpenFile(entry),
+            hint: 'Enter'),
       if (items.isNotEmpty && !isWeb) ...[
         _funtiMenuItem(isLocal ? 'funti-ft-send' : 'funti-ft-receive', () {
           controller.sendFiles(
@@ -943,6 +1064,14 @@ class _FileManagerViewState extends State<FileManagerView> {
               controller.getOtherSideDirectoryData());
           selectedItems.clear();
         }),
+        if (isLocal) ...[
+          _funtiMenuItem(
+              'funti-ft-send-desktop', () => _funtiQuickSend('Desktop')),
+          _funtiMenuItem(
+              'funti-ft-send-downloads', () => _funtiQuickSend('Downloads')),
+        ] else
+          _funtiMenuItem(
+              'funti-ft-receive-downloads', () => _funtiQuickSend('')),
         _funtiMenuItem('funti-ft-copy', _funtiCopy, hint: '${_funtiCmd}C'),
       ],
       if (items.isNotEmpty) ...[
@@ -1626,8 +1755,12 @@ class _FileManagerViewState extends State<FileManagerView> {
             final items = selectedItems;
             // handle double click
             if (_checkDoubleClick(entry)) {
-              controller.openDirectory(entry.path);
               items.clear();
+              if (entry.isFile) {
+                _funtiOpenFile(entry);
+              } else {
+                controller.openDirectory(entry.path);
+              }
               return;
             }
             _onSelectedChanged(items, filteredEntries, entry, isLocal);
@@ -2189,4 +2322,16 @@ Widget buildWindowsThisPC(BuildContext context, [TextStyle? textStyle]) {
     SizedBox(width: 10),
     Text(translate('This PC'), style: textStyle)
   ]);
+}
+
+// FUNTIDESK: "Show in folder" for a file on this computer.
+void _funtiShowInFolder(String path) {
+  if (isWeb || path.isEmpty) return;
+  if (Platform.isWindows) {
+    Process.run('explorer.exe', ['/select,', path]);
+  } else if (Platform.isMacOS) {
+    Process.run('open', ['-R', path]);
+  } else {
+    launchUrl(Uri.directory(File(path).parent.path));
+  }
 }
