@@ -506,6 +506,7 @@ class _FileManagerViewState extends State<FileManagerView> {
               ],
             )),
           ),
+          _funtiStatusBar(),
         ],
       ),
     );
@@ -595,6 +596,30 @@ class _FileManagerViewState extends State<FileManagerView> {
           () => run(_funtiDelete),
       const SingleActivator(LogicalKeyboardKey.f2, includeRepeats: false): () =>
           run(_funtiRename),
+      SingleActivator(LogicalKeyboardKey.keyC,
+          control: !isMacOS,
+          meta: isMacOS,
+          shift: true,
+          includeRepeats: false): () => run(_funtiCopyPath),
+      SingleActivator(LogicalKeyboardKey.keyA,
+              control: !isMacOS, meta: isMacOS, includeRepeats: false):
+          () => run(() => setState(() => selectedItems.selectAll(_funtiVisible))),
+      const SingleActivator(LogicalKeyboardKey.enter): () =>
+          run(_funtiOpenSelected),
+      const SingleActivator(LogicalKeyboardKey.backspace): () => run(() {
+            selectedItems.clear();
+            controller.openDirectory('..');
+          }),
+      const SingleActivator(LogicalKeyboardKey.f5): () =>
+          run(() => controller.refresh()),
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+          run(() => _funtiMove(1)),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+          run(() => _funtiMove(-1)),
+      const SingleActivator(LogicalKeyboardKey.arrowDown, shift: true): () =>
+          run(() => _funtiMove(1, extend: true)),
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true): () =>
+          run(() => _funtiMove(-1, extend: true)),
     }, child: list);
   }
 
@@ -607,6 +632,156 @@ class _FileManagerViewState extends State<FileManagerView> {
   bool _funtiFolderOpen(DirectoryData data) {
     final path = data.directory.path;
     return path.isNotEmpty && !(data.options.isWindows && path == '/');
+  }
+
+  // The rows as shown: the list filtered by the search field.
+  List<Entry> get _funtiVisible {
+    final entries = controller.directory.value.entries;
+    if (_searchText.isEmpty) return entries;
+    return entries.where((e) => e.name.contains(_searchText.value)).toList();
+  }
+
+  int _funtiAnchor = -1;
+  int _funtiCursor = -1;
+
+  // Arrows move the selection; with Shift they extend it from where the
+  // keyboard selection started.
+  void _funtiMove(int delta, {bool extend = false}) {
+    final entries = _funtiVisible;
+    if (entries.isEmpty) return;
+    final sel = selectedItems.items;
+    var cur = (_funtiCursor >= 0 &&
+            _funtiCursor < entries.length &&
+            sel.contains(entries[_funtiCursor]))
+        ? _funtiCursor
+        : (sel.isEmpty ? -1 : entries.indexOf(sel.last));
+    final next = cur < 0
+        ? (delta > 0 ? 0 : entries.length - 1)
+        : (cur + delta).clamp(0, entries.length - 1);
+    if (extend) {
+      if (cur < 0 || _funtiAnchor < 0 || _funtiAnchor >= entries.length) {
+        _funtiAnchor = cur < 0 ? next : cur;
+      }
+      selectedItems.clear();
+      for (var i = min(_funtiAnchor, next); i <= max(_funtiAnchor, next); i++) {
+        selectedItems.add(entries[i]);
+      }
+    } else {
+      selectedItems.clear();
+      selectedItems.add(entries[next]);
+      _funtiAnchor = next;
+    }
+    _funtiCursor = next;
+    _funtiScrollTo(next);
+    setState(() {});
+  }
+
+  void _funtiScrollTo(int index) {
+    final c = _fileListScrollController;
+    if (!c.hasClients) return;
+    const row = kDesktopFileTransferRowHeight;
+    final top = index * row;
+    final view = c.position.viewportDimension;
+    if (top < c.offset) {
+      c.jumpTo(top);
+    } else if (top + row > c.offset + view) {
+      c.jumpTo(min(top + row - view, c.position.maxScrollExtent));
+    }
+  }
+
+  void _funtiOpenSelected() {
+    final items = _funtiSelection;
+    if (items.length != 1 || items.first.isFile) return;
+    selectedItems.clear();
+    controller.openDirectory(items.first.path);
+  }
+
+  void _funtiCopyPath() {
+    final items = _funtiSelection;
+    final paths = items.isEmpty
+        ? [controller.directory.value.path]
+        : items.map((e) => e.path).toList();
+    if (paths.first.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: paths.join('\n')));
+    showToast(translate('funti-ft-path-copied'));
+  }
+
+  // Size of the selection; folders are read with everything inside.
+  Future<void> _funtiShowSize() async {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    final dm = _ffi.dialogManager;
+    var cancelled = false;
+    final tag = dm.showLoading(translate('funti-ft-size-counting'),
+        onCancel: () => cancelled = true);
+    var size = 0;
+    var files = 0;
+    try {
+      for (final item in items) {
+        if (cancelled) return;
+        if (item.isFile) {
+          size += item.size;
+          files++;
+          continue;
+        }
+        final fd = await _ffi.fileModel.fileFetcher
+            .fetchDirectoryRecursiveToRemove(JobController.jobID.next(),
+                item.path, isLocal, controller.options.value.showHidden,
+                timeout: const Duration(seconds: 60));
+        for (final e in fd.entries) {
+          if (!e.isFile) continue;
+          size += e.size;
+          files++;
+        }
+      }
+    } catch (e) {
+      dm.dismissByTag(tag);
+      if (!cancelled) showToast(translate('funti-ft-size-failed'));
+      return;
+    }
+    dm.dismissByTag(tag);
+    if (cancelled) return;
+    final name = items.length == 1
+        ? items.first.name
+        : translate('funti-ft-selected').replaceAll('{}', '${items.length}');
+    dm.show((setState, close, context) {
+      return CustomAlertDialog(
+        title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: Text(translate('funti-ft-size-result')
+            .replaceAll('{size}', readableFileSize(size.toDouble()))
+            .replaceAll('{files}', '$files')),
+        actions: [dialogButton('OK', onPressed: close)],
+        onSubmit: close,
+        onCancel: close,
+      );
+    });
+  }
+
+  // "25 items · Selected: 3, 12.4 MB" under the list.
+  Widget _funtiStatusBar() {
+    return Obx(() {
+      final total = controller.directory.value.entries.length;
+      final sel = selectedItems.items;
+      var text = translate('funti-ft-items').replaceAll('{}', '$total');
+      if (sel.isNotEmpty) {
+        final files = sel.where((e) => e.isFile).toList();
+        final selected =
+            translate('funti-ft-selected').replaceAll('{}', '${sel.length}');
+        text += ' · $selected';
+        if (files.isNotEmpty) {
+          final size = files.fold<int>(0, (s, e) => s + e.size);
+          text += ', ${readableFileSize(size.toDouble())}';
+          if (files.length < sel.length) {
+            text += ' ${translate('funti-ft-without-folders')}';
+          }
+        }
+      }
+      return Text(text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
+          .paddingOnly(left: 4, top: 6);
+    });
   }
 
   void _funtiCopy() {
@@ -771,6 +946,11 @@ class _FileManagerViewState extends State<FileManagerView> {
         _funtiMenuItem('funti-ft-copy', _funtiCopy, hint: '${_funtiCmd}C'),
       ],
       if (items.isNotEmpty) ...[
+        _funtiMenuItem('funti-ft-copy-path', _funtiCopyPath,
+            hint: '${_funtiCmd}Shift+C'),
+        _funtiMenuItem('funti-ft-size', _funtiShowSize),
+      ],
+      if (items.isNotEmpty) ...[
         const mod_menu.PopupMenuDivider(),
         _funtiMenuItem('Rename', items.length == 1 ? _funtiRename : null,
             hint: 'F2'),
@@ -789,11 +969,13 @@ class _FileManagerViewState extends State<FileManagerView> {
         _funtiMenuItem('funti-ft-paste-here', _funtiPaste,
             hint: '${_funtiCmd}V'),
       _funtiMenuItem('Create Folder', _funtiCreateFolder),
-      _funtiMenuItem('funti-ft-refresh', () => controller.refresh()),
+      _funtiMenuItem('funti-ft-refresh', () => controller.refresh(),
+          hint: 'F5'),
+      _funtiMenuItem('funti-ft-copy-path', _funtiCopyPath),
       _funtiMenuItem(
           'Select All',
-          () => setState(() =>
-              selectedItems.selectAll(controller.directory.value.entries))),
+          () => setState(() => selectedItems.selectAll(_funtiVisible)),
+          hint: '${_funtiCmd}A'),
     ]);
   }
 
