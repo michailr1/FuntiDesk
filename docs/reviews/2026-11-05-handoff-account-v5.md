@@ -6,7 +6,7 @@
 На `desk.funti.cc` работает API v4 (`POST /api/account/v1/family/remove/cancel` → 404) и `account/account.js` от `585fa23`. В `main` — API v5 и кнопка «Отменить удаление» (#71/#72). Кнопка в Windows-клиенте уже у пользователей и сейчас получает ошибку.
 
 ## Сделать
-1. **API v5** — строго по `docs/ACCOUNT_DEPLOYMENT.md`, раздел «Отмена удаления: обновление v4→v5». Источник — чистый `main` (`6f1732b3a370` или новее). Артефакт и образ — из «Account checks», run 42057692860; он должен быть зелёным, иначе стоп. Сверить SHA256 архива, OCI ID и label revision.
+1. **API v5** — строго по `docs/ACCOUNT_DEPLOYMENT.md`, раздел «Отмена удаления: обновление v4→v5». Источник — чистый `main` `20b036fee69f` (#108) или новее. Артефакт и образ — из «Account checks», run 42061937048; он должен быть зелёным целиком, иначе стоп. Прежний run 42057692860 красный: в Debian сменилась версия `ca-certificates` для образа почты, исправлено в #108. Сверить SHA256 архива, OCI ID и label revision.
    - остановить только `account` → SQLite Online Backup → `integrity_check` и `foreign_key_check`;
    - на отдельной копии `account/src/schema-cancel.sql`: `user_version=5`, прежние данные не изменились, `cancelled_at IS NULL`;
    - заменить только `FUNTI_ACCOUNT_IMAGE` в env и поднять только `account`.
