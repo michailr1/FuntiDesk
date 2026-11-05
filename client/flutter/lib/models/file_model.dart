@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
@@ -71,6 +72,9 @@ class FileModel {
   // transfer window; "Paste" (Ctrl+V) on the other panel sends them there.
   List<Entry> funtiCopied = [];
   bool funtiCopiedFromLocal = true;
+
+  // FUNTIDESK (ADR-017): previews of the other computer's pictures.
+  late final funtiThumbs = FuntiThumbnails(() => getSessionID());
 
   FileModel(this.parent) {
     getSessionID = () => parent.target!.sessionId;
@@ -344,6 +348,106 @@ class FileModel {
       var peerPath = PathUtil.join(toPath, dir, isPeerWindows);
       remoteController.createDirWithRemote(peerPath, true);
     }
+  }
+}
+
+// FUNTIDESK (ADR-017): pictures that get a preview, as on the other side.
+const funtiThumbMaxFileSize = 50 * 1024 * 1024;
+const _funtiPictureExtensions = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'};
+
+bool funtiIsPicture(String name) {
+  final dot = name.lastIndexOf('.');
+  return dot >= 0 &&
+      _funtiPictureExtensions.contains(name.substring(dot + 1).toLowerCase());
+}
+
+/// Previews of remote pictures, asked for the rows on screen only: at most
+/// two requests at a time, the newest first; rows scrolled away before
+/// their turn drop out. Kept in memory until the window closes.
+class FuntiThumbnails {
+  FuntiThumbnails(this._sessionId);
+
+  static const maxSide = 160;
+  static const _inFlightMax = 2;
+  static const _cacheMax = 1000;
+  static const _timeout = Duration(seconds: 10);
+
+  final SessionID Function() _sessionId;
+  // Key is the path and the modification time: a changed file is asked again.
+  // A map literal keeps the insertion order: the oldest goes first.
+  final _cache = <String, Uint8List?>{};
+  final _waiting = <String, Completer<Uint8List?>>{};
+  final _queue = <(String, String)>[];
+  final _inFlight = <int, String>{};
+  int _nextId = 1;
+  int _timeouts = 0;
+
+  /// An older FuntiDesk on the other side does not answer.
+  bool get unsupported => _timeouts >= 3;
+
+  static String _key(Entry e) => '${e.path}\n${e.modifiedTime}';
+
+  Uint8List? cached(Entry e) => _cache[_key(e)];
+
+  Future<Uint8List?> get(Entry e) {
+    final key = _key(e);
+    if (_cache.containsKey(key)) return Future.value(_cache[key]);
+    if (unsupported) return Future.value(null);
+    final waiting = _waiting[key];
+    if (waiting != null) return waiting.future;
+    final c = Completer<Uint8List?>();
+    _waiting[key] = c;
+    _queue.add((key, e.path));
+    _pump();
+    return c.future;
+  }
+
+  /// The row is off screen: its request is not sent if it has not been yet.
+  void forget(Entry e) {
+    final key = _key(e);
+    final before = _queue.length;
+    _queue.removeWhere((q) => q.$1 == key);
+    if (_queue.length != before) _waiting.remove(key)?.complete(null);
+  }
+
+  void _pump() {
+    while (_inFlight.length < _inFlightMax && _queue.isNotEmpty) {
+      final (key, path) = _queue.removeLast();
+      final id = _nextId++;
+      _inFlight[id] = key;
+      bind.sessionFuntiReadThumbnail(
+          sessionId: _sessionId(), id: id, path: path, maxSide: maxSide);
+      Timer(_timeout, () {
+        if (_inFlight.remove(id) == null) return;
+        _timeouts++;
+        if (_timeouts == 3) showToast(translate('funti-ft-thumbs-unsupported'));
+        _waiting.remove(key)?.complete(null);
+        if (unsupported) {
+          for (final q in _queue) {
+            _waiting.remove(q.$1)?.complete(null);
+          }
+          _queue.clear();
+        }
+        _pump();
+      });
+    }
+  }
+
+  void onEvent(Map<String, dynamic> evt) {
+    final key = _inFlight.remove(int.tryParse('${evt['id']}') ?? 0);
+    if (key == null) return;
+    _timeouts = 0;
+    Uint8List? bytes;
+    final jpeg = '${evt['jpeg'] ?? ''}';
+    if (jpeg.isNotEmpty) {
+      try {
+        bytes = base64Decode(jpeg);
+      } catch (_) {}
+    }
+    _cache[key] = bytes;
+    if (_cache.length > _cacheMax) _cache.remove(_cache.keys.first);
+    _waiting.remove(key)?.complete(bytes);
+    _pump();
   }
 }
 
