@@ -707,10 +707,11 @@ class FileController {
   // open folder (pasted from the clipboard or copied earlier) to the other
   // side. As sendFiles, but empty subfolders are placed relative to each
   // item's own parent folder. [names] gives other names on the other side;
-  // returns the job ids in the order of [entries].
+  // [overwrite] answers "Replace" to every existing file in advance.
+  // Returns the job ids in the order of [entries].
   Future<List<int>> funtiSendPaths(
       List<Entry> entries, DirectoryData otherSideData,
-      {List<String>? names}) async {
+      {List<String>? names, bool overwrite = false}) async {
     final toPath = otherSideData.directory.path;
     final isWindows = otherSideData.options.isWindows;
     final showHidden = otherSideData.options.showHidden;
@@ -720,6 +721,9 @@ class FileController {
     }
     final ids = [for (final j in jobs) j.$2];
     jobController.registerTransferConflictBatch(ids);
+    if (overwrite && ids.isNotEmpty) {
+      jobController.rememberTransferConflictBatch(ids.first, true);
+    }
     final targets = <String>[];
     for (var i = 0; i < jobs.length; i++) {
       final (from, jobID) = jobs[i];
