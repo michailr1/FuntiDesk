@@ -67,6 +67,11 @@ class FileModel {
   SessionID get sessionId => getSessionID();
   late final FileDialogEventLoop evtLoop;
 
+  // FUNTIDESK: files copied with "Copy" (Ctrl+C) on one panel of the file
+  // transfer window; "Paste" (Ctrl+V) on the other panel sends them there.
+  List<Entry> funtiCopied = [];
+  bool funtiCopiedFromLocal = true;
+
   FileModel(this.parent) {
     getSessionID = () => parent.target!.sessionId;
     getDialogManager = () => parent.target?.dialogManager;
@@ -339,6 +344,19 @@ class FileModel {
       var peerPath = PathUtil.join(toPath, dir, isPeerWindows);
       remoteController.createDirWithRemote(peerPath, true);
     }
+  }
+}
+
+// FUNTIDESK: "name.ext", "name (2).ext", ... — the first one not [taken].
+String funtiFreeName(String name, bool Function(String) taken) {
+  if (!taken(name)) return name;
+  final dot = name.lastIndexOf('.');
+  final hasExt = dot > 0;
+  final base = hasExt ? name.substring(0, dot) : name;
+  final ext = hasExt ? name.substring(dot) : '';
+  for (var n = 2;; n++) {
+    final candidate = '$base ($n)$ext';
+    if (!taken(candidate)) return candidate;
   }
 }
 
@@ -632,6 +650,8 @@ class FileController {
     }
     jobController.registerTransferConflictBatch(transferJobIds);
     for (final (from, jobID) in transferJobs) {
+      jobController.funtiSetTo(
+          jobID, PathUtil.join(toPath, from.name, isWindows));
       bind.sessionSendFiles(
           sessionId: sessionId,
           actId: jobID,
@@ -683,52 +703,66 @@ class FileController {
     });
   }
 
-  // FUNTIDESK: send local files and folders that are not in the open folder
-  // (pasted from the clipboard) to the other side. As sendFiles, but empty
-  // subfolders are placed relative to each item's own parent folder.
-  Future<void> funtiSendPaths(
-      List<Entry> entries, DirectoryData otherSideData) async {
-    if (!isLocal) return;
+  // FUNTIDESK: send files and folders of this side that may be outside the
+  // open folder (pasted from the clipboard or copied earlier) to the other
+  // side. As sendFiles, but empty subfolders are placed relative to each
+  // item's own parent folder. [names] gives other names on the other side;
+  // [overwrite] answers "Replace" to every existing file in advance.
+  // Returns the job ids in the order of [entries].
+  Future<List<int>> funtiSendPaths(
+      List<Entry> entries, DirectoryData otherSideData,
+      {List<String>? names, bool overwrite = false}) async {
     final toPath = otherSideData.directory.path;
     final isWindows = otherSideData.options.isWindows;
     final showHidden = otherSideData.options.showHidden;
     final jobs = <(Entry, int)>[];
     for (final from in entries) {
-      jobs.add((from, jobController.addTransferJob(from, false)));
+      jobs.add((from, jobController.addTransferJob(from, !isLocal)));
     }
-    jobController.registerTransferConflictBatch([for (final j in jobs) j.$2]);
-    for (final (from, jobID) in jobs) {
+    final ids = [for (final j in jobs) j.$2];
+    jobController.registerTransferConflictBatch(ids);
+    if (overwrite && ids.isNotEmpty) {
+      jobController.rememberTransferConflictBatch(ids.first, true);
+    }
+    final targets = <String>[];
+    for (var i = 0; i < jobs.length; i++) {
+      final (from, jobID) = jobs[i];
+      final to = PathUtil.join(toPath, names?[i] ?? from.name, isWindows);
+      targets.add(to);
+      jobController.funtiSetTo(jobID, to);
       bind.sessionSendFiles(
           sessionId: sessionId,
           actId: jobID,
           path: from.path,
-          to: PathUtil.join(toPath, from.name, isWindows),
+          to: to,
           fileNum: 0,
           includeHidden: showHidden,
-          isRemote: false,
+          isRemote: !isLocal,
           isDir: from.isDirectory);
     }
-    final localContext = options.value.isWindows
-        ? PathUtil.windowsContext
-        : PathUtil.posixContext;
-    for (final item in entries) {
+    if (isWeb) return ids;
+    for (var i = 0; i < entries.length; i++) {
+      final item = entries[i];
       if (!item.isDirectory) continue;
-      final root = localContext.dirname(item.path);
       final emptyDirs =
-          await fileFetcher.readEmptyDirs(item.path, true, showHidden);
+          await fileFetcher.readEmptyDirs(item.path, isLocal, showHidden);
       for (final dir in emptyDirs) {
         createDirWithRemote(
-            PathUtil.getOtherSidePath(root, dir.path, options.value.isWindows,
-                toPath, isWindows),
-            true);
+            PathUtil.getOtherSidePath(item.path, dir.path,
+                options.value.isWindows, targets[i], isWindows),
+            isLocal);
       }
     }
+    return ids;
   }
 
   bool _removeCheckboxRemember = false;
 
-  Future<void> removeAction(SelectedItems items) async {
-    _removeCheckboxRemember = false;
+  // FUNTIDESK: funtiConfirmed — the user already confirmed deleting these
+  // items (folders with everything inside) in one dialog; no per-file dialogs.
+  Future<void> removeAction(SelectedItems items,
+      {bool funtiConfirmed = false}) async {
+    _removeCheckboxRemember = funtiConfirmed;
     if (items.isLocal != isLocal) {
       debugPrint("Failed to removeFile, wrong files");
       return;
@@ -768,11 +802,13 @@ class FileController {
         dialogManager?.dismissAll();
         if (fd.entries.isEmpty) {
           var deleteJobId = jobController.addDeleteDirJob(item, !isLocal, 0);
-          final confirm = await showRemoveDialog(
-              translate(
-                  "Are you sure you want to delete this empty directory?"),
-              item.name,
-              false);
+          final confirm = funtiConfirmed
+              ? true
+              : await showRemoveDialog(
+                  translate(
+                      "Are you sure you want to delete this empty directory?"),
+                  item.name,
+                  false);
           if (confirm == true) {
             await sendRemoveEmptyDir(
               item.path,
@@ -803,11 +839,13 @@ class FileController {
             : "";
         final count = entries.length > 1 ? "${i + 1}/${entries.length}" : "";
         content = "$dirShow\n\n${entries[i].path}".trim();
-        final confirm = await showRemoveDialog(
-          count.isEmpty ? title : "$title ($count)",
-          content,
-          item.isDirectory,
-        );
+        final confirm = funtiConfirmed
+            ? true
+            : await showRemoveDialog(
+                count.isEmpty ? title : "$title ($count)",
+                content,
+                item.isDirectory,
+              );
         try {
           if (confirm == true) {
             sendRemoveFile(entries[i].path, i, deleteJobId);
@@ -1145,6 +1183,24 @@ class JobController {
     }
   }
 
+  // FUNTIDESK: what to do when a transfer finishes ("Open" of a remote
+  // file), and where it was written ("Show in folder").
+  final funtiOnDone = <int, void Function(JobProgress)>{};
+
+  void funtiSetTo(int id, String to) {
+    final i = getJob(id);
+    if (i >= 0) jobTable[i].to = to;
+  }
+
+  void _funtiTransferFinished(JobProgress job) {
+    final action = funtiOnDone.remove(job.id);
+    if (job.state == JobState.done && job.err.isEmpty) action?.call(job);
+    if (!jobTable.any((j) =>
+        j.type == JobType.transfer && j.state == JobState.inProgress)) {
+      showToast(translate('funti-ft-transfers-done'));
+    }
+  }
+
   Future<bool> jobDone(Map<String, dynamic> evt) async {
     if (jobResultListener.isListening) {
       jobResultListener.complete(evt);
@@ -1186,6 +1242,7 @@ class JobController {
       job.state = JobState.done;
     }
     jobTable.refresh();
+    if (job.type == JobType.transfer) _funtiTransferFinished(job);
     if (job.state == JobState.done || job.state == JobState.error) {
       unregisterTransferConflictJob(id);
     }
@@ -1217,6 +1274,7 @@ class JobController {
           job.state = JobState.done;
           job.finishedSize = job.totalSize;
         }
+        funtiOnDone.remove(job.id);
       } else if (job.type == JobType.deleteDir) {
         if (jobResultListener.isListening) {
           jobResultListener.complete(evt);
@@ -1538,7 +1596,8 @@ class FileFetcher {
     return c.future;
   }
 
-  Future<FileDirectory> registerReadRecursiveTask(int actID) {
+  Future<FileDirectory> registerReadRecursiveTask(int actID,
+      {Duration timeout = const Duration(seconds: 2)}) {
     final tasks = readRecursiveTasks;
     if (tasks.containsKey(actID)) {
       throw "Failed to registerRemoveTask, already have same ReadRecursive job";
@@ -1546,7 +1605,7 @@ class FileFetcher {
     final c = Completer<FileDirectory>();
     tasks[actID] = c;
 
-    Timer(Duration(seconds: 2), () {
+    Timer(timeout, () {
       tasks.remove(actID);
       if (c.isCompleted) return;
       c.completeError("Failed to read dir, timeout");
@@ -1678,8 +1737,10 @@ class FileFetcher {
     }
   }
 
+  // FUNTIDESK: timeout — "Size" reads big folders longer than deleting waits.
   Future<FileDirectory> fetchDirectoryRecursiveToRemove(
-      int actID, String path, bool isLocal, bool showHidden) async {
+      int actID, String path, bool isLocal, bool showHidden,
+      {Duration timeout = const Duration(seconds: 2)}) async {
     // TODO test Recursive is show hidden default?
     try {
       await bind.sessionReadDirToRemoveRecursive(
@@ -1688,7 +1749,7 @@ class FileFetcher {
           path: path,
           isRemote: !isLocal,
           showHidden: showHidden);
-      return registerReadRecursiveTask(actID);
+      return registerReadRecursiveTask(actID, timeout: timeout);
     } catch (e) {
       return Future.error(e);
     }

@@ -17,6 +17,8 @@ import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/file_model.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_hbb/web/dummy.dart'
     if (dart.library.html) 'package:flutter_hbb/web/web_unique.dart';
 
@@ -325,6 +327,20 @@ class _FileManagerPageState extends State<FileManagerPage>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            if (!isWeb &&
+                                item.type == JobType.transfer &&
+                                item.isRemoteToLocal &&
+                                item.state == JobState.done &&
+                                item.err.isEmpty &&
+                                item.to.isNotEmpty)
+                              MenuButton(
+                                tooltip: translate('funti-ft-show-in-folder'),
+                                onPressed: () => _funtiShowInFolder(item.to),
+                                child: Icon(Icons.folder_open_rounded,
+                                    color: Colors.white, size: 18),
+                                color: MyTheme.accent,
+                                hoverColor: MyTheme.accent80,
+                              ).marginOnly(right: 8),
                             Offstage(
                               offstage: item.state != JobState.paused,
                               child: MenuButton(
@@ -500,12 +516,13 @@ class _FileManagerViewState extends State<FileManagerView> {
                   },
                   onExit: (evt) =>
                       widget._mouseFocusScope.value = MouseFocusScope.none,
-                  child: _funtiPasteShortcut(
+                  child: _funtiShortcuts(
                       _buildFileList(context, _fileListScrollController)),
                 ))
               ],
             )),
           ),
+          _funtiStatusBar(),
         ],
       ),
     );
@@ -573,21 +590,668 @@ class _FileManagerViewState extends State<FileManagerView> {
     });
   }
 
-  // FUNTIDESK: Ctrl+V (Cmd+V) over the remote list pastes the files copied
-  // on this computer into the open remote folder, as "Send" does.
-  Widget _funtiPasteShortcut(Widget list) {
-    if (isLocal || isWeb) return list;
+  // FUNTIDESK: keys as in Explorer (owner's request 2026-11-03): Ctrl+C and
+  // Ctrl+V between the panels, Delete, F2 to rename. Ctrl+V on the remote
+  // panel also pastes the files copied on this computer (Explorer).
+  Widget _funtiShortcuts(Widget list) {
+    if (isWeb) return list;
+    void run(void Function() action) {
+      if (!_isTyping()) action();
+    }
+
     return CallbackShortcuts(bindings: {
+      SingleActivator(LogicalKeyboardKey.keyC,
+          control: !isMacOS,
+          meta: isMacOS,
+          includeRepeats: false): () => run(_funtiCopy),
       SingleActivator(LogicalKeyboardKey.keyV,
-          control: !Platform.isMacOS,
-          meta: Platform.isMacOS,
-          includeRepeats: false): () {
-        if (!_isTyping()) _funtiPasteFromClipboard();
-      },
+          control: !isMacOS,
+          meta: isMacOS,
+          includeRepeats: false): () => run(_funtiPaste),
+      const SingleActivator(LogicalKeyboardKey.delete, includeRepeats: false):
+          () => run(_funtiDelete),
+      const SingleActivator(LogicalKeyboardKey.f2, includeRepeats: false): () =>
+          run(_funtiRename),
+      SingleActivator(LogicalKeyboardKey.keyC,
+          control: !isMacOS,
+          meta: isMacOS,
+          shift: true,
+          includeRepeats: false): () => run(_funtiCopyPath),
+      SingleActivator(LogicalKeyboardKey.keyA,
+              control: !isMacOS, meta: isMacOS, includeRepeats: false):
+          () => run(() => setState(() => selectedItems.selectAll(_funtiVisible))),
+      const SingleActivator(LogicalKeyboardKey.enter): () =>
+          run(_funtiOpenSelected),
+      const SingleActivator(LogicalKeyboardKey.backspace): () => run(() {
+            selectedItems.clear();
+            controller.openDirectory('..');
+          }),
+      const SingleActivator(LogicalKeyboardKey.f5): () =>
+          run(() => controller.refresh()),
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+          run(() => _funtiMove(1)),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+          run(() => _funtiMove(-1)),
+      const SingleActivator(LogicalKeyboardKey.arrowDown, shift: true): () =>
+          run(() => _funtiMove(1, extend: true)),
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true): () =>
+          run(() => _funtiMove(-1, extend: true)),
     }, child: list);
   }
 
-  Future<void> _funtiPasteFromClipboard() async {
+  String get _funtiCmd => isMacOS ? '⌘' : 'Ctrl+';
+
+  List<Entry> get _funtiSelection =>
+      selectedItems.items.where((e) => !e.isDrive).toList();
+
+  // On Windows, "/" is the list of drives, not a folder.
+  bool _funtiFolderOpen(DirectoryData data) {
+    final path = data.directory.path;
+    return path.isNotEmpty && !(data.options.isWindows && path == '/');
+  }
+
+  // The rows as shown: the list filtered by the search field.
+  List<Entry> get _funtiVisible {
+    final entries = controller.directory.value.entries;
+    if (_searchText.isEmpty) return entries;
+    return entries.where((e) => e.name.contains(_searchText.value)).toList();
+  }
+
+  int _funtiAnchor = -1;
+  int _funtiCursor = -1;
+
+  // Arrows move the selection; with Shift they extend it from where the
+  // keyboard selection started.
+  void _funtiMove(int delta, {bool extend = false}) {
+    final entries = _funtiVisible;
+    if (entries.isEmpty) return;
+    final sel = selectedItems.items;
+    var cur = (_funtiCursor >= 0 &&
+            _funtiCursor < entries.length &&
+            sel.contains(entries[_funtiCursor]))
+        ? _funtiCursor
+        : (sel.isEmpty ? -1 : entries.indexOf(sel.last));
+    final next = cur < 0
+        ? (delta > 0 ? 0 : entries.length - 1)
+        : (cur + delta).clamp(0, entries.length - 1);
+    if (extend) {
+      if (cur < 0 || _funtiAnchor < 0 || _funtiAnchor >= entries.length) {
+        _funtiAnchor = cur < 0 ? next : cur;
+      }
+      selectedItems.clear();
+      for (var i = min(_funtiAnchor, next); i <= max(_funtiAnchor, next); i++) {
+        selectedItems.add(entries[i]);
+      }
+    } else {
+      selectedItems.clear();
+      selectedItems.add(entries[next]);
+      _funtiAnchor = next;
+    }
+    _funtiCursor = next;
+    _funtiScrollTo(next);
+    setState(() {});
+  }
+
+  void _funtiScrollTo(int index) {
+    final c = _fileListScrollController;
+    if (!c.hasClients) return;
+    const row = kDesktopFileTransferRowHeight;
+    final top = index * row;
+    final view = c.position.viewportDimension;
+    if (top < c.offset) {
+      c.jumpTo(top);
+    } else if (top + row > c.offset + view) {
+      c.jumpTo(min(top + row - view, c.position.maxScrollExtent));
+    }
+  }
+
+  void _funtiOpenSelected() {
+    final items = _funtiSelection;
+    if (items.length != 1) return;
+    if (items.first.isFile) {
+      _funtiOpenFile(items.first);
+      return;
+    }
+    selectedItems.clear();
+    controller.openDirectory(items.first.path);
+  }
+
+  // Programs and scripts are not started from here: "Open" shows them in
+  // the folder instead.
+  static const _funtiRunnable = {
+    'exe', 'msi', 'msix', 'appx', 'bat', 'cmd', 'com', 'scr', 'pif', 'cpl', //
+    'msc', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'hta', 'lnk', //
+    'url', 'reg', 'jar', 'sh', 'run', 'appimage', 'deb', 'command', 'app',
+  };
+
+  bool _funtiIsRunnable(String name) {
+    final dot = name.lastIndexOf('.');
+    return dot >= 0 &&
+        _funtiRunnable.contains(name.substring(dot + 1).toLowerCase());
+  }
+
+  Future<String?> _funtiLocalDownloads({bool subfolder = false}) async {
+    try {
+      final dir = await getDownloadsDirectory();
+      if (dir == null) return null;
+      if (!subfolder) return dir.path;
+      final sub = Directory(PathUtil.join(dir.path, 'FuntiDesk', isWindows));
+      sub.createSync(recursive: true);
+      return sub.path;
+    } catch (e) {
+      debugPrint('Downloads folder: $e');
+      return null;
+    }
+  }
+
+  // Names that are already in the target folder are asked about once for
+  // the whole batch: replace, keep both ("name (2).ext") or skip. Files
+  // inside folders that are merged on "Replace" are replaced without asking.
+  Future<void> _funtiSendChecked(FileController source, List<Entry> items,
+      DirectoryData target) async {
+    String norm(String n) => target.options.isWindows ? n.toLowerCase() : n;
+    final taken = {for (final e in target.directory.entries) norm(e.name)};
+    final clashes = items.where((e) => taken.contains(norm(e.name))).toList();
+    String? choice;
+    if (clashes.isNotEmpty) {
+      choice = await _funtiAskConflict(clashes);
+      if (choice == null) return;
+    }
+    final send = <Entry>[];
+    final names = <String>[];
+    for (final e in items) {
+      var name = e.name;
+      if (clashes.contains(e)) {
+        if (choice == 'skip') continue;
+        if (choice == 'both') {
+          name = funtiFreeName(e.name, (n) => taken.contains(norm(n)));
+        }
+      }
+      taken.add(norm(name));
+      send.add(e);
+      names.add(name);
+    }
+    if (send.isEmpty) return;
+    await source.funtiSendPaths(send, target,
+        names: names, overwrite: choice == 'replace');
+  }
+
+  Future<String?> _funtiAskConflict(List<Entry> clashes) {
+    final title = clashes.length == 1
+        ? translate('funti-ft-exists-one').replaceAll('{}', clashes.first.name)
+        : translate('funti-ft-exists-many')
+            .replaceAll('{}', '${clashes.length}');
+    final names = clashes.take(5).map((e) => e.name).join('\n') +
+        (clashes.length > 5 ? '\n…' : '');
+    return _ffi.dialogManager.show<String?>((setState, close, context) {
+      cancel() => close(null);
+      return CustomAlertDialog(
+        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        contentBoxConstraints: BoxConstraints(minWidth: 440, maxWidth: 440),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (clashes.length > 1) Text(names).paddingOnly(bottom: 12),
+            Text(translate('funti-ft-exists-hint'),
+                style: TextStyle(fontSize: 13, color: MyTheme.darkGray)),
+          ],
+        ),
+        actions: [
+          dialogButton('Cancel', onPressed: cancel, isOutline: true),
+          dialogButton('funti-ft-skip',
+              onPressed: () => close('skip'), isOutline: true),
+          dialogButton('funti-ft-replace',
+              onPressed: () => close('replace'), isOutline: true),
+          dialogButton('funti-ft-keep-both', onPressed: () => close('both')),
+        ],
+        onSubmit: () => close('both'),
+        onCancel: cancel,
+      );
+    }, useAnimation: false);
+  }
+
+  // A file on this computer opens in its program. A remote one is downloaded
+  // to Downloads\FuntiDesk under a free name first and opens when it is
+  // there.
+  Future<void> _funtiOpenFile(Entry entry) async {
+    if (isWeb) return;
+    if (isLocal) {
+      if (_funtiIsRunnable(entry.name)) {
+        _funtiShowInFolder(entry.path);
+      } else if (!await launchUrl(Uri.file(entry.path))) {
+        showToast(translate('funti-ft-open-file-failed'));
+      }
+      return;
+    }
+    final dir = await _funtiLocalDownloads(subfolder: true);
+    if (dir == null) {
+      showToast(translate('funti-ft-downloads-missing'));
+      return;
+    }
+    final name = funtiFreeName(entry.name,
+        (n) => File(PathUtil.join(dir, n, isWindows)).existsSync());
+    final fileModel = _ffi.fileModel;
+    final target = DirectoryData(FileDirectory()..path = dir,
+        fileModel.localController.options.value);
+    final ids = await fileModel.remoteController
+        .funtiSendPaths([entry], target, names: [name]);
+    final runnable = _funtiIsRunnable(name);
+    fileModel.jobController.funtiOnDone[ids.first] = (job) async {
+      if (runnable) {
+        _funtiShowInFolder(job.to);
+      } else if (!await launchUrl(Uri.file(job.to))) {
+        showToast(translate('funti-ft-open-file-failed'));
+      }
+    };
+    showToast(translate(runnable ? 'funti-ft-downloading' : 'funti-ft-opening')
+        .replaceAll('{}', entry.name));
+  }
+
+  // "To the Desktop / Downloads" of the other computer, without opening
+  // the folder there first.
+  Future<void> _funtiQuickSend(String folder) async {
+    final items = _funtiSelection;
+    if (items.isEmpty || isWeb) return;
+    final fileModel = _ffi.fileModel;
+    final DirectoryData target;
+    if (isLocal) {
+      final remote = fileModel.remoteController.options.value;
+      if (remote.home.isEmpty) return;
+      final path = PathUtil.join(remote.home, folder, remote.isWindows);
+      try {
+        final fd = await fileModel.fileFetcher
+            .fetchDirectory(path, false, remote.showHidden);
+        if (fd.path.isEmpty) fd.path = path;
+        target = DirectoryData(fd, remote);
+      } catch (e) {
+        showToast(translate('funti-ft-folder-missing').replaceAll('{}', path));
+        return;
+      }
+    } else {
+      final dir = await _funtiLocalDownloads();
+      if (dir == null) {
+        showToast(translate('funti-ft-downloads-missing'));
+        return;
+      }
+      target = DirectoryData(FileDirectory()..path = dir,
+          fileModel.localController.options.value);
+    }
+    selectedItems.clear();
+    await _funtiSendChecked(controller, items, target);
+  }
+
+  void _funtiCopyPath() {
+    final items = _funtiSelection;
+    final paths = items.isEmpty
+        ? [controller.directory.value.path]
+        : items.map((e) => e.path).toList();
+    if (paths.first.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: paths.join('\n')));
+    showToast(translate('funti-ft-path-copied'));
+  }
+
+  // Size of the selection; folders are read with everything inside.
+  Future<void> _funtiShowSize() async {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    final dm = _ffi.dialogManager;
+    var cancelled = false;
+    final tag = dm.showLoading(translate('funti-ft-size-counting'),
+        onCancel: () => cancelled = true);
+    var size = 0;
+    var files = 0;
+    try {
+      for (final item in items) {
+        if (cancelled) return;
+        if (item.isFile) {
+          size += item.size;
+          files++;
+          continue;
+        }
+        final fd = await _ffi.fileModel.fileFetcher
+            .fetchDirectoryRecursiveToRemove(JobController.jobID.next(),
+                item.path, isLocal, controller.options.value.showHidden,
+                timeout: const Duration(seconds: 60));
+        for (final e in fd.entries) {
+          if (!e.isFile) continue;
+          size += e.size;
+          files++;
+        }
+      }
+    } catch (e) {
+      dm.dismissByTag(tag);
+      if (!cancelled) showToast(translate('funti-ft-size-failed'));
+      return;
+    }
+    dm.dismissByTag(tag);
+    if (cancelled) return;
+    final name = items.length == 1
+        ? items.first.name
+        : translate('funti-ft-selected').replaceAll('{}', '${items.length}');
+    dm.show((setState, close, context) {
+      return CustomAlertDialog(
+        title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: Text(translate('funti-ft-size-result')
+            .replaceAll('{size}', readableFileSize(size.toDouble()))
+            .replaceAll('{files}', '$files')),
+        actions: [dialogButton('OK', onPressed: close)],
+        onSubmit: close,
+        onCancel: close,
+      );
+    });
+  }
+
+  // "25 items · Selected: 3, 12.4 MB" under the list.
+  Widget _funtiStatusBar() {
+    return Obx(() {
+      final total = controller.directory.value.entries.length;
+      final sel = selectedItems.items;
+      var text = translate('funti-ft-items').replaceAll('{}', '$total');
+      if (sel.isNotEmpty) {
+        final files = sel.where((e) => e.isFile).toList();
+        final selected =
+            translate('funti-ft-selected').replaceAll('{}', '${sel.length}');
+        text += ' · $selected';
+        if (files.isNotEmpty) {
+          final size = files.fold<int>(0, (s, e) => s + e.size);
+          text += ', ${readableFileSize(size.toDouble())}';
+          if (files.length < sel.length) {
+            text += ' ${translate('funti-ft-without-folders')}';
+          }
+        }
+      }
+      return Text(text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
+          .paddingOnly(left: 4, top: 6);
+    });
+  }
+
+  void _funtiCopy() {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    final fileModel = _ffi.fileModel;
+    fileModel.funtiCopied = items;
+    fileModel.funtiCopiedFromLocal = isLocal;
+    showToast(translate(
+            isLocal ? 'funti-ft-copied-to-remote' : 'funti-ft-copied-to-local')
+        .replaceAll('{}', '${items.length}'));
+  }
+
+  // Files copied on the other panel go to the folder open here. Copying
+  // within one computer is not in the protocol.
+  Future<void> _funtiPaste() async {
+    final fileModel = _ffi.fileModel;
+    final copied = fileModel.funtiCopied;
+    final fromOtherSide =
+        copied.isNotEmpty && fileModel.funtiCopiedFromLocal != isLocal;
+    if (!fromOtherSide) {
+      final sameSide = copied.isNotEmpty;
+      if (!isLocal) {
+        return _funtiPasteFromClipboard(
+            emptyHint: sameSide ? 'funti-ft-copy-same-side' : null);
+      }
+      showToast(translate(
+          sameSide ? 'funti-ft-copy-same-side' : 'funti-ft-paste-local-empty'));
+      return;
+    }
+    final target = controller.directoryData();
+    if (!_funtiFolderOpen(target)) {
+      showToast(translate(isLocal
+          ? 'funti-ft-paste-open-local-folder'
+          : 'funti-ft-paste-open-folder'));
+      return;
+    }
+    fileModel.funtiCopied = [];
+    final source =
+        isLocal ? fileModel.remoteController : fileModel.localController;
+    await _funtiSendChecked(source, copied, target);
+  }
+
+  void _funtiRename() {
+    final items = _funtiSelection;
+    if (items.length != 1) return;
+    controller.renameAction(items.first, isLocal);
+  }
+
+  Future<void> _funtiDelete() async {
+    final items = _funtiSelection;
+    if (items.isEmpty) return;
+    if (await _funtiConfirmDelete(items) != true) return;
+    final selection = SelectedItems(isLocal: isLocal)..items.addAll(items);
+    selectedItems.clear();
+    await controller.removeAction(selection, funtiConfirmed: true);
+  }
+
+  // One question for everything selected, instead of one per file.
+  Future<bool?> _funtiConfirmDelete(List<Entry> items) {
+    final title = items.length == 1
+        ? translate('funti-ft-delete-one').replaceAll('{}', items.first.name)
+        : translate('funti-ft-delete-many').replaceAll('{}', '${items.length}');
+    final names = items.take(5).map((e) => e.name).join('\n') +
+        (items.length > 5 ? '\n…' : '');
+    return _ffi.dialogManager.show<bool>((setState, close, context) {
+      cancel() => close(false);
+      submit() => close(true);
+      return CustomAlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_rounded, color: Colors.red),
+            Expanded(
+              child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis)
+                  .paddingOnly(left: 10),
+            ),
+          ],
+        ),
+        contentBoxConstraints: BoxConstraints(minWidth: 400, maxWidth: 400),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (items.length > 1) Text(names).paddingOnly(bottom: 16),
+            Text(
+              translate('funti-ft-delete-note'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          dialogButton("Cancel",
+              icon: Icon(Icons.close_rounded),
+              onPressed: cancel,
+              isOutline: true),
+          dialogButton("Delete",
+              icon: Icon(Icons.delete_outline_rounded), onPressed: submit),
+        ],
+        onSubmit: submit,
+        onCancel: cancel,
+      );
+    }, useAnimation: false);
+  }
+
+  mod_menu.PopupMenuEntry<void> _funtiMenuItem(
+      String label, void Function()? onTap,
+      {String hint = ''}) {
+    return mod_menu.PopupMenuItem<void>(
+      height: CustomPopupMenuTheme.height,
+      enabled: onTap != null,
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 200),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(translate(label)),
+            if (hint.isNotEmpty)
+              Text(hint,
+                      style: TextStyle(fontSize: 12, color: MyTheme.darkGray))
+                  .paddingOnly(left: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _funtiShowMenu(
+      Offset at, List<mod_menu.PopupMenuEntry<void>> items) async {
+    if (items.isEmpty) return;
+    await mod_menu.showMenu<void>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: items,
+      elevation: 8,
+    );
+  }
+
+  // Right click on a file or folder: it becomes the selection unless it is
+  // already in it, as in Explorer.
+  Future<void> _funtiShowEntryMenu(
+      Entry entry, Offset at, Rx<Entry?> rightClickEntry) async {
+    if (!entry.isDrive && !selectedItems.items.contains(entry)) {
+      selectedItems.clear();
+      selectedItems.add(entry);
+      setState(() {});
+    }
+    final items = _funtiSelection;
+    final menu = <mod_menu.PopupMenuEntry<void>>[
+      if (!entry.isFile)
+        _funtiMenuItem('funti-ft-open', () {
+          selectedItems.clear();
+          controller.openDirectory(entry.path);
+        })
+      else if (!isWeb)
+        _funtiMenuItem('funti-ft-open', () => _funtiOpenFile(entry),
+            hint: 'Enter'),
+      if (items.isNotEmpty && !isWeb) ...[
+        _funtiMenuItem(isLocal ? 'funti-ft-send' : 'funti-ft-receive', () {
+          selectedItems.clear();
+          _funtiSendChecked(
+              controller, items, controller.getOtherSideDirectoryData());
+        }),
+        if (isLocal) ...[
+          _funtiMenuItem(
+              'funti-ft-send-desktop', () => _funtiQuickSend('Desktop')),
+          _funtiMenuItem(
+              'funti-ft-send-downloads', () => _funtiQuickSend('Downloads')),
+        ] else
+          _funtiMenuItem(
+              'funti-ft-receive-downloads', () => _funtiQuickSend('')),
+        _funtiMenuItem('funti-ft-copy', _funtiCopy, hint: '${_funtiCmd}C'),
+      ],
+      if (items.isNotEmpty) ...[
+        _funtiMenuItem('funti-ft-copy-path', _funtiCopyPath,
+            hint: '${_funtiCmd}Shift+C'),
+        _funtiMenuItem('funti-ft-size', _funtiShowSize),
+      ],
+      if (items.isNotEmpty) ...[
+        const mod_menu.PopupMenuDivider(),
+        _funtiMenuItem('Rename', items.length == 1 ? _funtiRename : null,
+            hint: 'F2'),
+        _funtiMenuItem('Delete', _funtiDelete, hint: 'Del'),
+      ],
+    ];
+    rightClickEntry.value = entry;
+    await _funtiShowMenu(at, menu);
+    rightClickEntry.value = null;
+  }
+
+  // Right click on the empty part of the list.
+  Future<void> _funtiShowFolderMenu(Offset at) async {
+    await _funtiShowMenu(at, [
+      if (!isWeb)
+        _funtiMenuItem('funti-ft-paste-here', _funtiPaste,
+            hint: '${_funtiCmd}V'),
+      _funtiMenuItem('Create Folder', _funtiCreateFolder),
+      _funtiMenuItem('funti-ft-refresh', () => controller.refresh(),
+          hint: 'F5'),
+      _funtiMenuItem('funti-ft-copy-path', _funtiCopyPath),
+      _funtiMenuItem(
+          'Select All',
+          () => setState(() => selectedItems.selectAll(_funtiVisible)),
+          hint: '${_funtiCmd}A'),
+    ]);
+  }
+
+  void _funtiCreateFolder() {
+    final name = TextEditingController();
+    String? errorText;
+    _ffi.dialogManager.show((setState, close, context) {
+      name.addListener(() {
+        if (errorText != null) {
+          setState(() {
+            errorText = null;
+          });
+        }
+      });
+      submit() {
+        if (name.value.text.isNotEmpty) {
+          if (!PathUtil.validName(
+              name.value.text, controller.options.value.isWindows)) {
+            setState(() {
+              errorText = translate("Invalid folder name");
+            });
+            return;
+          }
+          controller.createDir(PathUtil.join(
+            controller.directory.value.path,
+            name.value.text,
+            controller.options.value.isWindows,
+          ));
+          close();
+        }
+      }
+
+      cancel() => close(false);
+      return CustomAlertDialog(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset("assets/folder_new.svg",
+                colorFilter: svgColor(MyTheme.accent)),
+            Text(
+              translate("Create Folder"),
+            ).paddingOnly(
+              left: 10,
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              decoration: InputDecoration(
+                labelText: translate(
+                  "Please enter the folder name",
+                ),
+                errorText: errorText,
+              ),
+              controller: name,
+              autofocus: true,
+            ).workaroundFreezeLinuxMint(),
+          ],
+        ),
+        actions: [
+          dialogButton(
+            "Cancel",
+            icon: Icon(Icons.close_rounded),
+            onPressed: cancel,
+            isOutline: true,
+          ),
+          dialogButton(
+            "Ok",
+            icon: Icon(Icons.done_rounded),
+            onPressed: submit,
+          ),
+        ],
+        onSubmit: submit,
+        onCancel: cancel,
+      );
+    });
+  }
+
+  Future<void> _funtiPasteFromClipboard({String? emptyHint}) async {
     final fileModel = _ffi.fileModel;
     final remote = fileModel.remoteController.directoryData();
     // On Windows, "/" is the list of drives, not a folder.
@@ -611,10 +1275,10 @@ class _FileManagerViewState extends State<FileManagerView> {
         ..size = isDir ? 0 : File(file).lengthSync());
     }
     if (items.isEmpty) {
-      showToast(translate('funti-ft-paste-empty'));
+      showToast(translate(emptyHint ?? 'funti-ft-paste-empty'));
       return;
     }
-    fileModel.localController.funtiSendPaths(items, remote);
+    await _funtiSendChecked(fileModel.localController, items, remote);
   }
 
   void onLocationFocusChanged() {
@@ -850,82 +1514,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     ),
                     MenuButton(
                       tooltip: translate('Create Folder'),
-                      onPressed: () {
-                        final name = TextEditingController();
-                        String? errorText;
-                        _ffi.dialogManager.show((setState, close, context) {
-                          name.addListener(() {
-                            if (errorText != null) {
-                              setState(() {
-                                errorText = null;
-                              });
-                            }
-                          });
-                          submit() {
-                            if (name.value.text.isNotEmpty) {
-                              if (!PathUtil.validName(name.value.text,
-                                  controller.options.value.isWindows)) {
-                                setState(() {
-                                  errorText = translate("Invalid folder name");
-                                });
-                                return;
-                              }
-                              controller.createDir(PathUtil.join(
-                                controller.directory.value.path,
-                                name.value.text,
-                                controller.options.value.isWindows,
-                              ));
-                              close();
-                            }
-                          }
-
-                          cancel() => close(false);
-                          return CustomAlertDialog(
-                            title: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SvgPicture.asset("assets/folder_new.svg",
-                                    colorFilter: svgColor(MyTheme.accent)),
-                                Text(
-                                  translate("Create Folder"),
-                                ).paddingOnly(
-                                  left: 10,
-                                ),
-                              ],
-                            ),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: translate(
-                                      "Please enter the folder name",
-                                    ),
-                                    errorText: errorText,
-                                  ),
-                                  controller: name,
-                                  autofocus: true,
-                                ).workaroundFreezeLinuxMint(),
-                              ],
-                            ),
-                            actions: [
-                              dialogButton(
-                                "Cancel",
-                                icon: Icon(Icons.close_rounded),
-                                onPressed: cancel,
-                                isOutline: true,
-                              ),
-                              dialogButton(
-                                "Ok",
-                                icon: Icon(Icons.done_rounded),
-                                onPressed: submit,
-                              ),
-                            ],
-                            onSubmit: submit,
-                            onCancel: cancel,
-                          );
-                        });
-                      },
+                      onPressed: _funtiCreateFolder,
                       child: SvgPicture.asset(
                         "assets/folder_new.svg",
                         colorFilter:
@@ -937,11 +1526,7 @@ class _FileManagerViewState extends State<FileManagerView> {
                     Obx(() => MenuButton(
                           tooltip: translate('Delete'),
                           onPressed: SelectedItems.valid(selectedItems.items)
-                              ? () async {
-                                  await (controller
-                                      .removeAction(selectedItems));
-                                  selectedItems.clear();
-                                }
+                              ? _funtiDelete
                               : null,
                           child: SvgPicture.asset(
                             "assets/trash.svg",
@@ -1040,7 +1625,13 @@ class _FileManagerViewState extends State<FileManagerView> {
                         ? () {
                             final otherSideData =
                                 controller.getOtherSideDirectoryData();
-                            controller.sendFiles(selectedItems, otherSideData);
+                            if (isWeb) {
+                              controller.sendFiles(
+                                  selectedItems, otherSideData);
+                            } else {
+                              _funtiSendChecked(controller,
+                                  selectedItems.items.toList(), otherSideData);
+                            }
                             selectedItems.clear();
                           }
                         : null,
@@ -1231,52 +1822,28 @@ class _FileManagerViewState extends State<FileManagerView> {
           final lastModifiedStr = entry.isDrive
               ? " "
               : "${entry.lastModified().toString().replaceAll(".000", "")}   ";
-          var secondaryPosition = RelativeRect.fromLTRB(0, 0, 0, 0);
+          var secondaryPosition = Offset.zero;
           onTap() {
             final items = selectedItems;
             // handle double click
             if (_checkDoubleClick(entry)) {
-              controller.openDirectory(entry.path);
               items.clear();
+              if (entry.isFile) {
+                _funtiOpenFile(entry);
+              } else {
+                controller.openDirectory(entry.path);
+              }
               return;
             }
             _onSelectedChanged(items, filteredEntries, entry, isLocal);
           }
 
           onSecondaryTap() {
-            final items = [
-              if (!entry.isDrive &&
-                  versionCmp(_ffi.ffiModel.pi.version, "1.3.0") >= 0)
-                mod_menu.PopupMenuItem(
-                  child: Text(translate("Rename")),
-                  height: CustomPopupMenuTheme.height,
-                  onTap: () {
-                    controller.renameAction(entry, isLocal);
-                  },
-                )
-            ];
-            if (items.isNotEmpty) {
-              rightClickEntry.value = entry;
-              final future = mod_menu.showMenu(
-                context: context,
-                position: secondaryPosition,
-                items: items,
-              );
-              future.then((value) {
-                rightClickEntry.value = null;
-              });
-              future.onError((error, stackTrace) {
-                rightClickEntry.value = null;
-              });
-            }
+            _funtiShowEntryMenu(entry, secondaryPosition, rightClickEntry);
           }
 
-          onSecondaryTapDown(details) {
-            secondaryPosition = RelativeRect.fromLTRB(
-                details.globalPosition.dx,
-                details.globalPosition.dy,
-                details.globalPosition.dx,
-                details.globalPosition.dy);
+          onSecondaryTapDown(TapDownDetails details) {
+            secondaryPosition = details.globalPosition;
           }
 
           return Padding(
@@ -1419,13 +1986,18 @@ class _FileManagerViewState extends State<FileManagerView> {
             ),
             // Body
             Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemExtent: kDesktopFileTransferRowHeight,
-                itemBuilder: (context, index) {
-                  return rows.elementAt(index);
-                },
-                itemCount: rows.length,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onSecondaryTapUp: (details) =>
+                    _funtiShowFolderMenu(details.globalPosition),
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemExtent: kDesktopFileTransferRowHeight,
+                  itemBuilder: (context, index) {
+                    return rows.elementAt(index);
+                  },
+                  itemCount: rows.length,
+                ),
               ),
             ),
           ],
@@ -1822,4 +2394,16 @@ Widget buildWindowsThisPC(BuildContext context, [TextStyle? textStyle]) {
     SizedBox(width: 10),
     Text(translate('This PC'), style: textStyle)
   ]);
+}
+
+// FUNTIDESK: "Show in folder" for a file on this computer.
+void _funtiShowInFolder(String path) {
+  if (isWeb || path.isEmpty) return;
+  if (Platform.isWindows) {
+    Process.run('explorer.exe', ['/select,', path]);
+  } else if (Platform.isMacOS) {
+    Process.run('open', ['-R', path]);
+  } else {
+    launchUrl(Uri.directory(File(path).parent.path));
+  }
 }
