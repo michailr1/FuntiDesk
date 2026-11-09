@@ -23,14 +23,7 @@ class ListSearchActionListener extends StatelessWidget {
         autofocus: true,
         onKeyEvent: (kv) {
           final ch = kv.character;
-          // FUNTIDESK: Ctrl+C, Delete and other control characters are
-          // shortcuts of the file list, not letters to search for.
-          if (ch == null ||
-              ch.isEmpty ||
-              ch.codeUnitAt(0) < 0x20 ||
-              ch.codeUnitAt(0) == 0x7f ||
-              HardwareKeyboard.instance.isControlPressed ||
-              HardwareKeyboard.instance.isMetaPressed) {
+          if (ch == null || LogicalKeyboardKey.isControlCharacter(ch)) {
             return;
           }
           final action = buffer.input(ch);
