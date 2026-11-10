@@ -59,6 +59,7 @@ class FileManagerPage extends StatefulWidget {
       {Key? key,
       required this.id,
       required this.password,
+      this.loginMethod = '',
       required this.isSharedPassword,
       this.tabController,
       this.connToken,
@@ -66,6 +67,7 @@ class FileManagerPage extends StatefulWidget {
       : super(key: key);
   final String id;
   final String? password;
+  final String loginMethod;
   final bool? isSharedPassword;
   final bool? forceRelay;
   final String? connToken;
@@ -99,9 +101,11 @@ class _FileManagerPageState extends State<FileManagerPage>
   void initState() {
     super.initState();
     _ffi = FFI(null);
+    _ffi.fileModel.jobController.funtiMarkDownloaded = funtiMarkDownloaded;
     _ffi.start(widget.id,
         isFileTransfer: true,
         password: widget.password,
+        loginMethod: widget.loginMethod,
         isSharedPassword: widget.isSharedPassword,
         connToken: widget.connToken,
         forceRelay: widget.forceRelay);
@@ -516,8 +520,12 @@ class _FileManagerViewState extends State<FileManagerView> {
                   },
                   onExit: (evt) =>
                       widget._mouseFocusScope.value = MouseFocusScope.none,
-                  child: _funtiShortcuts(
-                      _buildFileList(context, _fileListScrollController)),
+                  child: _funtiShortcuts(Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: _onFileListKeyEvent,
+                    child: _buildFileList(context, _fileListScrollController),
+                  )),
                 ))
               ],
             )),
@@ -620,22 +628,12 @@ class _FileManagerViewState extends State<FileManagerView> {
       SingleActivator(LogicalKeyboardKey.keyA,
               control: !isMacOS, meta: isMacOS, includeRepeats: false):
           () => run(() => setState(() => selectedItems.selectAll(_funtiVisible))),
-      const SingleActivator(LogicalKeyboardKey.enter): () =>
-          run(_funtiOpenSelected),
       const SingleActivator(LogicalKeyboardKey.backspace): () => run(() {
             selectedItems.clear();
             controller.openDirectory('..');
           }),
       const SingleActivator(LogicalKeyboardKey.f5): () =>
           run(() => controller.refresh()),
-      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-          run(() => _funtiMove(1)),
-      const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-          run(() => _funtiMove(-1)),
-      const SingleActivator(LogicalKeyboardKey.arrowDown, shift: true): () =>
-          run(() => _funtiMove(1, extend: true)),
-      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true): () =>
-          run(() => _funtiMove(-1, extend: true)),
     }, child: list);
   }
 
@@ -690,77 +688,21 @@ class _FileManagerViewState extends State<FileManagerView> {
     return entries.where((e) => e.name.contains(_searchText.value)).toList();
   }
 
-  int _funtiAnchor = -1;
-  int _funtiCursor = -1;
-
-  // Arrows move the selection; with Shift they extend it from where the
-  // keyboard selection started.
-  void _funtiMove(int delta, {bool extend = false}) {
-    final entries = _funtiVisible;
-    if (entries.isEmpty) return;
-    final sel = selectedItems.items;
-    var cur = (_funtiCursor >= 0 &&
-            _funtiCursor < entries.length &&
-            sel.contains(entries[_funtiCursor]))
-        ? _funtiCursor
-        : (sel.isEmpty ? -1 : entries.indexOf(sel.last));
-    final next = cur < 0
-        ? (delta > 0 ? 0 : entries.length - 1)
-        : (cur + delta).clamp(0, entries.length - 1);
-    if (extend) {
-      if (cur < 0 || _funtiAnchor < 0 || _funtiAnchor >= entries.length) {
-        _funtiAnchor = cur < 0 ? next : cur;
-      }
-      selectedItems.clear();
-      for (var i = min(_funtiAnchor, next); i <= max(_funtiAnchor, next); i++) {
-        selectedItems.add(entries[i]);
-      }
-    } else {
-      selectedItems.clear();
-      selectedItems.add(entries[next]);
-      _funtiAnchor = next;
-    }
-    _funtiCursor = next;
-    _funtiScrollTo(next);
-    setState(() {});
-  }
-
-  void _funtiScrollTo(int index) {
-    final c = _fileListScrollController;
-    if (!c.hasClients) return;
-    final row = _funtiRowHeight;
-    final top = index * row;
-    final view = c.position.viewportDimension;
-    if (top < c.offset) {
-      c.jumpTo(top);
-    } else if (top + row > c.offset + view) {
-      c.jumpTo(min(top + row - view, c.position.maxScrollExtent));
-    }
-  }
-
-  void _funtiOpenSelected() {
-    final items = _funtiSelection;
-    if (items.length != 1) return;
-    if (items.first.isFile) {
-      _funtiOpenFile(items.first);
-      return;
-    }
-    selectedItems.clear();
-    controller.openDirectory(items.first.path);
-  }
-
-  // Programs and scripts are not started from here: "Open" shows them in
-  // the folder instead.
-  static const _funtiRunnable = {
-    'exe', 'msi', 'msix', 'appx', 'bat', 'cmd', 'com', 'scr', 'pif', 'cpl', //
-    'msc', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'hta', 'lnk', //
-    'url', 'reg', 'jar', 'sh', 'run', 'appimage', 'deb', 'command', 'app',
+  // "Open" starts only these kinds of files in their program: documents,
+  // pictures, sound and video. Everything else (programs, scripts, shortcuts,
+  // archives, unknown types) is shown in its folder instead: a list of what
+  // is forbidden always misses something.
+  static const _funtiOpenable = {
+    'txt', 'log', 'md', 'csv', 'pdf', 'rtf', 'doc', 'docx', 'xls', 'xlsx', //
+    'ppt', 'pptx', 'odt', 'ods', 'odp', 'jpg', 'jpeg', 'png', 'gif', 'bmp', //
+    'webp', 'heic', 'tif', 'tiff', 'mp3', 'wav', 'm4a', 'flac', 'ogg', //
+    'mp4', 'mov', 'mkv', 'avi', 'webm',
   };
 
-  bool _funtiIsRunnable(String name) {
+  bool _funtiIsOpenable(String name) {
     final dot = name.lastIndexOf('.');
-    return dot >= 0 &&
-        _funtiRunnable.contains(name.substring(dot + 1).toLowerCase());
+    return dot > 0 &&
+        _funtiOpenable.contains(name.substring(dot + 1).toLowerCase());
   }
 
   Future<String?> _funtiLocalDownloads({bool subfolder = false}) async {
@@ -850,7 +792,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   Future<void> _funtiOpenFile(Entry entry) async {
     if (isWeb) return;
     if (isLocal) {
-      if (_funtiIsRunnable(entry.name)) {
+      if (!_funtiIsOpenable(entry.name)) {
         _funtiShowInFolder(entry.path);
       } else if (!await launchUrl(Uri.file(entry.path))) {
         showToast(translate('funti-ft-open-file-failed'));
@@ -869,7 +811,7 @@ class _FileManagerViewState extends State<FileManagerView> {
         fileModel.localController.options.value);
     final ids = await fileModel.remoteController
         .funtiSendPaths([entry], target, names: [name]);
-    final runnable = _funtiIsRunnable(name);
+    final runnable = !_funtiIsOpenable(name);
     fileModel.jobController.funtiOnDone[ids.first] = (job) async {
       if (runnable) {
         _funtiShowInFolder(job.to);
@@ -1873,6 +1815,7 @@ class _FileManagerViewState extends State<FileManagerView> {
               : "${entry.lastModified().toString().replaceAll(".000", "")}   ";
           var secondaryPosition = Offset.zero;
           onTap() {
+            _keyboardNode.requestFocus();
             final items = selectedItems;
             // handle double click
             if (_checkDoubleClick(entry)) {
@@ -2072,6 +2015,107 @@ class _FileManagerViewState extends State<FileManagerView> {
     scrollController.jumpTo(offset);
     selectedEntries.add(searchResult.first);
     debugPrint("focused on ${searchResult.first.name}");
+  }
+
+  KeyEventResult _onFileListKeyEvent(FocusNode node, KeyEvent event) {
+    // A focused child such as a sort header keeps its default keys, e.g.
+    // Enter to sort.
+    if (!_keyboardNode.hasPrimaryFocus) return KeyEventResult.ignored;
+    for (final binding in _fileListKeyBindings().entries) {
+      if (binding.key.accepts(event, HardwareKeyboard.instance)) {
+        binding.value();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Map<ShortcutActivator, VoidCallback> _fileListKeyBindings() {
+    int all() => controller.directory.value.entries.length;
+    return {
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+          _moveSelectionByKey(-1, false),
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+          _moveSelectionByKey(1, false),
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true): () =>
+          _moveSelectionByKey(-1, true),
+      const SingleActivator(LogicalKeyboardKey.arrowDown, shift: true): () =>
+          _moveSelectionByKey(1, true),
+      // Unhandled, they would move keyboard focus to the other pane.
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () {},
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () {},
+      const SingleActivator(LogicalKeyboardKey.pageUp): () =>
+          _moveSelectionByKey(_pageDelta(false), false),
+      const SingleActivator(LogicalKeyboardKey.pageDown): () =>
+          _moveSelectionByKey(_pageDelta(true), false),
+      const SingleActivator(LogicalKeyboardKey.home): () =>
+          _moveSelectionByKey(-all(), false),
+      const SingleActivator(LogicalKeyboardKey.end): () =>
+          _moveSelectionByKey(all(), false),
+      const SingleActivator(LogicalKeyboardKey.pageUp, shift: true): () =>
+          _moveSelectionByKey(_pageDelta(false), true),
+      const SingleActivator(LogicalKeyboardKey.pageDown, shift: true): () =>
+          _moveSelectionByKey(_pageDelta(true), true),
+      const SingleActivator(LogicalKeyboardKey.home, shift: true): () =>
+          _moveSelectionByKey(-all(), true),
+      const SingleActivator(LogicalKeyboardKey.end, shift: true): () =>
+          _moveSelectionByKey(all(), true),
+      const SingleActivator(LogicalKeyboardKey.enter): _openSelectedDirectory,
+      const SingleActivator(LogicalKeyboardKey.numpadEnter):
+          _openSelectedDirectory,
+    };
+  }
+
+  void _openSelectedDirectory() {
+    final items = selectedItems.items;
+    // FUNTIDESK: Enter on a file opens it.
+    if (items.length == 1 && items.first.isFile) {
+      _funtiOpenFile(items.first);
+      return;
+    }
+    if (items.length != 1 || items.first.isFile) return;
+    controller.openDirectory(items.first.path);
+    selectedItems.clear();
+  }
+
+  List<Entry> _filteredEntries() {
+    final entries = controller.directory.value.entries;
+    return _searchText.isNotEmpty
+        ? entries.where((element) {
+            return element.name.contains(_searchText.value);
+          }).toList(growable: false)
+        : entries;
+  }
+
+  int _pageDelta(bool down) {
+    final entries = _filteredEntries();
+    final items = selectedItems.items;
+    final index = items.isEmpty ? -1 : entries.indexOf(items.last);
+    final position = _fileListScrollController.position;
+    final first = (position.pixels / _funtiRowHeight).ceil();
+    final last = ((position.pixels + position.viewportDimension) /
+                _funtiRowHeight)
+            .floor() -
+        1;
+    return pageDelta(
+        index >= 0 ? index : (down ? -1 : entries.length), first, last, down);
+  }
+
+  void _moveSelectionByKey(int delta, bool extend) {
+    final filteredEntries = _filteredEntries();
+    final selection =
+        navigateSelection(filteredEntries, selectedItems.items, delta, extend);
+    if (selection.isEmpty) return;
+    selectedItems.items.assignAll(selection.where((e) => !e.isDrive));
+    final position = _fileListScrollController.position;
+    final top =
+        filteredEntries.indexOf(selection.last) * _funtiRowHeight;
+    final bottom = top + _funtiRowHeight;
+    if (top < position.pixels) {
+      _fileListScrollController.jumpTo(top);
+    } else if (bottom > position.pixels + position.viewportDimension) {
+      _fileListScrollController.jumpTo(bottom - position.viewportDimension);
+    }
   }
 
   void _onSelectedChanged(SelectedItems selectedItems, List<Entry> entries,
@@ -2428,6 +2472,36 @@ class _FileManagerViewState extends State<FileManagerView> {
   // }
 }
 
+/// Selection after a navigation key moves it by [delta] rows. A shift range is
+/// returned ordered from its anchor to the moved end, so the first and last
+/// items of [selected] stand for those two ends on the next press without
+/// separate state.
+@visibleForTesting
+List<Entry> navigateSelection(
+    List<Entry> entries, List<Entry> selected, int delta, bool extend) {
+  if (entries.isEmpty) return [];
+  final current = selected.isEmpty ? -1 : entries.indexOf(selected.last);
+  // With nothing selected, moving down starts above the first row and moving
+  // up below the last one, as the Sciter grid did.
+  final lead = current >= 0 ? current : (delta > 0 ? -1 : entries.length);
+  final next = (lead + delta).clamp(0, entries.length - 1);
+  if (!extend || current < 0) return [entries[next]];
+  final first = entries.indexOf(selected.first);
+  final anchor = first < 0 ? current : first;
+  final step = next < anchor ? -1 : 1;
+  return [for (var i = anchor; i != next + step; i += step) entries[i]];
+}
+
+/// Rows a PageUp/PageDown press moves from [lead] while rows [first]..[last]
+/// are fully visible: to that edge first, then a page further, as list views
+/// do.
+@visibleForTesting
+int pageDelta(int lead, int first, int last, bool down) {
+  final page = max(1, last - first);
+  if (down) return lead < last ? last - lead : page;
+  return lead > first ? first - lead : -page;
+}
+
 Widget buildWindowsThisPC(BuildContext context, [TextStyle? textStyle]) {
   final color = Theme.of(context).iconTheme.color?.withOpacity(0.7);
   return Row(children: [
@@ -2512,5 +2586,34 @@ class _FuntiThumbState extends State<_FuntiThumb> {
               gaplessPlayback: true,
               errorBuilder: (_, __, ___) => widget.fallback));
         });
+  }
+}
+
+// FUNTIDESK: files that came from the other computer get the Windows mark
+// "downloaded from the Internet" (Zone.Identifier, zone 3), as a browser
+// sets it: Office then opens them in Protected View and Windows asks before
+// starting a program. For a folder: its files, up to a limit.
+Future<void> funtiMarkDownloaded(String path) async {
+  if (isWeb || !Platform.isWindows) return;
+  Future<void> mark(String file) async {
+    try {
+      await File('$file:Zone.Identifier')
+          .writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n', flush: true);
+    } catch (e) {
+      debugPrint('Zone.Identifier for $file: $e');
+    }
+  }
+
+  final type = await FileSystemEntity.type(path, followLinks: false);
+  if (type == FileSystemEntityType.file) {
+    await mark(path);
+  } else if (type == FileSystemEntityType.directory) {
+    var left = 5000;
+    await for (final e
+        in Directory(path).list(recursive: true, followLinks: false)) {
+      if (e is! File) continue;
+      await mark(e.path);
+      if (--left == 0) break;
+    }
   }
 }
