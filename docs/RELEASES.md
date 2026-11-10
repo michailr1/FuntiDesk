@@ -39,12 +39,16 @@ GitHub хранит Releases репозитория в общей ленте; о
 ssh-keygen -t ed25519 -C funtidesk-release -f funtidesk-release
 ```
 
+Ключ положить в `%USERPROFILE%\.ssh\funtidesk-release` (там его ищет скрипт). Для полной автоматики — GitHub CLI: установить с cli.github.com и один раз выполнить `gh auth login`.
+
 Для каждого релиза Windows:
 
-1. Сборка `UI Windows artifact` на `main` выкладывает релиз как prerelease.
-2. Скачать из релиза `SHA256SUMS.txt`, сверить суммы с журналом сборки и подписать:
-   `ssh-keygen -Y sign -f funtidesk-release -n funtidesk-release SHA256SUMS.txt`
-3. Приложить получившийся `SHA256SUMS.txt.sig` к релизу.
-4. Запустить workflow `Release promote` с тегом релиза. Он проверит подпись и суммы всех файлов и сделает релиз «последним»; без верной подписи откажет.
+1. Ведущий разработчик собирает релиз (`UI Windows artifact` на `main`): он выходит как prerelease и сообщает тег.
+2. Владелец на своём компьютере запускает
+   `powershell -ExecutionPolicy Bypass -File scripts\release\sign-release.ps1 funtidesk-windows-<коммит>`.
+   Скрипт скачивает `SHA256SUMS.txt`, показывает, что подписывается, спрашивает подтверждение и пароль ключа, подписывает, проверяет подпись, прикладывает `SHA256SUMS.txt.sig` к релизу и запускает `Release promote`.
+3. `Release promote` проверяет подпись и суммы всех файлов и делает релиз «последним»; без верной подписи откажет.
+
+Без GitHub CLI скрипт останавливается после подписи: файл `SHA256SUMS.txt.sig` прикладывается к релизу в браузере, `Release promote` запускается на вкладке Actions.
 
 Приватный ключ не передаётся никому, в том числе агентам, и не хранится в GitHub.
