@@ -330,6 +330,43 @@ async fn five_attempts_expiry_and_unknown_code_have_the_same_response() {
 }
 
 #[tokio::test]
+async fn forty_code_attempts_a_day_for_one_email() {
+    let mut f = Fixture::new();
+    let email = "person@example.invalid";
+    // Two hours of the hourly limit: 4 codes x 5 wrong attempts each hour.
+    for _ in 0..2 {
+        for _ in 0..4 {
+            let (scope, challenge, mail) = f.start(email).await;
+            let id = challenge["challenge_id"].as_str().unwrap();
+            let wrong = if mail.code == "000000" {
+                "999999"
+            } else {
+                "000000"
+            };
+            for _ in 0..5 {
+                assert_eq!(
+                    f.verify(&scope, id, wrong).await.body,
+                    json!({"error":"invalid_code"})
+                );
+            }
+            f.advance(61);
+        }
+        f.advance(3600 - 4 * 61);
+    }
+    // The 41st attempt of the day is refused even with the right code.
+    let (scope, challenge, mail) = f.start(email).await;
+    let id = challenge["challenge_id"].as_str().unwrap();
+    assert_eq!(
+        f.verify(&scope, id, &mail.code).await.body,
+        json!({"error":"invalid_code"})
+    );
+    // Another address is not affected, and the next day the limit is new.
+    f.login("other@example.invalid").await;
+    f.advance(86400);
+    f.login(email).await;
+}
+
+#[tokio::test]
 async fn new_challenge_replaces_the_old_one_without_resetting_address_limits() {
     let mut f = Fixture::new();
     let (scope, old, mail) = f.start("person@example.invalid").await;
