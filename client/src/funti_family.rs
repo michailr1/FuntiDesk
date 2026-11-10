@@ -476,7 +476,13 @@ mod client_side {
         fn handle_peer_info(&self, _pi: PeerInfo) {}
         fn set_multiple_windows_session(&self, _sessions: Vec<WindowsSession>) {}
         // Not used: `headless` answers the Hash itself.
-        async fn handle_hash(&self, _pass: &str, _hash: Hash, _peer: &mut Stream) -> bool {
+        async fn handle_hash(
+            &self,
+            _pass: &str,
+            _hash: Hash,
+            _trust: &mut crate::trusted_devices::client::Session,
+            _peer: &mut Stream,
+        ) -> bool {
             false
         }
         async fn handle_login_from_ui(
@@ -485,6 +491,7 @@ mod client_side {
             _os_password: String,
             _password: String,
             _remember: bool,
+            _trust: &mut crate::trusted_devices::client::Session,
             _peer: &mut Stream,
         ) {
         }
@@ -506,7 +513,7 @@ mod client_side {
     /// against the FuntiDesk server key).
     async fn headless(id: &str, request: Request) -> Result<(LoginResponse, Vec<u8>), String> {
         let mut lc = LoginConfigHandler::default();
-        lc.initialize(id.to_owned(), ConnType::DEFAULT_CONN, None, false, None, None, None);
+        lc.initialize(id.to_owned(), ConnType::DEFAULT_CONN, None, false, None, None, None, "");
         let iface = PairInterface {
             lc: Arc::new(RwLock::new(lc)),
         };
