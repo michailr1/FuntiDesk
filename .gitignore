@@ -1,3 +1,7 @@
 .tools/
 build-logs/
 artifacts/
+
+# Python bytecode from running scripts and tests
+__pycache__/
+*.pyc

@@ -82,3 +82,39 @@ docker compose -p funtidesk-account \
 
 ## Отдельное обновление веб-консоли
 `python3 -B scripts/account/update-web-desk.py --console-only` проверяет manifest и заменяет только семь файлов `connect/`: index.html, session.css, session.js, licenses.html, source.html, app.webmanifest, apple-touch-icon.png. Сохранены главная, кабинет, прежний SOURCE_COMMIT, API/DB v4/v5 и соседние сервисы; источник консоли и `consoleOnly=true` — в закрытой квитанции `updates/console-<commit>/receipt.json`. Режимы landing-only/console-only взаимоисключающие. Откат — прежний webroot и штатное пересоздание только Caddy, без изменения DB/ключей. Полная поставка UI #72 всё ещё требует API v5.
+
+## Статистика (ADR-019, #115)
+
+Закрытый отчёт по агрегатам кабинета и hbbs на `https://desk.funti.cc/<закрытый путь>/` за паролем (Caddy Basic Auth). Выкладывается только после принятия ADR-019 владельцем. Непубликуемый путь и пароль не попадают в GitHub, в PR и в чат: путь и логин владелец получает лично, пароль — тоже лично или задаёт сам.
+
+Устройство: отчёт лежит в `/opt/funtidesk-analytics/www`, **вне общего webroot**, и доступен только из защищённого `handle`; общий `file_server` его не видит. Закрытый файл `/opt/funtidesk-analytics/analytics.caddy` (`0600`) с путём и bcrypt-хэшем подключается одной строкой `import`. Нет файла — `caddy validate` не проходит, reload не применяется. Отчёт обновляет systemd-таймер раз в сутки; ошибка аналитики не трогает account, hbbs и Caddy, прежний отчёт остаётся.
+
+Порядок (из чистого принятого `main`; перед изменением Caddyfile — закрытая копия текущего):
+
+```sh
+install -d -m 0700 /opt/funtidesk-analytics /opt/funtidesk-analytics/www
+git -C /opt/funtidesk-analytics clone --depth 1 https://github.com/michailr1/FuntiDesk.git source   # затем checkout принятого коммита
+P=$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(32)))')
+PASS=$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')        # не короче 24 символов: у Basic Auth нет лимита попыток
+HASH=$(docker compose -p caddy <те же -f, что выше> exec -T caddy caddy hash-password --plaintext "$PASS")
+umask 077; sed -e "s#__PATH__#$P#g" -e "s#__USER__#owner#" -e "s#__HASH__#$HASH#" \
+  /opt/funtidesk-analytics/source/infra/funtidesk-analytics/analytics.caddy.template > /opt/funtidesk-analytics/analytics.caddy
+```
+
+1. Первый отчёт: `python3 -I /opt/funtidesk-analytics/source/scripts/analytics/publish.py --account-db /opt/funtidesk-account/data/account.sqlite3 --hbbs-db /opt/funtidesk/data/db_v2.sqlite3 --out-dir /opt/funtidesk-analytics/www`.
+2. В блок `desk.funti.cc` общего Caddyfile, **перед** последним `handle { file_server }`, добавить одну строку `import /etc/caddy/funtidesk-analytics.caddy`. Другие блоки не менять.
+3. Пересоздать только Caddy с третьим override (один раз, соседние сайты прерываются на секунды — в согласованное окно), затем `caddy validate` и `caddy reload`:
+
+```sh
+docker compose -p caddy \
+  --env-file /opt/funtidesk-account/account.env \
+  -f /opt/remnawave/caddy/docker-compose.yml \
+  -f /opt/funtidesk-account/integration/caddy-account.override.yaml \
+  -f /opt/funtidesk-account/integration/caddy-web-client.override.yaml \
+  -f /opt/funtidesk-analytics/source/infra/funtidesk-analytics/caddy-analytics.override.yaml \
+  up -d --no-deps --pull never caddy
+```
+
+4. Таймер: скопировать `funtidesk-analytics.service` и `.timer` в `/etc/systemd/system/`, `systemctl daemon-reload && systemctl enable --now funtidesk-analytics.timer`.
+
+Проверки: без пароля и с неверным — `401` для `/<путь>/`, `/<путь>/index.html`, `//<путь>/`, `%2F`-вариантов; с паролем — `200`, заголовки `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`, CSP; главная, кабинет, `/connect/` и WSS работают как раньше; `systemctl list-timers` показывает таймер. Откат: удалить строку `import` и третий override, пересоздать Caddy прежней командой, `systemctl disable --now funtidesk-analytics.timer`; данные кабинета и hbbs не затрагиваются.

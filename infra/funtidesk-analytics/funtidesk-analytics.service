@@ -1,0 +1,20 @@
+# FUNTIDESK (ADR-019): one run of the analytics report. Reads consistent
+# copies of the account and hbbs databases; changes nothing else.
+[Unit]
+Description=FuntiDesk analytics report
+After=docker.service
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=120
+ExecStart=/usr/bin/python3 -I /opt/funtidesk-analytics/source/scripts/analytics/publish.py \
+  --account-db /opt/funtidesk-account/data/account.sqlite3 \
+  --hbbs-db /opt/funtidesk/data/db_v2.sqlite3 \
+  --out-dir /opt/funtidesk-analytics/www
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/funtidesk-analytics/www

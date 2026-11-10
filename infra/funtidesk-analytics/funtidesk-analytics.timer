@@ -1,0 +1,11 @@
+# FUNTIDESK (ADR-019): the report once a day, at a quiet hour.
+[Unit]
+Description=FuntiDesk analytics report, daily
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

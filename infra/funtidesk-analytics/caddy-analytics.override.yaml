@@ -1,0 +1,10 @@
+# FUNTIDESK (ADR-019, #115): third overlay for the shared Caddy, AFTER
+# caddy-account.override.yaml and caddy-web-client.override.yaml. Only two
+# read-only mounts: the report directory (outside the shared webroot) and the
+# private config with the path and the password hash. No ports, networks or
+# other services change.
+services:
+  caddy:
+    volumes:
+      - ${FUNTI_ANALYTICS_ROOT:-/opt/funtidesk-analytics}/www:/srv/funtidesk-analytics:ro
+      - ${FUNTI_ANALYTICS_ROOT:-/opt/funtidesk-analytics}/analytics.caddy:/etc/caddy/funtidesk-analytics.caddy:ro
