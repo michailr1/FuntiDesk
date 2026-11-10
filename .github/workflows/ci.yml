@@ -95,6 +95,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  funti-dart:
+    # FUNTIDESK: Flutter-free rules of the client UI (client/flutter/lib/funti).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.24.5"
+          cache: true
+
+      - name: Dart rule checks
+        run: bash scripts/ci/test-funti-dart.sh
+
   hbb-common:
     runs-on: ubuntu-latest
     steps:

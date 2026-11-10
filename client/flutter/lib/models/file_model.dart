@@ -453,19 +453,6 @@ class FuntiThumbnails {
   }
 }
 
-// FUNTIDESK: "name.ext", "name (2).ext", ... — the first one not [taken].
-String funtiFreeName(String name, bool Function(String) taken) {
-  if (!taken(name)) return name;
-  final dot = name.lastIndexOf('.');
-  final hasExt = dot > 0;
-  final base = hasExt ? name.substring(0, dot) : name;
-  final ext = hasExt ? name.substring(dot) : '';
-  for (var n = 2;; n++) {
-    final candidate = '$base ($n)$ext';
-    if (!taken(candidate)) return candidate;
-  }
-}
-
 class DirectoryData {
   final DirectoryOptions options;
   final FileDirectory directory;
