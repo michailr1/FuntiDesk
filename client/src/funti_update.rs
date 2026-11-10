@@ -30,6 +30,7 @@ use std::{
 const RELEASE_BASE: &str = "https://github.com/michailr1/FuntiDesk/releases/latest/download";
 const ZIP_NAME: &str = "FuntiDesk-windows-x64.zip";
 const SUMS_NAME: &str = "SHA256SUMS.txt";
+const SUMS_SIG_NAME: &str = "SHA256SUMS.txt.sig";
 const VERSION_NAME: &str = "funtidesk-version.txt";
 const WHATS_NEW_NAME: &str = "funtidesk-whats-new.txt";
 const WHATS_NEW_MAX: usize = 16 * 1024;
@@ -98,6 +99,21 @@ fn download(client: &reqwest::blocking::Client, name: &str) -> ResultType<Vec<u8
     Ok(resp.bytes()?.to_vec())
 }
 
+/// SHA256SUMS.txt of the latest release, accepted only with the owner's
+/// signature (ADR-018). While no release key is built in, the file is taken
+/// as it is, as before.
+fn signed_sums(client: &reqwest::blocking::Client) -> ResultType<String> {
+    use crate::funti_release_sig::{verify, NAMESPACE, RELEASE_KEYS};
+    let sums = download(client, SUMS_NAME)?;
+    if !RELEASE_KEYS.is_empty() {
+        let signature = String::from_utf8(download(client, SUMS_SIG_NAME)?)?;
+        if !verify(&signature, &sums, NAMESPACE, RELEASE_KEYS) {
+            bail!("the signature of {SUMS_NAME} is not valid");
+        }
+    }
+    Ok(String::from_utf8(sums)?)
+}
+
 pub fn check() -> ResultType<Latest> {
     let bytes = download(&http()?, VERSION_NAME)?;
     let version = String::from_utf8_lossy(&bytes).trim().to_owned();
@@ -112,7 +128,7 @@ pub fn check() -> ResultType<Latest> {
 pub fn whats_new() -> ResultType<String> {
     let client = http()?;
     let text = download(&client, WHATS_NEW_NAME)?;
-    let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
+    let sums = signed_sums(&client)?;
     verify(&sums, WHATS_NEW_NAME, &text)?;
     if text.len() > WHATS_NEW_MAX {
         bail!("{WHATS_NEW_NAME} is too large");
@@ -253,7 +269,7 @@ pub fn start() -> ResultType<String> {
     }
     let client = http()?;
     let version_bytes = download(&client, VERSION_NAME)?;
-    let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
+    let sums = signed_sums(&client)?;
     verify(&sums, VERSION_NAME, &version_bytes)?;
     let version = String::from_utf8_lossy(&version_bytes).trim().to_owned();
     match parse_build(&version) {
@@ -375,7 +391,7 @@ fn start_service_() -> ResultType<String> {
     }
     let client = http()?;
     let version_bytes = download(&client, VERSION_NAME)?;
-    let sums = String::from_utf8(download(&client, SUMS_NAME)?)?;
+    let sums = signed_sums(&client)?;
     verify(&sums, VERSION_NAME, &version_bytes)?;
     let version = String::from_utf8_lossy(&version_bytes).trim().to_owned();
     match parse_build(&version) {
