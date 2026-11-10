@@ -4775,7 +4775,12 @@ pub async fn handle_hash(
                     lc.read().unwrap().get_option("os-password"),
                 )
             };
-            send_login(lc.clone(), os_username, os_password, Vec::new(), peer).await;
+            if let Err(error) =
+                send_login(lc.clone(), os_username, os_password, Vec::new(), trust, peer).await
+            {
+                interface.on_error(&error.to_string());
+                return false;
+            }
             lc.write().unwrap().hash = hash;
             return true;
         }
