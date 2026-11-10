@@ -1,0 +1,24 @@
+# FUNTIDESK (ADR-019, #115): закрытая статистика на desk.funti.cc.
+# Шаблон. Рабочий файл создаётся на сервере командой из
+# docs/ACCOUNT_DEPLOYMENT.md («Статистика»), лежит вне репозитория с правами
+# 0600 и подключается одной строкой `import` внутри блока desk.funti.cc.
+# __PATH__ — непубликуемый путь (случайные 32 символа), __USER__ — логин,
+# __HASH__ — bcrypt-хэш пароля (caddy hash-password). Ни путь, ни хэш,
+# ни пароль не попадают в GitHub.
+@funti_analytics path /__PATH__ /__PATH__/*
+handle @funti_analytics {
+	basicauth {
+		__USER__ __HASH__
+	}
+	header {
+		Cache-Control no-store
+		X-Robots-Tag "noindex, nofollow"
+		Referrer-Policy no-referrer
+		Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Last-Modified
+	}
+	redir /__PATH__ /__PATH__/ 308
+	uri strip_prefix /__PATH__
+	root * /srv/funtidesk-analytics
+	file_server
+}
