@@ -2,3 +2,7 @@
 # Только эти две строки исторического commit; секреты и другие файлы не исключаются.
 ffd270b85e8e6761c0a54219c6e3d2fce70b50e1:account/src/witness.rs:generic-api-key:168
 ffd270b85e8e6761c0a54219c6e3d2fce70b50e1:account/src/witness.rs:generic-api-key:175
+# Тестовый ключ upstream hbb_common (RustDesk 1.5.3, коммит 3aade011c): самоподписанный
+# сертификат для websocket-target.invalid, используется только в тестах WebSocket-прокси и
+# опубликован в rustdesk/hbb_common. Исключается только эта строка этого коммита.
+3aade011c08cb1937c903deb48a711fb0e856958:tests/data/websocket-key.pem:private-key:1
