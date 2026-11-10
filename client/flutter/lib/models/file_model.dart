@@ -1402,9 +1402,22 @@ class JobController {
     if (i >= 0) jobTable[i].to = to;
   }
 
-  void _funtiTransferFinished(JobProgress job) {
+  // Set by the desktop window: marks what came from the other computer as
+  // downloaded, before anything opens it.
+  Future<void> Function(String path)? funtiMarkDownloaded;
+
+  Future<void> _funtiTransferFinished(JobProgress job) async {
     final action = funtiOnDone.remove(job.id);
-    if (job.state == JobState.done && job.err.isEmpty) action?.call(job);
+    if (job.state == JobState.done && job.err.isEmpty) {
+      if (job.isRemoteToLocal && job.to.isNotEmpty) {
+        try {
+          await funtiMarkDownloaded?.call(job.to);
+        } catch (e) {
+          debugPrint('mark downloaded: $e');
+        }
+      }
+      action?.call(job);
+    }
     if (!jobTable.any((j) =>
         j.type == JobType.transfer && j.state == JobState.inProgress)) {
       showToast(translate('funti-ft-transfers-done'));
@@ -1458,7 +1471,7 @@ class JobController {
       job.state = JobState.done;
     }
     jobTable.refresh();
-    if (job.type == JobType.transfer) _funtiTransferFinished(job);
+    if (job.type == JobType.transfer) unawaited(_funtiTransferFinished(job));
     if (job.state == JobState.done || job.state == JobState.error) {
       unregisterTransferConflictJob(id);
     }
