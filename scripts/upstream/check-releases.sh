@@ -6,6 +6,8 @@
 # temporary worktree. Needs the full history (not a shallow clone).
 #
 #   scripts/upstream/check-releases.sh > report.md
+# Backticks in single quotes below are Markdown, not shell.
+# shellcheck disable=SC2016
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
