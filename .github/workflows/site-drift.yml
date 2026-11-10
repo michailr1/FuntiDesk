@@ -1,0 +1,73 @@
+name: Site drift
+
+# FUNTIDESK: daily check that desk.funti.cc serves what main says
+# (web/manifest.json hashes and the account API routes listed in
+# scripts/web/check-live.py). A difference opens one issue with the label
+# `site-drift`; when the server matches again the issue closes itself.
+# Read-only: public URLs, no login, no server access.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: site-drift
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare the live site with main
+        id: check
+        shell: bash
+        run: |
+          set +e
+          python3 -I scripts/web/check-live.py > report.md
+          code=$?
+          cat report.md
+          case "$code" in
+            0) echo "drift=" >> "$GITHUB_OUTPUT" ;;
+            10) echo "drift=1" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::site check failed"; exit 1 ;;
+          esac
+
+      - name: Open or update the drift issue
+        if: steps.check.outputs.drift != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create site-drift --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+            --description "desk.funti.cc отстаёт от main (Site drift)" 2>/dev/null || true
+          printf '\nЗапуск: %s/%s/actions/runs/%s. Issue закроется сам, когда сервер совпадёт с main.\n' \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> report.md
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --label site-drift --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -z "$issue" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label site-drift \
+              --title "Сайт desk.funti.cc не совпадает с main" --body-file report.md
+          else
+            # Keep the issue body current instead of adding a comment every day.
+            gh issue edit "$issue" --repo "$GITHUB_REPOSITORY" --body-file report.md
+          fi
+
+      - name: Close the drift issue when the site matches
+        if: steps.check.outputs.drift == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for issue in $(gh issue list --repo "$GITHUB_REPOSITORY" --label site-drift --state open \
+            --json number --jq '.[].number'); do
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
+              --comment "Сервер совпадает с main ($(date -u '+%Y-%m-%d %H:%M UTC'))."
+          done
