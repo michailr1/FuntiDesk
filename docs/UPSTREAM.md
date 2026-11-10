@@ -4,10 +4,10 @@
 
 FuntiDesk стартует со стабильных версий исходных проектов, зафиксированных на 2026-09-17:
 
-- Client: `rustdesk/rustdesk`, tag `1.5.0`, commit `9d3ae7acd2d13e8ce9928ce827e86d13d0f17132` (слияние 2026-10-11; до этого — tag `1.4.9`, commit `6c578292e8ebbbec708b76986ba8c4bc7c509747`).
+- Client: `rustdesk/rustdesk`, tag `1.5.3`, commit `95cca3f661f635b3cc85c04935fe8d96d8f432ef` (слияние 2026-11-10; до этого — tag `1.5.0`, commit `9d3ae7acd2d13e8ce9928ce827e86d13d0f17132`, слияние 2026-10-11; ещё раньше — tag `1.4.9`, commit `6c578292e8ebbbec708b76986ba8c4bc7c509747`).
 - Server: `rustdesk/rustdesk-server`, tag `1.1.16`, commit `73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`.
 - Shared library: `rustdesk/hbb_common`, подключён в обоих проектах как git submodule `libs/hbb_common` и закреплён на разных коммитах:
-  - для клиента — `229b904508364c8997aad0fb5af57effac859f60` (как в RustDesk 1.5.0; до 2026-10-11 — `7e1c392c62d39c364127307cd408421dd5f8cfb0`);
+  - для клиента — `fae47e024dd83cef6aaecde0aa7d11731df11649` (как в RustDesk 1.5.3; до 2026-11-10 — `229b904508364c8997aad0fb5af57effac859f60`, как в 1.5.0);
   - для сервера — `83419b6549636ee39dacef7776c473f5802e08d6`.
 
 `hbb_common` — не вспомогательная зависимость: именно в нём находится `src/config.rs` с адресами rendezvous-серверов, публичным ключом и логикой выбора сервера, то есть один из ключевых участков нашего security-форка.
@@ -77,7 +77,17 @@ FuntiDesk использует собственную версию продук�
 - vcpkg закреплён на `9e593bb18ea69cc5095e012465dcd675a822ed0d`, как в upstream 1.5.0; Rust 1.75, Flutter 3.24.5, NDK r28c не менялись.
 - Версия для людей — `1.5.0-ft.<N>`.
 
-## Как сливать новый RustDesk (памятка по опыту 1.5.0)
+## Слияние RustDesk 1.5.3 (2026-11-10)
+
+- 151 коммит upstream от 1.5.0 (1.5.1 и 1.5.3; тега 1.5.2 нет) и 35 коммитов `hbb_common`. Механизм прежний: `git merge -X subtree=client`, затем `-X subtree=client/libs/hbb_common`. Сервер upstream не менялся (1.1.16).
+- Исправления безопасности upstream, ради которых слияние: авторизация IPC-сервера Windows, защита установщика от подмены временной папки и каталога, relay только на адреса, которые предложил сам собеседник, проверка имён и ссылок при скачивании файлов, запуск службы macOS без оболочки.
+- **«Чистое» слияние вернуло сетевой вызов upstream.** В `common.rs` рядом с нашей заглушкой `do_check_software_update` без конфликта появилась настоящая проверка обновлений через API upstream; заглушка возвращена (R-14). Вывод в памятку ниже, пункт 8.
+- Новое в upstream, принято как есть: «доверенные устройства» для 2FA (`trusted_devices`, локально), вход «с запросом подтверждения» (`request-approval`), клавиатурная навигация в окне файлов (заменила нашу для стрелок и Enter), настраиваемые сочетания клавиш в сеансе. Модули `updater`/`update_metadata` upstream остаются без вызова: проверка обновлений — наша (ADR-007).
+- Наши пути передачи файлов (`funtiSendPaths`: вставка, «Открыть», быстрая отправка, «Оставить оба») получили те же проверки имён и ссылок при скачивании, что и `sendFiles` upstream.
+- Сверка после слияния: все `scripts/ci/*.sh` проходят; список изменённых нами файлов относительно upstream тот же (209), по размеру правок расхождений нет; три файла `hbb_common` с нашими правками не изменились. Закрепления инструментов совпадают с upstream 1.5.3 (Rust 1.75, Flutter 3.24.5, NDK r28c, vcpkg `9e593bb`).
+- Версия для людей — `1.5.3-ft.<N>`.
+
+## Как сливать новый RustDesk (памятка по опыту 1.5.0 и 1.5.3)
 
 1. Новая ветка от `main`. Получить тег: `git fetch --no-tags https://github.com/rustdesk/rustdesk.git refs/tags/<тег>:refs/tags/upstream-client-<тег>`; узнать коммит `hbb_common` в теге (`git ls-tree upstream-client-<тег> libs/hbb_common`) и получить его.
 2. До слияния — `scripts/upstream/funtidesk-patches.sh` (что у нас изменено) и `docs/FUNTIDESK_PATCHES.md` (зачем).
@@ -86,6 +96,6 @@ FuntiDesk использует собственную версию продук�
 5. Проверить, не переехали ли файлы (в 1.5.0 `message.proto`, ключи настроек и `fs` ушли в `libs/base`) — наши поля протокола переносятся с теми же номерами.
 6. Новые функции upstream, которые ходят наружу (в 1.5.0 — WebRTC с публичными STUN), выключить до отдельного ADR; новые запросы relay — только `secure = true`.
 7. Закрепления инструментов: сравнить `VCPKG_COMMIT_ID`, `RUST_VERSION`, `FLUTTER_VERSION`, `NDK_VERSION` в `.github/workflows/flutter-build.yml` upstream с `scripts/windows/bootstrap.ps1` и `.github/workflows/android-apk.yml`.
-8. Сборка (`build-baseline.ps1`), все `scripts/ci/test-*.sh`, `funtidesk-patches.sh` после слияния — каждая правка из `FUNTIDESK_PATCHES.md` на месте.
+8. Сборка (`build-baseline.ps1`), все `scripts/ci/test-*.sh`, `funtidesk-patches.sh` после слияния — каждая правка из `FUNTIDESK_PATCHES.md` на месте. Отсутствие конфликта ничего не доказывает: git может оставить код upstream рядом с нашей заглушкой (так в 1.5.3 вернулась проверка обновлений). Сравнить список и размер наших правок до и после: `git diff --numstat upstream-client-<старый>: main:client` против `upstream-client-<новый>: HEAD:client`.
 9. Приёмка на двух компьютерах: новая ↔ старая версия и новая ↔ новая (управление, файлы, терминал, звонок, семья, обновление кнопкой); отчёт — `docs/reviews/`.
 10. Обновить этот файл (теги и коммиты) и `FUNTIDESK_PATCHES.md`.

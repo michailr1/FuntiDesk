@@ -2298,6 +2298,7 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   // FUNTIDESK (ADR-006): "<name> asks for help", started by the service.
   String? funtiHelpId;
   String funtiHelpName = '';
+  var loginMethod = '';
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--funti-help':
@@ -2356,6 +2357,9 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
         password = args[i + 1];
         i++;
         break;
+      case '--request-approval':
+        loginMethod = 'request-approval';
+        break;
       case '--switch_uuid':
         switchUuid = args[i + 1];
         i++;
@@ -2374,11 +2378,15 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
         () => showFuntiHelpRequestDialog(helpId, funtiHelpName));
     return true;
   }
+  if (loginMethod == 'request-approval') {
+    password = null;
+  }
   if (type != null && id != null) {
     switch (type) {
       case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newRemoteDesktop(id!,
+              loginMethod: loginMethod,
               password: password,
               switchUuid: switchUuid,
               forceRelay: forceRelay);
@@ -2387,32 +2395,35 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
       case UriLinkType.fileTransfer:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newFileTransfer(id!,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.viewCamera:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newViewCamera(id!,
-              password: password,
-              switchUuid: switchUuid,
-              forceRelay: forceRelay);
+              loginMethod: loginMethod,
+              password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.portForward:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newPortForward(id!, false,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.rdp:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newPortForward(id!, true,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.terminal:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newTerminal(id!,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
@@ -2510,6 +2521,10 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
 
   var queryParameters =
       uri.queryParameters.map((k, v) => MapEntry(k.toLowerCase(), v));
+  final requestApproval = queryParameters['request-approval'] == 'true';
+  if (requestApproval) {
+    queryParameters.remove('password');
+  }
 
   var key = queryParameters["key"];
   if (id != null) {
@@ -2522,24 +2537,30 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   if (isMobile && id != null && command != '--funti-help') {
     final forceRelay = queryParameters["relay"] != null;
     final password = queryParameters["password"];
+    final loginMethod = requestApproval ? 'request-approval' : '';
 
     // Determine connection type based on command
     if (command == '--file-transfer') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isFileTransfer: true, forceRelay: forceRelay, password: password);
     } else if (command == '--view-camera') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isViewCamera: true, forceRelay: forceRelay, password: password);
     } else if (command == '--terminal') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isTerminal: true, forceRelay: forceRelay, password: password);
-    } else if (command == 'terminal-admin') {
+    } else if (command == '--terminal-admin') {
       setEnvTerminalAdmin();
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isTerminal: true, forceRelay: forceRelay, password: password);
     } else {
       // Default to remote desktop for '--connect', '--play', or direct connection
-      connect(Get.context!, id, forceRelay: forceRelay, password: password);
+      connect(Get.context!, id,
+          loginMethod: loginMethod, forceRelay: forceRelay, password: password);
     }
     return null;
   }
@@ -2551,6 +2572,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     var param = queryParameters;
     String? password = param["password"];
     if (password != null) args.addAll(['--password', password]);
+    if (requestApproval) args.add('--request-approval');
     String? switch_uuid = param["switch_uuid"];
     if (switch_uuid != null) args.addAll(['--switch_uuid', switch_uuid]);
     String? funtiHelpName = param["name"];
@@ -2573,33 +2595,39 @@ connectMainDesktop(String id,
     bool? forceRelay,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    String loginMethod = ''}) async {
   if (isFileTransfer) {
     await rustDeskWinManager.newFileTransfer(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isViewCamera) {
     await rustDeskWinManager.newViewCamera(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isTcpTunneling || isRDP) {
     await rustDeskWinManager.newPortForward(id, isRDP,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isTerminal) {
     await rustDeskWinManager.newTerminal(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else {
     await rustDeskWinManager.newRemoteDesktop(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         forceRelay: forceRelay);
@@ -2620,7 +2648,8 @@ connect(BuildContext context, String id,
     bool forceRelay = false,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    String loginMethod = ''}) async {
   if (id == '') return;
   if (!isDesktop || desktopType == DesktopType.main) {
     try {
@@ -2645,6 +2674,7 @@ connect(BuildContext context, String id,
     if (desktopType == DesktopType.main) {
       await connectMainDesktop(
         id,
+        loginMethod: loginMethod,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
         isTerminal: isTerminal,
@@ -2666,6 +2696,7 @@ connect(BuildContext context, String id,
         'isSharedPassword': isSharedPassword,
         'forceRelay': forceRelay,
         'connToken': connToken,
+        'loginMethod': loginMethod,
       });
     }
   } else {
@@ -2677,6 +2708,7 @@ connect(BuildContext context, String id,
             builder: (BuildContext context) =>
                 desktop_file_manager.FileManagerPage(
                     id: id,
+                    loginMethod: loginMethod,
                     password: password,
                     isSharedPassword: isSharedPassword),
           ),
@@ -2687,6 +2719,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => FileManagerPage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
@@ -2702,6 +2735,7 @@ connect(BuildContext context, String id,
                 desktop_view_camera.ViewCameraPage(
               key: ValueKey(id),
               id: id,
+              loginMethod: loginMethod,
               toolbarState: ToolbarState(),
               password: password,
               isSharedPassword: isSharedPassword,
@@ -2714,6 +2748,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => ViewCameraPage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
@@ -2726,6 +2761,7 @@ connect(BuildContext context, String id,
         MaterialPageRoute(
           builder: (BuildContext context) => TerminalPage(
             id: id,
+            loginMethod: loginMethod,
             password: password,
             isSharedPassword: isSharedPassword,
             forceRelay: forceRelay,
@@ -2740,6 +2776,7 @@ connect(BuildContext context, String id,
             builder: (BuildContext context) => desktop_remote.RemotePage(
               key: ValueKey(id),
               id: id,
+              loginMethod: loginMethod,
               toolbarState: ToolbarState(),
               password: password,
               isSharedPassword: isSharedPassword,
@@ -2752,6 +2789,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => RemotePage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
