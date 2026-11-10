@@ -20,33 +20,42 @@ API_ROUTES = [
 ]
 
 
-def fetch(method, path, data=None):
+# Large files that must be sent compressed (Caddyfile.web-client.fragment).
+COMPRESSED = ['connect/session.js']
+
+
+def fetch(method, path, data=None, headers=None):
     req = urllib.request.Request(HOST + path, data=data, method=method,
                                  headers={'User-Agent': 'FuntiDesk site check',
-                                          'Content-Type': 'application/json'})
+                                          'Content-Type': 'application/json',
+                                          **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
-            return r.status, r.read()
+            return r.status, r.read(), r.headers
     except urllib.error.HTTPError as e:
-        return e.code, b''
+        return e.code, b'', e.headers
 
 
 def main():
     manifest = json.loads((ROOT / 'web/manifest.json').read_text())['artifacts']
     stale, missing = [], []
     for item in manifest:
-        status, body = fetch('GET', '/' + item['file'])
+        status, body, _ = fetch('GET', '/' + item['file'])
         if status != 200:
             missing.append(f"`{item['file']}` — HTTP {status}")
         elif hashlib.sha256(body).hexdigest() != item['sha256']:
             stale.append(f"`{item['file']}`")
     api = []
     for method, path, what in API_ROUTES:
-        status, _ = fetch(method, path, b'{}')
+        status, _, _ = fetch(method, path, b'{}')
         if status == 404:
             api.append(f"`{method} {path}` — 404, адреса нет: {what}")
         elif status not in (401, 403):
             api.append(f"`{method} {path}` — HTTP {status}, ожидалось 401: {what}")
+    for file in COMPRESSED:
+        _, _, headers = fetch('GET', '/' + file, headers={'Accept-Encoding': 'zstd, gzip'})
+        if (headers.get('Content-Encoding') or '') not in ('zstd', 'gzip'):
+            api.append(f"`{file}` отдаётся без сжатия: нет `encode` в `handle @connect`")
     print('# Сайт desk.funti.cc и main\n')
     print(f'Проверено файлов: {len(manifest)}, адресов API: {len(API_ROUTES)}.\n')
     if not (stale or missing or api):
@@ -59,7 +68,7 @@ def main():
         print('Нет на сервере:\n')
         print('\n'.join(f'- {x}' for x in missing) + '\n')
     if api:
-        print('API кабинета отстаёт от main:\n')
+        print('Сервер отстаёт от main:\n')
         print('\n'.join(f'- {x}' for x in api) + '\n')
     print('Выложить по `docs/ACCOUNT_DEPLOYMENT.md`. Сразу после вливания расхождение ожидаемо: эта задача — напоминание, что выкладка ещё не сделана.')
     return 10
