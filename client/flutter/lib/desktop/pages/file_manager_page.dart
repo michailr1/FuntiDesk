@@ -101,6 +101,7 @@ class _FileManagerPageState extends State<FileManagerPage>
   void initState() {
     super.initState();
     _ffi = FFI(null);
+    _ffi.fileModel.jobController.funtiMarkDownloaded = funtiMarkDownloaded;
     _ffi.start(widget.id,
         isFileTransfer: true,
         password: widget.password,
@@ -687,18 +688,21 @@ class _FileManagerViewState extends State<FileManagerView> {
     return entries.where((e) => e.name.contains(_searchText.value)).toList();
   }
 
-  // Programs and scripts are not started from here: "Open" shows them in
-  // the folder instead.
-  static const _funtiRunnable = {
-    'exe', 'msi', 'msix', 'appx', 'bat', 'cmd', 'com', 'scr', 'pif', 'cpl', //
-    'msc', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'hta', 'lnk', //
-    'url', 'reg', 'jar', 'sh', 'run', 'appimage', 'deb', 'command', 'app',
+  // "Open" starts only these kinds of files in their program: documents,
+  // pictures, sound and video. Everything else (programs, scripts, shortcuts,
+  // archives, unknown types) is shown in its folder instead: a list of what
+  // is forbidden always misses something.
+  static const _funtiOpenable = {
+    'txt', 'log', 'md', 'csv', 'pdf', 'rtf', 'doc', 'docx', 'xls', 'xlsx', //
+    'ppt', 'pptx', 'odt', 'ods', 'odp', 'jpg', 'jpeg', 'png', 'gif', 'bmp', //
+    'webp', 'heic', 'tif', 'tiff', 'mp3', 'wav', 'm4a', 'flac', 'ogg', //
+    'mp4', 'mov', 'mkv', 'avi', 'webm',
   };
 
-  bool _funtiIsRunnable(String name) {
+  bool _funtiIsOpenable(String name) {
     final dot = name.lastIndexOf('.');
-    return dot >= 0 &&
-        _funtiRunnable.contains(name.substring(dot + 1).toLowerCase());
+    return dot > 0 &&
+        _funtiOpenable.contains(name.substring(dot + 1).toLowerCase());
   }
 
   Future<String?> _funtiLocalDownloads({bool subfolder = false}) async {
@@ -788,7 +792,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   Future<void> _funtiOpenFile(Entry entry) async {
     if (isWeb) return;
     if (isLocal) {
-      if (_funtiIsRunnable(entry.name)) {
+      if (!_funtiIsOpenable(entry.name)) {
         _funtiShowInFolder(entry.path);
       } else if (!await launchUrl(Uri.file(entry.path))) {
         showToast(translate('funti-ft-open-file-failed'));
@@ -807,7 +811,7 @@ class _FileManagerViewState extends State<FileManagerView> {
         fileModel.localController.options.value);
     final ids = await fileModel.remoteController
         .funtiSendPaths([entry], target, names: [name]);
-    final runnable = _funtiIsRunnable(name);
+    final runnable = !_funtiIsOpenable(name);
     fileModel.jobController.funtiOnDone[ids.first] = (job) async {
       if (runnable) {
         _funtiShowInFolder(job.to);
@@ -2582,5 +2586,34 @@ class _FuntiThumbState extends State<_FuntiThumb> {
               gaplessPlayback: true,
               errorBuilder: (_, __, ___) => widget.fallback));
         });
+  }
+}
+
+// FUNTIDESK: files that came from the other computer get the Windows mark
+// "downloaded from the Internet" (Zone.Identifier, zone 3), as a browser
+// sets it: Office then opens them in Protected View and Windows asks before
+// starting a program. For a folder: its files, up to a limit.
+Future<void> funtiMarkDownloaded(String path) async {
+  if (isWeb || !Platform.isWindows) return;
+  Future<void> mark(String file) async {
+    try {
+      await File('$file:Zone.Identifier')
+          .writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n', flush: true);
+    } catch (e) {
+      debugPrint('Zone.Identifier for $file: $e');
+    }
+  }
+
+  final type = await FileSystemEntity.type(path, followLinks: false);
+  if (type == FileSystemEntityType.file) {
+    await mark(path);
+  } else if (type == FileSystemEntityType.directory) {
+    var left = 5000;
+    await for (final e
+        in Directory(path).list(recursive: true, followLinks: false)) {
+      if (e is! File) continue;
+      await mark(e.path);
+      if (--left == 0) break;
+    }
   }
 }

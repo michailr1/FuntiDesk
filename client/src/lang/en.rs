@@ -431,7 +431,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-ft-open-file-failed", "Could not open the file"),
         ("funti-ft-downloads-missing", "The Downloads folder of this computer is not found"),
         ("funti-ft-opening", "Downloading “{}” to Downloads\\FuntiDesk, it will open by itself"),
-        ("funti-ft-downloading", "“{}” is a program: downloading to Downloads\\FuntiDesk to show it in the folder, it will not be started"),
+        ("funti-ft-downloading", "“{}” is not opened automatically: downloading to Downloads\\FuntiDesk to show it in the folder"),
         ("funti-ft-folder-missing", "Folder not found: {}"),
         ("funti-ft-send-desktop", "Send to the Desktop of the remote computer"),
         ("funti-ft-send-downloads", "Send to Downloads of the remote computer"),
