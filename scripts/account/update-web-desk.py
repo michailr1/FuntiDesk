@@ -13,6 +13,9 @@ REPO = Path(__file__).resolve().parents[2]
 ROOT = Path('/opt/funtidesk-account')
 CURRENT = Path('/opt/funtidesk-web/current')
 CADDY = Path('/opt/remnawave/caddy/Caddyfile')
+# ADR-019: the statistics overlay, once it is installed. Caddy recreated
+# without it would lose the protected report and fail on its import.
+ANALYTICS_OVERRIDE = Path('/opt/funtidesk-analytics/source/infra/funtidesk-analytics/caddy-analytics.override.yaml')
 
 
 def load(name):
@@ -69,6 +72,8 @@ def update(landing_only=False, console_only=False):
                '-f', '/opt/remnawave/caddy/docker-compose.yml',
                '-f', str(ROOT / 'integration/caddy-account.override.yaml'),
                '-f', str(ROOT / 'integration/caddy-web-client.override.yaml')]
+    if ANALYTICS_OVERRIDE.is_file():
+        compose += ['-f', str(ANALYTICS_OVERRIDE)]
     if run(*compose, 'config', '--hash', 'caddy').decode().split() != ['caddy', caddy['Config']['Labels']['com.docker.compose.config-hash']]:
         raise RuntimeError('Compose differs from live Caddy')
     protected = [ROOT / 'account.env', CADDY]
