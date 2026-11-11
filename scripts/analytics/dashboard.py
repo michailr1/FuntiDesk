@@ -28,15 +28,21 @@ def weekly(rows, now):
     return f'{number(current)} за 7 полных дней · {change:+d} к предыдущим 7 дням'
 
 
-def chart(title, subtitle, rows, now, color):
+def chart(title, subtitle, rows, now, color, positive_only=False):
     if rows is None:
         return f'<article class="panel"><h2>{title}</h2><p>Источник не предоставлен</p></article>'
     points = daily(rows, now)
+    if positive_only:
+        points = [(day, n) for day, n in points if n > 0]
+    if not points:
+        return f'<article class="panel"><h2>{title}</h2><p>{subtitle}</p><strong class="comparison">{weekly(rows, now)}</strong><p>За последние 30 дней сохранённых подключений нет.</p></article>'
     ceiling = max(1, max(n for _, n in points))
+    step = 600 / len(points)
+    width = min(24, step * .6)
     bars = []
     for i, (day, n) in enumerate(points):
         height = n/ceiling*124
-        bars.append(f'<rect x="{i*20+8}" y="{148-height:.2f}" width="12" height="{height:.2f}" rx="3" fill="{color}"><title>{day}: {n}</title></rect>')
+        bars.append(f'<rect x="{i*step+(step-width)/2+5:.2f}" y="{148-height:.2f}" width="{width:.2f}" height="{height:.2f}" rx="3" fill="{color}"><title>{day}: {n}</title></rect>')
     table = ''.join(f'<tr><td>{day}</td><td>{number(n)}</td></tr>' for day, n in points)
     return f'''<article class="panel"><div class="eyebrow">ПОСЛЕДНИЕ 30 ДАТ · UTC</div>
 <h2>{title}</h2><p>{subtitle}</p><strong class="comparison">{weekly(rows, now)}</strong>
@@ -71,7 +77,8 @@ def render(report):
         version_rows = '<p>Нет привязанных устройств</p>' if account is not None else '<p>Источник не предоставлен</p>'
     sources = ''.join(f'<li><span class="dot {"ok" if value is not None else "missing"}"></span>{name}: {"предоставлен" if value is not None else "нет данных"}</li>' for name, value in [('Кабинет', account), ('Регистрации hbbs', hbbs)])
     growth = chart('Новые аккаунты', 'Создания среди аккаунтов, оставшихся в базе.', a.get('accounts_created_daily') if account is not None else None, now, '#347aee')
-    usage = chart('Сохранённые подключения', 'Сообщённые клиентами успешные исходящие подключения.', a.get('retained_connections_daily') if account is not None else None, now, '#128c77')
+    usage = chart('Сохранённые подключения', 'Сообщённые клиентами успешные исходящие подключения. Дни без сохранённых подключений скрыты.', a.get('retained_connections_daily') if account is not None else None, now, '#128c77', positive_only=True)
+    registrations = chart('Новые регистрации ID', 'Первое создание текущих записей в hbbs; не число установок или людей.', h.get('registered_ids_daily'), now, '#8a64d5')
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>FuntiDesk Analytics</title><style>{STYLE}</style></head><body>
@@ -80,7 +87,8 @@ def render(report):
 <div class="updated">Снимок данных<strong>{text(updated)}</strong><small>Обновление раз в сутки · окно 30 дней</small></div></div>
 <div class="notice">Аккаунты и устройства — разные показатели. Они не означают количество людей.</div>
 <section class="metrics" aria-label="Основные показатели">{tiles}</section>
-<section class="grid" aria-label="Динамика">{growth}{usage}</section>
+<section class="grid" aria-label="Динамика">{growth}{registrations}</section>
+<section class="history" aria-label="Подключения">{usage}</section>
 <section class="grid"><article class="panel"><div class="eyebrow">АКТИВНОСТЬ КАБИНЕТА</div><h2>За день, неделю и месяц</h2><p>Скользящие окна от момента снимка. Активность — обращения к кабинету.</p>
 <div class="table-scroll"><table><thead><tr><th>Период</th><th>Аккаунты</th><th>Устройства</th><th>История</th></tr></thead><tbody>{periods}</tbody></table></div>
 <div class="footnote">Привязано устройств: {number(metric('account_bound_devices'))} · Включено аккаунтов: {number(metric('accounts_enabled'))}. Полная активность клиентов без аккаунта здесь не видна.</div></article>
@@ -89,6 +97,7 @@ def render(report):
 <div class="footnote">Для этих показателей нужен отдельный источник событий. Новая клиентская телеметрия не включена.</div></section>
 <footer class="panel"><h2>Как читать эти числа</h2><ul>{sources}</ul><p>Регистраций ID в hbbs: {number(h.get('hbbs_registered_ids'))}. Этот счётчик нельзя складывать с устройствами кабинета.</p>
 <p>Графики — текущий срез сохранённых записей: удаление аккаунта, импорт и очистка истории меняют прошлые дни. История ограничена 90 днями и 1000 записями на аккаунт. Это не полный журнал всех сеансов.</p>
+<p>График регистраций ID использует created_at текущих записей hbbs; смена ID в существующей записи сохраняет прежнюю дату. Скрытые нулевые дни подключений не меняют календарные границы сравнения недель.</p>
 <p>Сравнение недель использует полные календарные дни UTC, без сегодняшнего дня. Крайние даты графиков могут быть неполными. Нули означают отсутствие сохранённых записей, а не доказательство отсутствия использования.</p>
 <p>Время выше — момент вычисления отчёта. Копии источников снимаются последовательно; историческая DAU и удержание из одного last_seen не восстанавливаются.</p></footer>
 </main><div class="end">FuntiDesk · Без содержимого сеансов, файлов и экранов</div></body></html>'''
@@ -99,7 +108,7 @@ STYLE = '''
 *{box-sizing:border-box}body{margin:0}header{background:#112a43;color:white;padding:22px max(24px,calc((100% - 1220px)/2));display:flex;align-items:center;justify-content:space-between;gap:18px}
 a{color:inherit;text-decoration:none}.brand{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px}.brand>span:last-child{font-weight:400;color:#a9c1d9}.logo{background:#42c8aa;color:#112a43;border-radius:9px;padding:4px 10px}.private{font-size:12px;color:#b7cee1;border:1px solid #3d546b;border-radius:20px;padding:6px 12px}
 main{max-width:1268px;margin:auto;padding:36px 24px}.heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.eyebrow{font-size:10px;letter-spacing:1.6px;font-weight:700;color:#637b92}h1{font-size:36px;letter-spacing:-1.3px;margin:9px 0}h2{font-size:20px;letter-spacing:-.4px;margin:8px 0 10px}p{color:#5c7085;line-height:1.6;margin:8px 0}.updated{text-align:right;color:#637b92;font-size:12px;line-height:1.7}.updated strong,.updated small{display:block}.updated strong{font-size:14px;color:#172c42}.notice{background:#e7eef7;border-radius:9px;padding:12px 16px;color:#405a75;font-size:13px;margin-bottom:22px}
-.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}.metric,.panel{background:white;border:1px solid #e1e8ef;border-radius:14px;box-shadow:0 2px 4px #112a4303}.metric{padding:22px;display:flex;flex-direction:column;gap:10px}.metric>span{font-size:13px;color:#5c7085}.metric>strong{font-size:36px;line-height:1.1;letter-spacing:-1px}.metric small{color:#637b92;line-height:1.5;font-size:11px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-bottom:22px}.panel{padding:26px;min-width:0}.panel p{font-size:13px}.comparison{display:block;font-size:13px;color:#2f577b;margin:18px 0 0}svg{display:block;width:100%;height:auto;margin:16px 0 8px}svg text{font:10px system-ui;fill:#667d92}details{font-size:12px;margin-top:12px}summary{cursor:pointer;color:#426994}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;font-variant-numeric:tabular-nums}th{font-weight:600;color:#637b92}td,th{padding:12px 8px;border-bottom:1px solid #edf1f5}td:not(:first-child),th:not(:first-child){text-align:right}details table{font-size:12px}.table-scroll{overflow-x:auto}.footnote{font-size:12px;line-height:1.7;color:#637b92;margin-top:20px}.version{margin:20px 0}.version>div{display:flex;justify-content:space-between;gap:16px;font-size:13px}.version small{color:#637b92;font-weight:400}meter{width:100%;height:10px;margin-top:8px;accent-color:#347aee}meter::-webkit-meter-bar{background:#edf1f7;border:0}meter::-webkit-meter-optimum-value{background:#347aee;border-radius:8px}.limits{margin-bottom:22px;display:grid;grid-template-columns:2fr 1fr;gap:30px;background:#edf3f8}.end{text-align:center;color:#72869a;font-size:11px;padding:0 24px 32px}footer ul{display:flex;gap:25px;list-style:none;padding:0;font-size:12px;color:#536b81}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}.ok{background:#148e77}.missing{background:#ad7b24}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}.metric,.panel{background:white;border:1px solid #e1e8ef;border-radius:14px;box-shadow:0 2px 4px #112a4303}.metric{padding:22px;display:flex;flex-direction:column;gap:10px}.metric>span{font-size:13px;color:#5c7085}.metric>strong{font-size:36px;line-height:1.1;letter-spacing:-1px}.metric small{color:#637b92;line-height:1.5;font-size:11px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-bottom:22px}.panel{padding:26px;min-width:0}.panel p{font-size:13px}.comparison{display:block;font-size:13px;color:#2f577b;margin:18px 0 0}.history{margin-bottom:22px}svg{display:block;width:100%;height:auto;max-height:220px;margin:16px 0 8px}svg text{font:10px system-ui;fill:#667d92}details{font-size:12px;margin-top:12px}summary{cursor:pointer;color:#426994}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;font-variant-numeric:tabular-nums}th{font-weight:600;color:#637b92}td,th{padding:12px 8px;border-bottom:1px solid #edf1f5}td:not(:first-child),th:not(:first-child){text-align:right}details table{font-size:12px}.table-scroll{overflow-x:auto}.footnote{font-size:12px;line-height:1.7;color:#637b92;margin-top:20px}.version{margin:20px 0}.version>div{display:flex;justify-content:space-between;gap:16px;font-size:13px}.version small{color:#637b92;font-weight:400}meter{width:100%;height:10px;margin-top:8px;accent-color:#347aee}meter::-webkit-meter-bar{background:#edf1f7;border:0}meter::-webkit-meter-optimum-value{background:#347aee;border-radius:8px}.limits{margin-bottom:22px;display:grid;grid-template-columns:2fr 1fr;gap:30px;background:#edf3f8}.end{text-align:center;color:#72869a;font-size:11px;padding:0 24px 32px}footer ul{display:flex;gap:25px;list-style:none;padding:0;font-size:12px;color:#536b81}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}.ok{background:#148e77}.missing{background:#ad7b24}
 @media(max-width:900px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.limits{grid-template-columns:1fr;gap:0}}
 @media(max-width:540px){header{padding:18px;flex-wrap:wrap}.private{font-size:10px}main{padding:24px 14px}.heading{align-items:flex-start;flex-direction:column}.updated{text-align:left}h1{font-size:30px}.metrics{gap:10px}.metric{padding:17px 13px}.metric>strong{font-size:28px}.panel{padding:20px}.grid{gap:16px}footer ul{flex-wrap:wrap;gap:12px}}
 '''

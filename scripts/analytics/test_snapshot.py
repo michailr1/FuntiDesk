@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+from datetime import datetime, timezone
 import sqlite3
 import subprocess
 import sys
@@ -60,9 +61,26 @@ class SnapshotTests(unittest.TestCase):
     def test_hbbs_dedup_and_empty(self):
         p = self.path.with_name('hbbs')
         with sqlite3.connect(p) as db:
-            db.execute('CREATE TABLE peer(id TEXT,pk BLOB)')
-            db.executemany('INSERT INTO peer VALUES(?,?)', [('1',b'a'),('2',b'a'),('3',b'')])
-        self.assertEqual(m.hbbs_metrics(p), {'hbbs_registered_ids':3,'hbbs_distinct_nonempty_keys':1})
+            db.execute('CREATE TABLE peer(id TEXT,pk BLOB,created_at TEXT)')
+            db.executemany('INSERT INTO peer VALUES(?,?,?)', [(str(i), pk, datetime.fromtimestamp(self.now, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')) for i,pk in enumerate([b'a',b'a',b''])])
+        self.assertEqual(m.hbbs_metrics(p, self.now), {'hbbs_registered_ids':3,'hbbs_distinct_nonempty_keys':1, 'registered_ids_daily': [(datetime.fromtimestamp(self.now, timezone.utc).date().isoformat(), 3)]})
+
+    def test_hbbs_registration_dates_grouping_and_boundaries(self):
+        p = self.path.with_name('hbbs-dates')
+        offsets = [0, -60, -m.DAY, -30*m.DAY, -30*m.DAY-1, 1]
+        with sqlite3.connect(p) as db:
+            db.execute('CREATE TABLE peer(id TEXT,pk BLOB,created_at DATETIME)')
+            db.executemany('INSERT INTO peer VALUES(?,?,?)', [
+                (str(i), b'same-key', datetime.fromtimestamp(self.now+offset, timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
+                for i,offset in enumerate(offsets)])
+        before = p.read_bytes()
+        metrics = m.collect(hbbs=p, now=self.now)['hbbs']
+        expected = sorted([(datetime.fromtimestamp(self.now-m.DAY, timezone.utc).date().isoformat(), 1),
+                           (datetime.fromtimestamp(self.now, timezone.utc).date().isoformat(), 2)])
+        self.assertEqual(metrics['registered_ids_daily'], expected)
+        self.assertEqual(metrics['hbbs_registered_ids'], 6)
+        self.assertEqual(metrics['hbbs_distinct_nonempty_keys'], 1)
+        self.assertEqual(p.read_bytes(), before)
 
     def test_cli_private_and_no_overwrite(self):
         out = self.path.with_name('report.html')

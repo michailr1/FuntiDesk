@@ -63,18 +63,22 @@ def account_metrics(path, now):
         return result
 
 
-def hbbs_metrics(path):
+def hbbs_metrics(path, now=None):
+    now = int(time.time()) if now is None else now
     with database(path) as db:
         return {'hbbs_registered_ids': db.execute('SELECT count(*) FROM peer').fetchone()[0],
                 'hbbs_distinct_nonempty_keys': db.execute(
-                    'SELECT count(DISTINCT pk) FROM peer WHERE length(pk)>0').fetchone()[0]}
+                    'SELECT count(DISTINCT pk) FROM peer WHERE length(pk)>0').fetchone()[0],
+                'registered_ids_daily': list(db.execute(
+                    "SELECT date(created_at),count(*) FROM peer WHERE created_at>datetime(?,'unixepoch') AND created_at<=datetime(?,'unixepoch') GROUP BY 1 ORDER BY 1",
+                    (now - 30 * DAY, now)))}
 
 
 def collect(account=None, hbbs=None, now=None):
     now = int(time.time()) if now is None else now
     return {'observed_at_utc': datetime.fromtimestamp(now, timezone.utc).isoformat(),
             'account': account_metrics(account, now) if account else None,
-            'hbbs': hbbs_metrics(hbbs) if hbbs else None,
+            'hbbs': hbbs_metrics(hbbs, now) if hbbs else None,
             'unavailable': ['unique_people', 'installations', 'global_active_devices',
                             'connection_attempts', 'success_rate', 'p2p_ratio',
                             'connection_quality', 'platforms'],
