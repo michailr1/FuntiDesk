@@ -42,7 +42,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('5 за 7 полных дней', page)
         empty = dashboard.chart('Сеансы', 'История', [], NOW, '#128c77', positive_only=True)
         self.assertNotIn('<svg', empty)
-        self.assertIn('подключений нет', empty)
+        self.assertIn('записей нет', empty)
 
     def test_id_registration_series_is_visible(self):
         page = dashboard.render({'observed_at_utc': NOW.isoformat(), 'account': None,
@@ -51,13 +51,26 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('2026-11-10: 4', page)
         self.assertIn('created_at', page)
 
+    def test_all_three_daily_charts_hide_zero_days(self):
+        rows = [('2026-11-10', 2), ('2026-11-09', 0)]
+        page = dashboard.render({'observed_at_utc': NOW.isoformat(), 'account': {
+            'accounts_created_daily': rows, 'retained_connections_daily': rows},
+            'hbbs': {'registered_ids_daily': rows}})
+        doc = Document(page)
+        self.assertEqual(sum(tag=='svg' for tag, _ in doc.tags), 3)
+        self.assertEqual(sum(tag=='rect' for tag, _ in doc.tags), 3)
+        self.assertNotIn('<td>0</td>', page)
+        self.assertEqual(page.count('2026-11-10: 2'), 3)
+        self.assertEqual(page.count('11-10</text>'), 3)
+        self.assertNotIn('2026-11-09', page)
+
     def test_zero_series_and_escaping_under_current_csp(self):
         p = dashboard.render({'observed_at_utc': NOW.isoformat(), 'account': {
             'account_versions': {'<img src=x onerror=alert(1)>': 1},
             'accounts_created_daily': [], 'retained_connections_daily': []}, 'hbbs': None})
         doc = Document(p)
-        self.assertEqual(sum(tag=='svg' for tag, _ in doc.tags), 1)
-        self.assertEqual(sum(tag=='rect' for tag, _ in doc.tags), 30)
+        self.assertEqual(sum(tag=='svg' for tag, _ in doc.tags), 0)
+        self.assertEqual(sum(tag=='rect' for tag, _ in doc.tags), 0)
         self.assertIn('&lt;img', p)
         self.assertFalse(any(tag in ('script', 'img', 'iframe', 'link') for tag, _ in doc.tags))
         self.assertFalse(any(any(k.startswith('on') for k in attrs) for _, attrs in doc.tags))
