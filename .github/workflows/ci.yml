@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   server-and-policy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,7 +97,7 @@ jobs:
 
   funti-dart:
     # FUNTIDESK: Flutter-free rules of the client UI (client/flutter/lib/funti).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -111,7 +111,7 @@ jobs:
         run: bash scripts/ci/test-funti-dart.sh
 
   hbb-common:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
