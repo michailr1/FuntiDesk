@@ -85,6 +85,10 @@ docker compose -p funtidesk-account \
 ## Отдельное обновление веб-консоли
 `python3 -B scripts/account/update-web-desk.py --console-only` проверяет manifest и заменяет только семь файлов `connect/`: index.html, session.css, session.js, licenses.html, source.html, app.webmanifest, apple-touch-icon.png. Сохранены главная, кабинет, прежний SOURCE_COMMIT, API/DB v4/v5 и соседние сервисы; источник консоли и `consoleOnly=true` — в закрытой квитанции `updates/console-<commit>/receipt.json`. Режимы landing-only/console-only взаимоисключающие. Откат — прежний webroot и штатное пересоздание только Caddy, без изменения DB/ключей. Полная поставка UI #72 всё ещё требует API v5.
 
+### Сжатие веб-консоли (#126)
+
+`connect/session.js` весит 1,1 МБ, сжатый — около 260 КБ; из-за `Cache-Control no-store` телефон скачивает его при каждом открытии. В действующем блоке `desk.funti.cc` в `handle @connect` первой строкой добавить `encode zstd gzip`, как в `infra/funtidesk-account/Caddyfile.web-client.fragment`; остальные строки и блоки не менять. Затем `caddy validate` и `caddy reload` штатной процедурой. Проверка: `curl -sI -H 'Accept-Encoding: gzip' https://desk.funti.cc/connect/session.js` показывает `content-encoding: gzip`; `scripts/web/check-live.py` больше не пишет «отдаётся без сжатия»; веб-консоль на телефоне подключается. Откат — удалить эту строку, validate/reload.
+
 ## Статистика (ADR-019, #115)
 
 Закрытый отчёт по агрегатам кабинета и hbbs на `https://desk.funti.cc/<закрытый путь>/` за паролем (Caddy Basic Auth). Выкладывается только после принятия ADR-019 владельцем. Непубликуемый путь и пароль не попадают в GitHub, в PR и в чат: путь и логин владелец получает лично, пароль — тоже лично или задаёт сам.

@@ -24,6 +24,8 @@ handle /ws/relay {
 }
 @connect path /connect /connect/*
 handle @connect {
+    # Static files only: session.js is 1.1 MB, about 250 KB compressed.
+    encode zstd gzip
     header {
         Cache-Control no-store
         Referrer-Policy no-referrer
