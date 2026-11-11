@@ -10,6 +10,8 @@
 mod store;
 
 use hbb_common::{config::Config, log};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use hbb_common::tokio;
 use serde_json::Value;
 use std::sync::Mutex;
 
