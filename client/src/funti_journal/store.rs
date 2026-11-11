@@ -73,6 +73,12 @@ impl Store {
         events
     }
 
+    /// Forget everything written so far.
+    pub fn clear(&self) {
+        let _ = fs::remove_file(self.current());
+        let _ = fs::remove_file(self.previous());
+    }
+
     /// A connection that passed authorization.
     pub fn connected(&mut self, now_ms: i64, conn: i32, ip: &str, audit: &Value) -> Value {
         self.open.insert(conn, now_ms);
@@ -260,6 +266,19 @@ mod tests {
         assert!(s.read(10).is_empty());
         fs::write(s.current(), "not json\n{\"kind\":\"closed\"}\n{\"half\":").unwrap();
         assert_eq!(s.read(10).len(), 1);
+    }
+
+    #[test]
+    fn clearing_removes_both_files() {
+        let s = store("clear", 300);
+        for n in 0..20 {
+            s.append(&refused(n, n as i32, 1, &json!({"ip": "192.0.2.1"}))).unwrap();
+        }
+        assert!(s.previous().exists());
+        s.clear();
+        assert!(s.read(10).is_empty());
+        assert!(!s.previous().exists());
+        s.clear();
     }
 
     #[test]

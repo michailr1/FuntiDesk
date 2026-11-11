@@ -63,7 +63,36 @@ pub fn alarm_event(conn: i32, alarm: i8, info: &Value) {
     write(&STORE.lock().unwrap(), event);
 }
 
+/// How many events the settings page gets.
+const PAGE: usize = 300;
+
 /// The newest events as a JSON array, newest first (for the settings page).
-pub fn read(limit: usize) -> String {
-    Value::Array(STORE.lock().unwrap().read(limit)).to_string()
+/// With `clear` the journal is emptied first; the clearing itself is the
+/// first record of the new journal.
+pub fn read(clear: bool) -> String {
+    let store = STORE.lock().unwrap();
+    if clear {
+        store.clear();
+        let event = serde_json::json!({"t": hbb_common::get_time() / 1000, "kind": "cleared"});
+        write(&store, event);
+    }
+    Value::Array(store.read(PAGE)).to_string()
+}
+
+/// From the window: ask the process that accepts connections, which owns
+/// the journal. Empty when it does not answer.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn read_blocking(clear: bool) -> String {
+    use crate::ipc::{connect, Data};
+    let Ok(mut c) = connect(1000, "").await else {
+        return String::new();
+    };
+    if c.send(&Data::FuntiJournal(clear, None)).await.is_err() {
+        return String::new();
+    }
+    match c.next_timeout(3000).await {
+        Ok(Some(Data::FuntiJournal(_, Some(json)))) => json,
+        _ => String::new(),
+    }
 }

@@ -1050,6 +1050,15 @@ pub fn main_funti_account(action: String, payload: String) -> String {
     crate::funti_account::call_blocking(action, payload)
 }
 
+// FUNTIDESK (ADR-020): the journal of incoming connections as a JSON array,
+// newest first; with `clear` it is emptied first. Empty string: no answer.
+pub fn main_funti_journal(clear: bool) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::funti_journal::read_blocking(clear);
+    #[allow(unreachable_code)]
+    String::new()
+}
+
 // FUNTIDESK (ADR-006): rename a family member in the service, which owns
 // the list (writing the option from the UI raced with pairing).
 pub fn main_funti_family_rename(id: String, name: String) -> bool {

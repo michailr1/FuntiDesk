@@ -456,6 +456,10 @@ pub enum Data {
     // "Y" when they were set.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     FuntiFamilyRights(String, String),
+    // FUNTIDESK (ADR-020): the window asks for the connection journal
+    // (true: clear it first); the answer carries the events as JSON.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    FuntiJournal(bool, Option<String>),
     // FUNTIDESK (ADR-007 stage 2): the window asks the service to update the
     // installed FuntiDesk; the answer is "ok:<version>" or "err:<reason>".
     #[cfg(windows)]
@@ -1287,6 +1291,11 @@ async fn handle(data: Data, stream: &mut Connection) {
         Data::FuntiFamilyRename(id, name) => {
             crate::funti_family::rename(&id, &name);
             allow_err!(stream.send(&Data::FuntiFamilyRename(id, name)).await);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        Data::FuntiJournal(clear, None) => {
+            let json = crate::funti_journal::read(clear);
+            allow_err!(stream.send(&Data::FuntiJournal(clear, Some(json))).await);
         }
         #[cfg(windows)]
         Data::FuntiUpdateService(_) => {
