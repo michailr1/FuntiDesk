@@ -13,9 +13,16 @@ use hbb_common::sodiumoxide::{
 pub const NAMESPACE: &str = "funtidesk-release";
 
 /// Public keys that may sign a release (the 32 bytes of an ssh-ed25519 key).
-/// More than one only while a key is being replaced. Empty until the owner's
-/// first key is added: releases are then checked by SHA-256 alone, as before.
-pub const RELEASE_KEYS: &[[u8; 32]] = &[];
+/// More than one only while a key is being replaced. The same keys as in
+/// infra/release/allowed_signers (scripts/ci/test-release-keys.py compares).
+pub const RELEASE_KEYS: &[[u8; 32]] = &[
+    // The owner's key of 2026-11-11, "funtidesk-release".
+    [
+        0x71, 0xd9, 0x37, 0x44, 0x72, 0x5b, 0xd1, 0xf3, 0x67, 0x1d, 0x71, 0x16, 0x0d, 0x58, 0x1e,
+        0x18, 0x0c, 0xa1, 0x51, 0xf8, 0xd3, 0x07, 0x31, 0xb1, 0x3e, 0x4b, 0xa0, 0xea, 0x76, 0xa3,
+        0x7c, 0x2a,
+    ],
+];
 
 const MAGIC: &[u8] = b"SSHSIG";
 const KEY_TYPE: &[u8] = b"ssh-ed25519";

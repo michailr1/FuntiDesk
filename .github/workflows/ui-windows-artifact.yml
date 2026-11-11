@@ -109,8 +109,9 @@ jobs:
         run: |
           # FUNTIDESK: one-line install (install.ps1) downloads
           # releases/latest/download/FuntiDesk-windows-x64.zip and checks it
-          # against SHA256SUMS.txt. Server releases stay prereleases, so
-          # "latest" always points to the Windows client.
+          # against SHA256SUMS.txt. ADR-018: the release is published as a
+          # prerelease; it becomes "latest" only through "Release promote",
+          # after the owner has signed SHA256SUMS.txt on his own computer.
           $ErrorActionPreference = 'Stop'
           $short = $env:GITHUB_SHA.Substring(0, 12)
           $tag = "funtidesk-windows-$short"
@@ -165,7 +166,7 @@ jobs:
           Лицензия: GNU AGPL-3.0, $repo/blob/$env:GITHUB_SHA/client/LICENCE. FuntiDesk основан на RustDesk (© Purslane Tech Pte. Ltd.).
           "@
           gh release create $tag $zip $single $versionFile $whatsNew (Join-Path $dist 'SHA256SUMS.txt') `
-            --target $env:GITHUB_SHA --latest `
+            --target $env:GITHUB_SHA --prerelease `
             --title "Windows x64 — FuntiDesk $((Get-Content $versionFile -Raw).Trim())" `
             --notes ($notes -replace '(?m)^ {10}', '')
 

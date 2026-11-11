@@ -66,6 +66,9 @@ jobs:
       - name: Runtime server key-auth integration
         run: bash scripts/server/tests/r01-runtime-integration.sh
 
+      - name: Release keys are the same in every list (ADR-018)
+        run: python3 scripts/ci/test-release-keys.py
+
       - name: Security guard self-test
         run: bash scripts/ci/test-no-upstream-infra-guard.sh
 
