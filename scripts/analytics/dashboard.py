@@ -28,14 +28,14 @@ def weekly(rows, now):
     return f'{number(current)} за 7 полных дней · {change:+d} к предыдущим 7 дням'
 
 
-def chart(title, subtitle, rows, now, color, positive_only=False):
+def chart(title, subtitle, rows, now, color, positive_only=True):
     if rows is None:
         return f'<article class="panel"><h2>{title}</h2><p>Источник не предоставлен</p></article>'
     points = daily(rows, now)
     if positive_only:
         points = [(day, n) for day, n in points if n > 0]
     if not points:
-        return f'<article class="panel"><h2>{title}</h2><p>{subtitle}</p><strong class="comparison">{weekly(rows, now)}</strong><p>За последние 30 дней сохранённых подключений нет.</p></article>'
+        return f'<article class="panel"><h2>{title}</h2><p>{subtitle}</p><strong class="comparison">{weekly(rows, now)}</strong><p>За последние 30 дней записей нет.</p></article>'
     ceiling = max(1, max(n for _, n in points))
     step = 600 / len(points)
     width = min(24, step * .6)
@@ -43,11 +43,13 @@ def chart(title, subtitle, rows, now, color, positive_only=False):
     for i, (day, n) in enumerate(points):
         height = n/ceiling*124
         bars.append(f'<rect x="{i*step+(step-width)/2+5:.2f}" y="{148-height:.2f}" width="{width:.2f}" height="{height:.2f}" rx="3" fill="{color}"><title>{day}: {n}</title></rect>')
+    labels = (f'<text x="305" y="167" text-anchor="middle">{points[0][0][5:]}</text>' if len(points)==1 else
+              f'<text x="8" y="167">{points[0][0][5:]}</text><text x="548" y="167">{points[-1][0][5:]}</text>')
     table = ''.join(f'<tr><td>{day}</td><td>{number(n)}</td></tr>' for day, n in points)
     return f'''<article class="panel"><div class="eyebrow">ПОСЛЕДНИЕ 30 ДАТ · UTC</div>
 <h2>{title}</h2><p>{subtitle}</p><strong class="comparison">{weekly(rows, now)}</strong>
 <svg viewBox="0 0 610 172" role="img" aria-label="{title}"><line x1="0" y1="149" x2="610" y2="149" stroke="#dfe6ed"/>
-{''.join(bars)}<text x="8" y="167">{points[0][0][5:]}</text><text x="548" y="167">{points[-1][0][5:]}</text>
+{''.join(bars)}{labels}
 <text x="4" y="16">max {ceiling}</text></svg>
 <details><summary>Числа по дням</summary><table><thead><tr><th>Дата UTC</th><th>Количество</th></tr></thead><tbody>{table}</tbody></table></details></article>'''
 
@@ -76,9 +78,9 @@ def render(report):
     if not version_rows:
         version_rows = '<p>Нет привязанных устройств</p>' if account is not None else '<p>Источник не предоставлен</p>'
     sources = ''.join(f'<li><span class="dot {"ok" if value is not None else "missing"}"></span>{name}: {"предоставлен" if value is not None else "нет данных"}</li>' for name, value in [('Кабинет', account), ('Регистрации hbbs', hbbs)])
-    growth = chart('Новые аккаунты', 'Создания среди аккаунтов, оставшихся в базе.', a.get('accounts_created_daily') if account is not None else None, now, '#347aee')
+    growth = chart('Новые аккаунты', 'Создания среди аккаунтов, оставшихся в базе. Нулевые дни скрыты.', a.get('accounts_created_daily') if account is not None else None, now, '#347aee')
     usage = chart('Сохранённые подключения', 'Сообщённые клиентами успешные исходящие подключения. Дни без сохранённых подключений скрыты.', a.get('retained_connections_daily') if account is not None else None, now, '#128c77', positive_only=True)
-    registrations = chart('Новые регистрации ID', 'Первое создание текущих записей в hbbs; не число установок или людей.', h.get('registered_ids_daily'), now, '#8a64d5')
+    registrations = chart('Новые регистрации ID', 'Первое создание текущих записей в hbbs; не число установок или людей. Нулевые дни скрыты.', h.get('registered_ids_daily'), now, '#8a64d5')
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>FuntiDesk Analytics</title><style>{STYLE}</style></head><body>
@@ -97,7 +99,7 @@ def render(report):
 <div class="footnote">Для этих показателей нужен отдельный источник событий. Новая клиентская телеметрия не включена.</div></section>
 <footer class="panel"><h2>Как читать эти числа</h2><ul>{sources}</ul><p>Регистраций ID в hbbs: {number(h.get('hbbs_registered_ids'))}. Этот счётчик нельзя складывать с устройствами кабинета.</p>
 <p>Графики — текущий срез сохранённых записей: удаление аккаунта, импорт и очистка истории меняют прошлые дни. История ограничена 90 днями и 1000 записями на аккаунт. Это не полный журнал всех сеансов.</p>
-<p>График регистраций ID использует created_at текущих записей hbbs; смена ID в существующей записи сохраняет прежнюю дату. Скрытые нулевые дни подключений не меняют календарные границы сравнения недель.</p>
+<p>График регистраций ID использует created_at текущих записей hbbs; смена ID в существующей записи сохраняет прежнюю дату. На дневных графиках показаны только ненулевые даты; календарные границы сравнения недель не меняются.</p>
 <p>Сравнение недель использует полные календарные дни UTC, без сегодняшнего дня. Крайние даты графиков могут быть неполными. Нули означают отсутствие сохранённых записей, а не доказательство отсутствия использования.</p>
 <p>Время выше — момент вычисления отчёта. Копии источников снимаются последовательно; историческая DAU и удержание из одного last_seen не восстанавливаются.</p></footer>
 </main><div class="end">FuntiDesk · Без содержимого сеансов, файлов и экранов</div></body></html>'''
