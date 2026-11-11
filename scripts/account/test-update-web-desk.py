@@ -17,7 +17,7 @@ spec.loader.exec_module(update)
 
 
 class StaticUpdate(unittest.TestCase):
-    def exercise(self, readiness_fails=False, config_changed=False, schema=4, landing_only=False, console_only=False):
+    def exercise(self, readiness_fails=False, config_changed=False, schema=4, landing_only=False, console_only=False, analytics=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'ACTIVATED').touch()
@@ -42,6 +42,10 @@ class StaticUpdate(unittest.TestCase):
                    'Mounts': [{'Destination': '/data', 'Source': str(root)}],
                    'NetworkSettings': {'Networks': {'funtidesk-account-front': {'IPAddress': '127.0.0.1'}}}}
             recreates = []
+            hashed = []
+            overlay = root / 'caddy-analytics.override.yaml'
+            if analytics:
+                overlay.write_bytes(b'services: {}\n')
 
             def run(*args):
                 if args[0] == 'git':
@@ -54,6 +58,7 @@ class StaticUpdate(unittest.TestCase):
                         active['Id'] = 'new-caddy'
                     return json.dumps([active, api]).encode()
                 if '--hash' in args:
+                    hashed.append(args)
                     return b'caddy changed' if config_changed else b'caddy original'
                 self.assertIn('--no-deps', args)
                 self.assertEqual(args[-1], 'caddy')
@@ -70,7 +75,7 @@ class StaticUpdate(unittest.TestCase):
             library.api_ready = Mock()
             library.stage_full_web = lambda p: p.mkdir()
             activation = SimpleNamespace(switch_link=switch_link, wait_ready=Mock(side_effect=[RuntimeError('readiness'), None] if readiness_fails else None))
-            with patch.object(update, 'ROOT', root), patch.object(update, 'CURRENT', current), patch.object(update, 'CADDY', root / 'Caddyfile'), patch.object(update.socket, 'gethostname', return_value='core.funti.cc'), patch.object(update.os, 'geteuid', return_value=0), patch.object(update, 'load', side_effect=lambda name: library if name == 'update-library-desk' else activation), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(update, 'ROOT', root), patch.object(update, 'CURRENT', current), patch.object(update, 'CADDY', root / 'Caddyfile'), patch.object(update, 'ANALYTICS_OVERRIDE', overlay), patch.object(update.socket, 'gethostname', return_value='core.funti.cc'), patch.object(update.os, 'geteuid', return_value=0), patch.object(update, 'load', side_effect=lambda name: library if name == 'update-library-desk' else activation), contextlib.redirect_stdout(io.StringIO()):
                 if readiness_fails or config_changed:
                     with self.assertRaises(RuntimeError):
                         update.update(landing_only=landing_only, console_only=console_only)
@@ -92,10 +97,15 @@ class StaticUpdate(unittest.TestCase):
                         for name, contents in baseline.items():
                             if name not in selected:
                                 self.assertEqual((current / name).read_bytes(), contents)
+                for args in hashed + recreates:
+                    self.assertEqual(str(overlay) in args, analytics)
                 for name, contents in baseline.items():
                     self.assertEqual((root / 'releases/old' / name).read_bytes(), contents)
                 self.assertEqual((root / 'account.env').read_bytes(), b'API_IMAGE=existing\n')
                 self.assertEqual((root / 'Caddyfile').read_bytes(), b'existing shared sites\n')
+
+    def test_statistics_overlay_is_kept_when_installed(self):
+        self.exercise(analytics=True)
 
     def test_only_static_release_is_switched(self):
         self.exercise()

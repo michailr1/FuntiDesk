@@ -1,0 +1,53 @@
+name: Upstream monitor
+
+# FUNTIDESK: once a day, compare the RustDesk baseline of docs/UPSTREAM.md
+# with the newest stable upstream tags. A newer release gets one issue with
+# the commits that look like security fixes and the result of a trial merge.
+# Nothing is merged or pushed from here.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * *"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Compare with upstream
+        id: check
+        run: |
+          set +e
+          bash scripts/upstream/check-releases.sh > report.md
+          code=$?
+          set -e
+          cat report.md
+          if [ "$code" -ne 0 ] && [ "$code" -ne 10 ]; then exit "$code"; fi
+          echo "new=$([ "$code" -eq 10 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # One issue per pair of versions.
+          echo "title=Upstream: $(grep -E '^## .*→' report.md | sed -E 's/^## //' | paste -sd ';' | sed 's/;/; /g')" >> "$GITHUB_OUTPUT"
+      - name: Open the issue once
+        if: steps.check.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.check.outputs.title }}
+        run: |
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state all --search "in:title \"$TITLE\"" --json number,title \
+            --jq "map(select(.title == env.TITLE)) | .[0].number // empty")"
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing already tracks this."
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file report.md
+          fi

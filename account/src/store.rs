@@ -218,10 +218,15 @@ impl Store {
             tx.commit()?;
             return Ok(None);
         }
+        // 40 a day: a year of constant guessing of the 6-digit code stays
+        // under 1.5 %, and a person still has several logins a day.
         if !quotas(
             &tx,
             now,
-            &[(&format!("verify:email:{email_hash}"), 3600, 20)],
+            &[
+                (&format!("verify:email:{email_hash}"), 3600, 20),
+                (&format!("verify:email:{email_hash}"), 86400, 40),
+            ],
         )? {
             tx.commit()?;
             return Ok(None);

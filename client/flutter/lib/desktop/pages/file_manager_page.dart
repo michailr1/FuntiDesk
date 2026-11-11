@@ -15,6 +15,7 @@ import 'package:flutter_hbb/desktop/widgets/list_search_action_listener.dart';
 import 'package:flutter_hbb/desktop/widgets/menu_button.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/file_model.dart';
+import 'package:flutter_hbb/funti/file_rules.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
@@ -688,23 +689,6 @@ class _FileManagerViewState extends State<FileManagerView> {
     return entries.where((e) => e.name.contains(_searchText.value)).toList();
   }
 
-  // "Open" starts only these kinds of files in their program: documents,
-  // pictures, sound and video. Everything else (programs, scripts, shortcuts,
-  // archives, unknown types) is shown in its folder instead: a list of what
-  // is forbidden always misses something.
-  static const _funtiOpenable = {
-    'txt', 'log', 'md', 'csv', 'pdf', 'rtf', 'doc', 'docx', 'xls', 'xlsx', //
-    'ppt', 'pptx', 'odt', 'ods', 'odp', 'jpg', 'jpeg', 'png', 'gif', 'bmp', //
-    'webp', 'heic', 'tif', 'tiff', 'mp3', 'wav', 'm4a', 'flac', 'ogg', //
-    'mp4', 'mov', 'mkv', 'avi', 'webm',
-  };
-
-  bool _funtiIsOpenable(String name) {
-    final dot = name.lastIndexOf('.');
-    return dot > 0 &&
-        _funtiOpenable.contains(name.substring(dot + 1).toLowerCase());
-  }
-
   Future<String?> _funtiLocalDownloads({bool subfolder = false}) async {
     try {
       final dir = await getDownloadsDirectory();
@@ -724,41 +708,33 @@ class _FileManagerViewState extends State<FileManagerView> {
   // inside folders that are merged on "Replace" are replaced without asking.
   Future<void> _funtiSendChecked(FileController source, List<Entry> items,
       DirectoryData target) async {
-    String norm(String n) => target.options.isWindows ? n.toLowerCase() : n;
-    final taken = {for (final e in target.directory.entries) norm(e.name)};
-    final clashes = items.where((e) => taken.contains(norm(e.name))).toList();
-    String? choice;
+    final names = items.map((e) => e.name).toList();
+    final existing = target.directory.entries.map((e) => e.name);
+    final windows = target.options.isWindows;
+    final clashes = [
+      for (final i in funtiClashes(names, existing, windows)) items[i]
+    ];
+    FuntiConflict? choice;
     if (clashes.isNotEmpty) {
       choice = await _funtiAskConflict(clashes);
       if (choice == null) return;
     }
-    final send = <Entry>[];
-    final names = <String>[];
-    for (final e in items) {
-      var name = e.name;
-      if (clashes.contains(e)) {
-        if (choice == 'skip') continue;
-        if (choice == 'both') {
-          name = funtiFreeName(e.name, (n) => taken.contains(norm(n)));
-        }
-      }
-      taken.add(norm(name));
-      send.add(e);
-      names.add(name);
-    }
-    if (send.isEmpty) return;
-    await source.funtiSendPaths(send, target,
-        names: names, overwrite: choice == 'replace');
+    final plan = funtiPlanSend(names, existing, windows, choice);
+    if (plan.isEmpty) return;
+    await source.funtiSendPaths([for (final p in plan) items[p.$1]], target,
+        names: [for (final p in plan) p.$2],
+        overwrite: choice == FuntiConflict.replace);
   }
 
-  Future<String?> _funtiAskConflict(List<Entry> clashes) {
+  Future<FuntiConflict?> _funtiAskConflict(List<Entry> clashes) {
     final title = clashes.length == 1
         ? translate('funti-ft-exists-one').replaceAll('{}', clashes.first.name)
         : translate('funti-ft-exists-many')
             .replaceAll('{}', '${clashes.length}');
     final names = clashes.take(5).map((e) => e.name).join('\n') +
         (clashes.length > 5 ? '\n…' : '');
-    return _ffi.dialogManager.show<String?>((setState, close, context) {
+    return _ffi.dialogManager.show<FuntiConflict?>(
+        (setState, close, context) {
       cancel() => close(null);
       return CustomAlertDialog(
         title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -775,12 +751,12 @@ class _FileManagerViewState extends State<FileManagerView> {
         actions: [
           dialogButton('Cancel', onPressed: cancel, isOutline: true),
           dialogButton('funti-ft-skip',
-              onPressed: () => close('skip'), isOutline: true),
+              onPressed: () => close(FuntiConflict.skip), isOutline: true),
           dialogButton('funti-ft-replace',
-              onPressed: () => close('replace'), isOutline: true),
-          dialogButton('funti-ft-keep-both', onPressed: () => close('both')),
+              onPressed: () => close(FuntiConflict.replace), isOutline: true),
+          dialogButton('funti-ft-keep-both', onPressed: () => close(FuntiConflict.keepBoth)),
         ],
-        onSubmit: () => close('both'),
+        onSubmit: () => close(FuntiConflict.keepBoth),
         onCancel: cancel,
       );
     }, useAnimation: false);
@@ -792,7 +768,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   Future<void> _funtiOpenFile(Entry entry) async {
     if (isWeb) return;
     if (isLocal) {
-      if (!_funtiIsOpenable(entry.name)) {
+      if (!funtiIsOpenable(entry.name)) {
         _funtiShowInFolder(entry.path);
       } else if (!await launchUrl(Uri.file(entry.path))) {
         showToast(translate('funti-ft-open-file-failed'));
@@ -811,7 +787,7 @@ class _FileManagerViewState extends State<FileManagerView> {
         fileModel.localController.options.value);
     final ids = await fileModel.remoteController
         .funtiSendPaths([entry], target, names: [name]);
-    final runnable = !_funtiIsOpenable(name);
+    final runnable = !funtiIsOpenable(name);
     fileModel.jobController.funtiOnDone[ids.first] = (job) async {
       if (runnable) {
         _funtiShowInFolder(job.to);
@@ -2598,7 +2574,7 @@ Future<void> funtiMarkDownloaded(String path) async {
   Future<void> mark(String file) async {
     try {
       await File('$file:Zone.Identifier')
-          .writeAsString('[ZoneTransfer]\r\nZoneId=3\r\n', flush: true);
+          .writeAsString(funtiZoneIdentifier, flush: true);
     } catch (e) {
       debugPrint('Zone.Identifier for $file: $e');
     }
