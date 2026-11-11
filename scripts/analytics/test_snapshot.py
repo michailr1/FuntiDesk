@@ -31,8 +31,8 @@ class SnapshotTests(unittest.TestCase):
     def test_boundaries_and_private_output(self):
         before = self.path.read_bytes()
         r = m.collect(self.path, now=self.now)
-        self.assertEqual(r['account']['account_active_devices'], {'1':1,'7':2,'30':3})
-        self.assertEqual(r['account']['account_active_accounts'], {'1':1,'7':1,'30':1})
+        self.assertEqual(r['account']['account_active_devices'], {'1':1,'7':2,'30':3,'90':4,'all':4})
+        self.assertEqual(r['account']['account_active_accounts'], {'1':1,'7':1,'30':1,'90':1,'all':1})
         self.assertEqual(r['account']['account_versions'], {'1.5.0':1,'other_or_unknown':5})
         self.assertEqual(r['account']['retained_reported_connections']['1'], 1)
         self.assertIsNone(r['hbbs'])
@@ -63,7 +63,11 @@ class SnapshotTests(unittest.TestCase):
         with sqlite3.connect(p) as db:
             db.execute('CREATE TABLE peer(id TEXT,pk BLOB,created_at TEXT)')
             db.executemany('INSERT INTO peer VALUES(?,?,?)', [(str(i), pk, datetime.fromtimestamp(self.now, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')) for i,pk in enumerate([b'a',b'a',b''])])
-        self.assertEqual(m.hbbs_metrics(p, self.now), {'hbbs_registered_ids':3,'hbbs_distinct_nonempty_keys':1, 'registered_ids_daily': [(datetime.fromtimestamp(self.now, timezone.utc).date().isoformat(), 3)]})
+        metrics = m.hbbs_metrics(p, self.now)
+        self.assertEqual(metrics['hbbs_registered_ids'], 3)
+        self.assertEqual(metrics['hbbs_distinct_nonempty_keys'], 1)
+        self.assertEqual(metrics['registered_ids_daily'], [(datetime.fromtimestamp(self.now, timezone.utc).date().isoformat(), 3)])
+        self.assertEqual(set(metrics['periods']), {'7','30','90','all'})
 
     def test_hbbs_registration_dates_grouping_and_boundaries(self):
         p = self.path.with_name('hbbs-dates')
@@ -79,8 +83,27 @@ class SnapshotTests(unittest.TestCase):
                            (datetime.fromtimestamp(self.now, timezone.utc).date().isoformat(), 2)])
         self.assertEqual(metrics['registered_ids_daily'], expected)
         self.assertEqual(metrics['hbbs_registered_ids'], 6)
+        self.assertEqual([sum(n for _, n in metrics['periods'][key]['registered_ids_daily'])
+                          for key in ['7','30','90','all']], [3,3,5,5])
         self.assertEqual(metrics['hbbs_distinct_nonempty_keys'], 1)
         self.assertEqual(p.read_bytes(), before)
+
+    def test_periods_and_history_retention(self):
+        with sqlite3.connect(self.path) as db:
+            for i, age in enumerate([20,80,150,-1]):
+                db.execute('INSERT INTO accounts VALUES(?,?,?,0)',
+                           ('past'+str(i), str(i)+'@example.test', self.now-age*m.DAY))
+                db.execute('INSERT INTO connection_history VALUES(?,?,?,?,?,?)',
+                           ('secret-account','event'+str(i),'0','target','SECRET',self.now-age*m.DAY))
+        result = m.collect(self.path, now=self.now)['account']
+        self.assertEqual([sum(n for _,n in result['periods'][key]['accounts_created_daily'])
+                          for key in ['7','30','90','all']], [1,2,3,4])
+        self.assertEqual([sum(n for _,n in result['periods'][key]['retained_connections_daily'])
+                          for key in ['7','30','90','all']], [1,2,3,3])
+        self.assertEqual(result['retained_reported_connections']['all'],3)
+        for key in ['7','30','90','all']:
+            self.assertEqual(sum(n for _,n in result['periods'][key]['retained_connections_daily']),
+                             result['retained_reported_connections'][key])
 
     def test_cli_private_and_no_overwrite(self):
         out = self.path.with_name('report.html')

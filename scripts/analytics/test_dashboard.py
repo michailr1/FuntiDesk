@@ -23,13 +23,12 @@ class DashboardTests(unittest.TestCase):
         self.assertNotIn('<svg', p)
         self.assertIn('15:00 МСК', p)
 
-    def test_week_comparison_excludes_today_and_old_records(self):
-        rows = [(NOW.date().isoformat(), 900)]
-        rows += [((NOW-timedelta(days=i)).date().isoformat(), 2 if i<=7 else 1)
-                 for i in range(1, 15)]
-        rows += [((NOW-timedelta(days=15)).date().isoformat(), 900)]
-        self.assertEqual(dashboard.weekly(rows, NOW), '14 за 7 полных дней · +7 к предыдущим 7 дням')
-        self.assertEqual(dashboard.weekly([], NOW), '0 за 7 полных дней · +0 к предыдущим 7 дням')
+    def test_selected_period_bounds_and_all_available(self):
+        rows = [('2026-11-12',900),('2026-11-11',2),('2026-11-04',3),
+                ('2026-11-03',4),('2026-08-01',5)]
+        self.assertEqual(dashboard.daily(rows,NOW,7), [('2026-11-04',3),('2026-11-11',2)])
+        self.assertIn(('2026-08-01',5),dashboard.daily(rows,NOW,None))
+        self.assertNotIn(('2026-11-12',900),dashboard.daily(rows,NOW,None))
 
     def test_connections_hide_zero_dates_and_keep_calendar_comparison(self):
         rows = [('2026-11-11', 0), ('2026-11-10', 3), ('2026-11-08', 0), ('2026-11-05', 2)]
@@ -39,7 +38,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('2026-11-10', page)
         self.assertIn('2026-11-05', page)
         self.assertEqual(sum(tag=='rect' for tag, _ in Document(page).tags), 2)
-        self.assertIn('5 за 7 полных дней', page)
+        self.assertIn('5 за выбранный период', page)
         empty = dashboard.chart('Сеансы', 'История', [], NOW, '#128c77', positive_only=True)
         self.assertNotIn('<svg', empty)
         self.assertIn('записей нет', empty)
@@ -63,6 +62,16 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(page.count('2026-11-10: 2'), 3)
         self.assertEqual(page.count('11-10</text>'), 3)
         self.assertNotIn('2026-11-09', page)
+
+    def test_native_period_controls_and_default(self):
+        page = dashboard.render({'observed_at_utc': NOW.isoformat(), 'account':None, 'hbbs':None})
+        doc = Document(page)
+        radios = [a for t,a in doc.tags if t=='input' and a.get('type')=='radio']
+        self.assertEqual(len(radios),4)
+        self.assertEqual([a['id'] for a in radios if 'checked' in a],['range-30'])
+        self.assertEqual({a['id'] for a in radios},{'range-7','range-30','range-90','range-all'})
+        self.assertNotIn('<script',page)
+        self.assertIn('только сохранившиеся записи за последние 90 дней',page)
 
     def test_zero_series_and_escaping_under_current_csp(self):
         p = dashboard.render({'observed_at_utc': NOW.isoformat(), 'account': {

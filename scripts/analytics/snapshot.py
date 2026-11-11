@@ -11,6 +11,7 @@ import sqlite3
 import time
 
 DAY = 86400
+PERIODS = {'7': 7, '30': 30, '90': 90, 'all': None}
 
 
 @contextmanager
@@ -41,20 +42,28 @@ def account_metrics(path, now):
             'account_bound_devices': scalar('SELECT count(DISTINCT pk) FROM devices'),
             'account_active_devices': {
                 str(d): scalar('SELECT count(DISTINCT pk) FROM devices WHERE last_seen>? AND last_seen<=?',
-                               (now - d * DAY, now)) for d in (1, 7, 30)},
+                               (now - d * DAY, now)) for d in (1, 7, 30, 90)},
             'account_active_accounts': {
                 str(d): scalar('SELECT count(DISTINCT account_id) FROM devices WHERE last_seen>? AND last_seen<=?',
-                               (now - d * DAY, now)) for d in (1, 7, 30)},
+                               (now - d * DAY, now)) for d in (1, 7, 30, 90)},
             'retained_reported_connections': {
                 str(d): scalar('SELECT count(*) FROM connection_history WHERE connected_at>? AND connected_at<=?',
-                               (now - d * DAY, now)) for d in (1, 7, 30)},
-            'accounts_created_daily': list(db.execute(
-                "SELECT date(created_at,'unixepoch'),count(*) FROM accounts WHERE created_at>? AND created_at<=? GROUP BY 1 ORDER BY 1",
-                (now - 30 * DAY, now))),
-            'retained_connections_daily': list(db.execute(
-                "SELECT date(connected_at,'unixepoch'),count(*) FROM connection_history WHERE connected_at>? AND connected_at<=? GROUP BY 1 ORDER BY 1",
-                (now - 30 * DAY, now))),
+                               (now - d * DAY, now)) for d in (1, 7, 30, 90)},
         }
+        result['periods'] = {}
+        for key, days in PERIODS.items():
+            result['periods'][key] = {
+                'accounts_created_daily': list(db.execute(
+                    "SELECT date(created_at,'unixepoch'),count(*) FROM accounts WHERE created_at>? AND created_at<=? GROUP BY 1 ORDER BY 1",
+                    (now - days * DAY if days else 0, now))),
+                'retained_connections_daily': list(db.execute(
+                    "SELECT date(connected_at,'unixepoch'),count(*) FROM connection_history WHERE connected_at>? AND connected_at<=? GROUP BY 1 ORDER BY 1",
+                    (now - min(days or 90, 90) * DAY, now))),
+            }
+        result.update(result['periods']['30'])
+        result['account_active_devices']['all'] = scalar('SELECT count(DISTINCT pk) FROM devices WHERE last_seen>0 AND last_seen<=?', (now,))
+        result['account_active_accounts']['all'] = scalar('SELECT count(DISTINCT account_id) FROM devices WHERE last_seen>0 AND last_seen<=?', (now,))
+        result['retained_reported_connections']['all'] = result['retained_reported_connections']['90']
         versions = {}
         for version, count in db.execute('SELECT version,count(*) FROM devices GROUP BY version'):
             label = version if re.fullmatch(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?:-ft\.[0-9]{1,6})?', version) else 'other_or_unknown'
@@ -66,12 +75,14 @@ def account_metrics(path, now):
 def hbbs_metrics(path, now=None):
     now = int(time.time()) if now is None else now
     with database(path) as db:
-        return {'hbbs_registered_ids': db.execute('SELECT count(*) FROM peer').fetchone()[0],
-                'hbbs_distinct_nonempty_keys': db.execute(
-                    'SELECT count(DISTINCT pk) FROM peer WHERE length(pk)>0').fetchone()[0],
-                'registered_ids_daily': list(db.execute(
-                    "SELECT date(created_at),count(*) FROM peer WHERE created_at>datetime(?,'unixepoch') AND created_at<=datetime(?,'unixepoch') GROUP BY 1 ORDER BY 1",
-                    (now - 30 * DAY, now)))}
+        result = {'hbbs_registered_ids': db.execute('SELECT count(*) FROM peer').fetchone()[0],
+                  'hbbs_distinct_nonempty_keys': db.execute(
+                      'SELECT count(DISTINCT pk) FROM peer WHERE length(pk)>0').fetchone()[0]}
+        result['periods'] = {key: {'registered_ids_daily': list(db.execute(
+            "SELECT date(created_at),count(*) FROM peer WHERE created_at>datetime(?,'unixepoch') AND created_at<=datetime(?,'unixepoch') GROUP BY 1 ORDER BY 1",
+            (now - days * DAY if days else 0, now)))} for key, days in PERIODS.items()}
+        result.update(result['periods']['30'])
+        return result
 
 
 def collect(account=None, hbbs=None, now=None):
