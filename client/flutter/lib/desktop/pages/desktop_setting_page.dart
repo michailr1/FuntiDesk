@@ -20,6 +20,7 @@ import 'package:flutter_hbb/desktop/pages/funti_home_view.dart'
 import 'package:flutter_hbb/common/funti_quotes.dart';
 import 'package:flutter_hbb/common/funti_theme.dart';
 import 'package:flutter_hbb/desktop/widgets/funti_family.dart';
+import 'package:flutter_hbb/desktop/widgets/funti_journal.dart';
 // FUNTIDESK (ADR-009/010): own account panel; upstream account stays disabled.
 import 'package:flutter_hbb/desktop/widgets/funti_account.dart';
 import 'package:flutter_hbb/desktop/widgets/funti_home_scene.dart';
@@ -1133,6 +1134,14 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 if (widget.part == _FuntiPart.main) ...[
                   password(context),
                   permissions(context),
+                  // FUNTIDESK (ADR-020): journal of incoming connections.
+                  _Card(title: 'funti-journal-title', children: [
+                    _funtiNote('funti-journal-note'),
+                    OutlinedButton(
+                            onPressed: showFuntiJournalDialog,
+                            child: Text(translate('funti-journal-show')))
+                        .marginOnly(left: _kContentHMargin, top: 6),
+                  ]),
                 ] else ...[
                   _Card(title: '2FA', children: [tfa()]),
                   if (!isChangeIdDisabled())
