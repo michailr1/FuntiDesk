@@ -344,6 +344,9 @@ impl RendezvousMediator {
                 allow_err!(super::lan::start_listening());
             });
         }
+        // FUNTIDESK (ADR-021): remember the computers of this local network.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::funti_wake::start();
         scrap::codec::test_av1();
         *LAST_NOT_DEPLOYED_REGISTER.lock().await = None;
         loop {

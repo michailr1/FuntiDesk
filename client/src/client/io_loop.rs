@@ -2312,6 +2312,10 @@ impl<T: InvokeUiSession> Remote<T> {
                     Some(misc::Union::ChatMessage(c)) => {
                         self.handler.new_message(c.text);
                     }
+                    Some(misc::Union::FuntiWakeResult(json)) => {
+                        // FUNTIDESK (ADR-021)
+                        self.handler.funti_wake_result(json);
+                    }
                     Some(misc::Union::FuntiUpdateResult(r)) => {
                         // FUNTIDESK (ADR-007, stage 3): the session then drops and
                         // reconnects by the usual "Connection Error" countdown.

@@ -4302,6 +4302,21 @@ impl Connection {
                             });
                         }
                     }
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    Some(misc::Union::FuntiWakeRequest(request)) => {
+                        // FUNTIDESK (ADR-021): only whoever may control this
+                        // computer; anyone else gets no answer.
+                        if self.is_remote() && self.peer_keyboard_enabled() {
+                            let answer = tokio::task::spawn_blocking(move || crate::funti_wake::handle(&request))
+                                .await
+                                .unwrap_or_default();
+                            let mut misc = Misc::new();
+                            misc.set_funti_wake_result(answer);
+                            let mut msg = Message::new();
+                            msg.set_misc(misc);
+                            self.send(msg).await;
+                        }
+                    }
                     #[cfg(feature = "flutter")]
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
                     Some(misc::Union::FuntiCallBackRequest(r)) => {

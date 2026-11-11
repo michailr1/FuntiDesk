@@ -926,6 +926,12 @@ message Misc {
     // "ok:<version>" (the update is staged, FuntiDesk restarts) or
     // "err:<reason>".
     string funti_update_result = 1003;
+    // ADR-021: the controlling side asks this computer about the devices
+    // it can wake in its local network (empty), or to wake one (JSON, see
+    // client/src/funti_wake/devices.rs); the answer is funti_wake_result.
+    string funti_wake_request = 1004;
+    // JSON: the device list, and "sent" or "error" for a wake request.
+    string funti_wake_result = 1005;
   }
 }
 
