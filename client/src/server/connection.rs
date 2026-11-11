@@ -1640,6 +1640,7 @@ impl Connection {
             &self.lr.my_id,
             &self.ip,
             matches!(r#type, FileAuditType::RemoteReceive),
+            path,
             &files,
         );
         if self.server_audit_file.is_empty() {

@@ -105,9 +105,25 @@ impl Store {
     }
 }
 
-/// Files sent to this computer (`received`) or taken from it. File names
-/// are not kept: only how many and how large.
-pub fn files(now_ms: i64, conn: i32, peer: &str, ip: &str, received: bool, sizes: &[i64]) -> Value {
+/// Names kept for one transfer: the largest files, as upstream's audit does.
+const NAMES_MAX: usize = 10;
+/// A file name or folder path is cut to this many characters.
+const PATH_MAX: usize = 200;
+
+/// Files sent to this computer (`received`) or taken from it: how many, how
+/// large, the folder on this computer and the names of the largest ones.
+pub fn files(
+    now_ms: i64,
+    conn: i32,
+    peer: &str,
+    ip: &str,
+    received: bool,
+    path: &str,
+    files: &[(String, i64)],
+) -> Value {
+    let mut largest: Vec<&(String, i64)> = files.iter().filter(|f| !f.0.is_empty()).collect();
+    largest.sort_by(|a, b| b.1.cmp(&a.1));
+    largest.truncate(NAMES_MAX);
     json!({
         "t": now_ms / 1000,
         "kind": "files",
@@ -115,8 +131,10 @@ pub fn files(now_ms: i64, conn: i32, peer: &str, ip: &str, received: bool, sizes
         "ip": text(ip),
         "peer": text(peer),
         "received": received,
-        "num": sizes.len(),
-        "bytes": sizes.iter().map(|s| (*s).max(0)).sum::<i64>(),
+        "num": files.len(),
+        "bytes": files.iter().map(|f| f.1.max(0)).sum::<i64>(),
+        "path": cut(path, PATH_MAX),
+        "names": largest.iter().map(|f| cut(&f.0, PATH_MAX)).collect::<Vec<_>>(),
     })
 }
 
@@ -143,7 +161,11 @@ fn plain(v: &Value) -> String {
 
 /// The other side chooses its id and name: keep them short and printable.
 fn text(s: &str) -> String {
-    s.chars().filter(|c| !c.is_control()).take(TEXT_MAX).collect()
+    cut(s, TEXT_MAX)
+}
+
+fn cut(s: &str, max: usize) -> String {
+    s.chars().filter(|c| !c.is_control()).take(max).collect()
 }
 
 #[cfg(test)]
@@ -197,18 +219,39 @@ mod tests {
 
     #[test]
     fn the_journal_never_grows_past_two_files() {
-        let s = store("rotate", 400);
+        let s = store("rotate", 600);
         for n in 0..200 {
-            s.append(&files(n * 1000, n as i32, "1", "198.51.100.1", true, &[1, 2])).unwrap();
+            let sent = [("a.txt".to_owned(), 1), ("b.txt".to_owned(), 2)];
+            s.append(&files(n * 1000, n as i32, "1", "198.51.100.1", true, "", &sent)).unwrap();
         }
         let current = fs::metadata(s.current()).unwrap().len();
         let previous = fs::metadata(s.previous()).unwrap().len();
-        assert!(current <= 400 && previous <= 400, "{current} {previous}");
+        assert!(current <= 600 && previous <= 600, "{current} {previous}");
         let events = s.read(1000);
         assert_eq!(events[0]["conn"], 199);
         assert!(events.windows(2).all(|w| w[0]["conn"].as_i64() > w[1]["conn"].as_i64()));
         assert_eq!(events[0]["bytes"], 3);
         assert_eq!(events[0]["num"], 2);
+    }
+
+    #[test]
+    fn a_transfer_keeps_the_folder_and_the_ten_largest_names() {
+        let mut sent: Vec<(String, i64)> = (1..=25).map(|n| (format!("f{n}.jpg"), n)).collect();
+        sent.push((format!("long\n{}", "я".repeat(500)), 1000));
+        let e = files(0, 1, "1", "::1", false, "C:\\Users\\Мама\\Фото", &sent);
+        assert_eq!(e["num"], 26);
+        assert_eq!(e["bytes"], 325 + 1000);
+        assert_eq!(e["path"], "C:\\Users\\Мама\\Фото");
+        let names = e["names"].as_array().unwrap();
+        assert_eq!(names.len(), 10);
+        assert_eq!(names[0].as_str().unwrap().chars().count(), 200);
+        assert!(names[0].as_str().unwrap().starts_with("longя"));
+        assert_eq!(names[1], "f25.jpg");
+        assert_eq!(names[9], "f17.jpg");
+        // A single file sent by its full path comes with an empty name.
+        let e = files(0, 1, "1", "::1", true, "D:\\a.zip", &[(String::new(), 7)]);
+        assert_eq!(e["num"], 1);
+        assert!(e["names"].as_array().unwrap().is_empty());
     }
 
     #[test]

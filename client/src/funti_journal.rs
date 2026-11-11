@@ -1,5 +1,5 @@
 //! FUNTIDESK (ADR-020): a local journal of incoming connections — who got
-//! in, for how long, how many files moved, and which attempts were refused.
+//! in, for how long, which files moved, and which attempts were refused.
 //! It is written next to the settings of the process that accepts
 //! connections and is never sent anywhere.
 //!
@@ -13,7 +13,7 @@ use hbb_common::{config::Config, log};
 use serde_json::Value;
 use std::sync::Mutex;
 
-/// About 5000 events per file; with the previous file, 2 MB at most.
+/// A few thousand events per file; with the previous file, 2 MB at most.
 const MAX_BYTES: u64 = 1024 * 1024;
 
 lazy_static::lazy_static! {
@@ -46,9 +46,15 @@ pub fn conn_event(conn: i32, ip: &str, audit: &Value) {
     }
 }
 
-pub fn file_event(conn: i32, peer: &str, ip: &str, received: bool, files: &[(String, i64)]) {
-    let sizes: Vec<i64> = files.iter().map(|f| f.1).collect();
-    let event = store::files(hbb_common::get_time(), conn, peer, ip, received, &sizes);
+pub fn file_event(
+    conn: i32,
+    peer: &str,
+    ip: &str,
+    received: bool,
+    path: &str,
+    files: &[(String, i64)],
+) {
+    let event = store::files(hbb_common::get_time(), conn, peer, ip, received, path, files);
     write(&STORE.lock().unwrap(), event);
 }
 
