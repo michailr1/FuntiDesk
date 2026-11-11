@@ -41,7 +41,7 @@ class PublishTests(unittest.TestCase):
         result = self.run_cli('--account-db', str(self.account), '--out-dir', str(self.out))
         self.assertEqual(result.returncode, 0, result.stderr)
         page = (self.out / 'index.html').read_text()
-        self.assertIn('&quot;accounts_existing&quot;: 1', page)
+        self.assertRegex(page, r'aria-label="Аккаунты"[^>]*><span>Аккаунты</span><strong>1</strong>')
         self.assertNotIn('private@example.test', page)
         self.assertEqual(stat.S_IMODE((self.out / 'index.html').stat().st_mode), 0o644)
         self.assertEqual(self.account.read_bytes(), before)
