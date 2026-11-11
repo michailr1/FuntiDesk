@@ -148,9 +148,9 @@ docker compose -p caddy \
 
 Проверки: без пароля и с неверным — `401` для `/<путь>/`, `/<путь>/index.html`, `//<путь>/`, `%2F`-вариантов; с паролем — `200`, заголовки `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`, CSP; главная, кабинет, `/connect/` и WSS работают как раньше; `systemctl list-timers` показывает таймер. Откат: удалить строку `import` и третий override, пересоздать Caddy прежней командой, `systemctl disable --now funtidesk-analytics.timer`; данные кабинета и hbbs не затрагиваются.
 
-## CrowdSec для HTTPS статистики (ADR-021, #128)
+## CrowdSec для HTTPS статистики (ADR-022, #128)
 
-Применяется из чистого принятого main после проверок ADR-021. Bouncer уже распознаёт 401 Basic в существующем Caddy log; повторный acquisition не нужен. Новое правило защищает только DNAT TCP с original destination IPv4 desk.funti.cc и original destination port 443, но IP-ban действует на все сайты общего HTTPS Caddy. Прочие Docker-порты не охватываются. Клиент и VPN-стек не менять.
+Применяется из чистого принятого main после проверок ADR-022. Bouncer уже распознаёт 401 Basic в существующем Caddy log; повторный acquisition не нужен. Новое правило защищает только DNAT TCP с original destination IPv4 desk.funti.cc и original destination port 443, но IP-ban действует на все сайты общего HTTPS Caddy. Прочие Docker-порты не охватываются. Клиент и VPN-стек не менять.
 
 1. Закрытый backup текущего `/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml`, inspect Caddy, `iptables-save`, `ip6tables-save` и unit metadata. Проверить fixed Caddy IP, HostIp=0.0.0.0 (IPv6 не публикуется), текущий список chains ровно INPUT; неизвестные отличия — диагностика, не перезапись. Не выводить ключи/содержимое ipsets.
 2. Запустить от root `python3 scripts/security/test-crowdsec-forward.py`: всё сетевое исполнение идёт в `unshare --net`, тест завершается `ISOLATED_PACKET_TEST_OK`.
