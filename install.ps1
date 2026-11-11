@@ -14,10 +14,8 @@ $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow with
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 # ADR-018: public keys that may sign a release, as "ssh-ed25519 AAAA..." lines;
-# the same keys as RELEASE_KEYS in client/src/funti_release_sig.rs. This script
-# is run straight from main, so the key goes in here only after the first
-# signed release has become the latest one (docs/RELEASES.md); until then the
-# release is checked by SHA-256 alone.
+# the same keys as RELEASE_KEYS in client/src/funti_release_sig.rs. Empty until
+# the owner's first key is added: the release is then checked by SHA-256 alone.
 $releaseKeys = @()
 
 $asset = 'FuntiDesk-windows-x64.zip'

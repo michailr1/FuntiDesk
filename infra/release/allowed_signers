@@ -3,5 +3,4 @@
 #   funtidesk-release ssh-ed25519 AAAA...
 # The same keys as RELEASE_KEYS in client/src/funti_release_sig.rs and
 # $releaseKeys in install.ps1. Private keys are never in this repository,
-# in GitHub secrets or with an agent.
-funtidesk-release ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHHZN0RyW9HzZx1xFg1YHhgMoVH40wcxsT5LoOp2o3wq
+# in GitHub secrets or with an agent. Empty until the owner's first key.
