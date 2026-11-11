@@ -42,7 +42,7 @@
 
 Чтобы включить подпись позже:
 
-1. Публичный ключ владельца от 2026-11-11: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHHZN0RyW9HzZx1xFg1YHhgMoVH40wcxsT5LoOp2o3wq funtidesk-release`. Добавить в `RELEASE_KEYS` клиента и `infra/release/allowed_signers`; сборку `UI Windows artifact` перевести с `--latest` на `--prerelease`. Готовое изменение — коммит `a49bcf4b1` в ветке `claude/release-signing` (отменён следующим коммитом).
+1. Публичный ключ владельца от 2026-11-11: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHHZN0RyW9HzZx1xFg1YHhgMoVH40wcxsT5LoOp2o3wq funtidesk-release`. Добавить в `RELEASE_KEYS` клиента и `infra/release/allowed_signers`; сборку `UI Windows artifact` перевести с `--latest` на `--prerelease`. Готовое изменение — коммит `459a3cede` в ветке `claude/release-signing` (отменён в той же ветке).
 2. Первый подписанный релиз; затем ключ в `install.ps1` отдельным PR (скрипт берётся из `main`).
 3. Инструкция владельца — `docs/RELEASE_SIGNING.md`.
 
