@@ -1595,6 +1595,8 @@ impl Connection {
     }
 
     fn post_conn_audit(&self, v: Value) {
+        // FUNTIDESK (ADR-020): the local journal.
+        crate::funti_journal::conn_event(self.inner.id, &self.ip, &v);
         if self.server_audit_conn.is_empty() {
             return;
         }
@@ -1632,6 +1634,14 @@ impl Connection {
         files: Vec<(String, i64)>,
         info: Value,
     ) {
+        // FUNTIDESK (ADR-020): the local journal.
+        crate::funti_journal::file_event(
+            self.inner.id(),
+            &self.lr.my_id,
+            &self.ip,
+            matches!(r#type, FileAuditType::RemoteReceive),
+            &files,
+        );
         if self.server_audit_file.is_empty() {
             return;
         }
@@ -1663,6 +1673,8 @@ impl Connection {
     }
 
     fn post_alarm_audit(&self, typ: AlarmAuditType, info: Value) {
+        // FUNTIDESK (ADR-020): the local journal.
+        crate::funti_journal::alarm_event(self.inner.id(), typ as i8, &info);
         let url = crate::get_audit_server(
             Config::get_option("api-server"),
             Config::get_option("custom-rendezvous-server"),

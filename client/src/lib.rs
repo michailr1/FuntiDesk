@@ -48,6 +48,9 @@ mod funti_clipboard_files;
 // FUNTIDESK (ADR-017): picture previews in the file transfer window.
 #[cfg(not(target_os = "ios"))]
 mod funti_thumbnail;
+// FUNTIDESK (ADR-020): local journal of incoming connections.
+#[cfg(not(target_os = "ios"))]
+pub mod funti_journal;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(
