@@ -119,6 +119,9 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
 
+      - name: Test the connection journal store (ADR-020)
+        run: bash scripts/ci/test-funti-journal.sh
+
       - name: Test client hbb_common
         run: |
           # Upstream websocket::tests::test_check_ws is timing/port-sensitive on shared CI runners.
