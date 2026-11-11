@@ -32,6 +32,7 @@ def inside():
             run(*prefix, 'ip', 'link', 'set', name+'p', 'up')
             run(*prefix, 'ip', 'route', 'add', 'default', 'via', router_ip.split('/')[0])
         run('ip', 'addr', 'add', '203.0.113.2/32', 'dev', 'lo')
+        run('ip', 'addr', 'add', '203.0.113.3/32', 'dev', 'lo')
         run('sysctl', '-q', '-w', 'net.ipv4.ip_forward=1')
         for port in ['80', '443']:
             servers.append(subprocess.Popen(['nsenter', '-t', str(server), '-n', 'python3', '-m', 'http.server', port],
@@ -44,12 +45,16 @@ def inside():
         template = Path(__file__).resolve().parents[2] / 'infra/funtidesk-analytics/crowdsec-forward.conf'
         for line in template.read_text().splitlines():
             if line.startswith('ExecStartPre=') and ' -C DOCKER-USER ' in line:
-                run('/bin/sh', '-c', line.split("/bin/sh -c '", 1)[1][:-1])
+                run('/bin/sh', '-c', line.split("/bin/sh -c '", 1)[1][:-1].replace('__PUBLIC_V4__', '203.0.113.2'))
         run('ipset', 'create', 'cs-test-blocked', 'hash:ip')
         run('iptables', '-A', 'CROWDSEC_CHAIN', '-m', 'set', '--match-set', 'cs-test-blocked', 'src', '-j', 'DROP')
         for port in ['80', '443']:
             run('iptables', '-t', 'nat', '-A', 'PREROUTING', '-d', '203.0.113.2', '-p', 'tcp', '--dport', port,
                 '-j', 'DNAT', '--to-destination', '172.31.251.4:'+port)
+        run('iptables', '-t', 'nat', '-A', 'PREROUTING', '-d', '203.0.113.2', '-p', 'tcp', '--dport', '8442',
+            '-j', 'DNAT', '--to-destination', '172.31.251.4:443')
+        run('iptables', '-t', 'nat', '-A', 'PREROUTING', '-d', '203.0.113.3', '-p', 'tcp', '--dport', '443',
+            '-j', 'DNAT', '--to-destination', '172.31.251.4:443')
         time.sleep(.3)
 
         def probe(host, port):
@@ -62,6 +67,8 @@ def inside():
         assert not probe('203.0.113.2', 443), 'Banned DNAT HTTPS passed'
         assert probe('203.0.113.2', 80), 'Unrelated published port affected'
         assert probe('172.31.251.4', 443), 'Non-DNAT flow affected'
+        assert probe('203.0.113.2', 8442), 'Other original port to same target affected'
+        assert probe('203.0.113.3', 443), 'Other original address affected'
         run('ipset', 'del', 'cs-test-blocked', '198.18.0.2')
         assert probe('203.0.113.2', 443), 'Access did not return after unban'
         print('ISOLATED_PACKET_TEST_OK: DNAT block/unblock; other port and non-DNAT preserved')
