@@ -1048,7 +1048,10 @@ async fn handle_fs(
     }
     match fs {
         ipc::FS::FuntiReadThumbnail { id, path, max_side } => {
-            funti_read_thumbnail(id, path, max_side, tx).await;
+            // FUNTIDESK: decoding a picture takes up to a few hundred ms; do it
+            // beside this loop so transfers and folder listings do not wait.
+            let tx = tx.clone();
+            tokio::spawn(async move { funti_read_thumbnail(id, path, max_side, &tx).await });
         }
         ipc::FS::ReadEmptyDirs {
             dir,
@@ -1632,6 +1635,11 @@ async fn read_all_files(
 // FUNTIDESK (ADR-017): the preview of one picture, or why there is none.
 #[cfg(not(any(target_os = "ios")))]
 async fn funti_read_thumbnail(id: i32, path: String, max_side: i32, tx: &UnboundedSender<Data>) {
+    // At most two pictures at a time, whatever the other side asks for.
+    static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+    let Ok(_slot) = SLOTS.acquire().await else {
+        return;
+    };
     let file = path.clone();
     let result = spawn_blocking(move || crate::funti_thumbnail::make(&file, max_side)).await;
     let mut thumbnail = FuntiThumbnail {
