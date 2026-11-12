@@ -10,7 +10,7 @@
 
 | Где | Что | Проверка |
 |---|---|---|
-| `client/libs/hbb_common/src/config.rs` | сервер `desk.funti.cc` и его ключ зашиты, без запасных публичных серверов; имя `FuntiDesk`; профиль RustDesk никогда не читается (решение владельца 2026-10-28), на macOS переносится только прежний каталог самого FuntiDesk | `test-r12-production-binding.sh`, `test-funtidesk-product-identity.sh` |
+| `client/libs/hbb_common/src/config.rs` | сервер `desk.funti.cc` и его ключ зашиты, без запасных публичных серверов; имя `FuntiDesk`; профиль RustDesk никогда не читается, на macOS переносится только прежний каталог самого FuntiDesk | `test-r12-production-binding.sh`, `test-funtidesk-product-identity.sh` |
 | `client/src/client.rs` (`secure_connection`), `client/src/server.rs` (`identity_handshake`) | рукопожатие только шифрованное, только со встроенным ключом сервера; любой сбой — отказ; WebRTC — отказ | `test-r10-fail-closed.sh` |
 | `client/src/client.rs` (relay) | relay всегда `secure = true`; при сбое прямого рукопожатия — одна попытка через relay | `test-r10-fail-closed.sh` |
 | `client/src/common.rs` | `key_exchange` только со встроенным ключом; WebSocket выключен; `get_webrtc_enabled() = false`; свой адрес API/обновлений не настраивается | `test-r14-runtime-endpoints.sh` |
@@ -39,7 +39,7 @@
 | Обновление кнопкой, оповещение о новой версии | `funti_update.rs`, `funti_update_notice.dart` | `core_main.rs` (`--funti-finish-update`, очистка), `flutter_ffi.rs`, «О программе», `funti_home_view.dart` (окошко на главном экране), `libs/portable/src/main.rs` (`FUNTIDESK_PORTABLE_EXE`, `--funti-wait-pid`); служба — `ipc.rs` (`FuntiUpdateService`), `core_main.rs` (`--server`: `cleanup_service`) |
 | Номер сборки `X.Y.Z-ft.N` | `build.rs` | `core_main.rs` (`--version`), `ui_interface.rs` |
 | Пересчёт NAT при смене сети (бывший MIK-16) | `funti_network.rs` | `rendezvous_mediator.rs` (`start_all`: запуск монитора), `common.rs` (`test_nat_type`: один тест за раз; `test_nat_type_`: перерегистрация при смене типа NAT) |
-| Журнал запусков и выходов `--server` в службе, без запуска в «нет сессии» (2026-10-22, `docs/reviews/2026-10-22-unattended-after-reboot.md`) | `platform/windows/funti_service.rs` | `platform/windows.rs` (`run_service`), `platform/windows.cc` (`LaunchProcessWin`: код ошибки), `rendezvous_mediator.rs` (журнал `PunchHole`/`RequestRelay`) |
+| Журнал запусков и выходов `--server` в службе, без запуска в «нет сессии» (2026-10-22, технические проверки) | `platform/windows/funti_service.rs` | `platform/windows.rs` (`run_service`), `platform/windows.cc` (`LaunchProcessWin`: код ошибки), `rendezvous_mediator.rs` (журнал `PunchHole`/`RequestRelay`) |
 | Сигнализация по TCP | — | `rendezvous_mediator.rs`, `server/src/rendezvous_server.rs` (ADR-004) |
 | Передача файлов: `%переменные%`, быстрые папки | — | `common.rs` (`funti_expand_env`), `ui_cm_interface.rs`, `flutter_ffi.rs`, `file_manager_page.dart`, `file_model.dart` |
 | Передача файлов: вставка из буфера обмена (кнопка и Ctrl+V на панели удалённого компьютера) | `funti_clipboard_files.rs` (Windows — `CF_HDROP`, Linux/macOS — `arboard`) | `lib.rs`, `flutter_ffi.rs` (`main_funti_clipboard_files`), `file_manager_page.dart` (`_funtiPasteFromClipboard`), `file_model.dart` (`funtiSendPaths`: пустые подпапки — от папки самого файла, а не от открытой слева) |
