@@ -593,5 +593,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-journal-sec", "s"),
         ("funti-journal-min", "min"),
         ("funti-journal-hour", "h"),
+        ("funti-wake", "Wake a device"),
+        ("funti-wake-menu", "Wake a device in its network…"),
+        ("funti-wake-note", "This computer will send the Wake-on-LAN signal into its local network. The list shows computers with FuntiDesk it has seen there and devices added by hand."),
+        ("funti-wake-on", "Wake"),
+        ("funti-wake-other", "Another device — by its network card (MAC) address:"),
+        ("funti-wake-name", "Name, to keep it"),
+        ("funti-wake-forget", "Remove from the list"),
+        ("funti-wake-empty", "This computer has not seen other computers with FuntiDesk in its network yet. A device can be woken by its network card address below."),
+        ("funti-wake-sent", "Wake signal sent: {}. The device will be online in a minute or two."),
+        ("funti-wake-no-answer", "This computer did not answer. It may run an older FuntiDesk, or control is not permitted."),
+        ("funti-wake-unknown", "This computer does not know that device."),
+        ("funti-wake-bad-mac", "The network card address is not valid. Example: AA:BB:CC:DD:EE:FF."),
+        ("funti-wake-bad-request", "The request was not understood."),
     ].iter().cloned().collect();
 }

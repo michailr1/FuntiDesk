@@ -1134,5 +1134,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-journal-sec", ""),
         ("funti-journal-min", ""),
         ("funti-journal-hour", ""),
+        ("funti-wake", ""),
+        ("funti-wake-menu", ""),
+        ("funti-wake-note", ""),
+        ("funti-wake-on", ""),
+        ("funti-wake-other", ""),
+        ("funti-wake-name", ""),
+        ("funti-wake-forget", ""),
+        ("funti-wake-empty", ""),
+        ("funti-wake-sent", ""),
+        ("funti-wake-no-answer", ""),
+        ("funti-wake-unknown", ""),
+        ("funti-wake-bad-mac", ""),
+        ("funti-wake-bad-request", ""),
     ].iter().cloned().collect();
 }

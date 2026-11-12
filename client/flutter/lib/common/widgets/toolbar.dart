@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/funti_remote_update.dart';
+import 'package:flutter_hbb/common/widgets/funti_wake.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
@@ -665,6 +666,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           onPressed: () =>
               showRestartRemoteDevice(pi, id, sessionId, ffi.dialogManager),
           actionId: kShortcutActionRestartRemote),
+    );
+  }
+  // FUNTIDESK (ADR-021)
+  if (funtiPeerCanWake(ffi)) {
+    v.add(
+      TTextMenu(
+          child: Text(translate('funti-wake-menu')),
+          onPressed: () => showFuntiWakeDialog(ffi)),
     );
   }
   // FUNTIDESK (ADR-007, stage 3)

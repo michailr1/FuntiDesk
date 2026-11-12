@@ -809,6 +809,11 @@ impl InvokeUiSession for FlutterHandler {
         }
     }
 
+    // FUNTIDESK (ADR-021): the devices the other computer can wake.
+    fn funti_wake_result(&self, json: String) {
+        self.push_event("funti_wake", &[("result", json)], &[]);
+    }
+
     // FUNTIDESK (ADR-017): a picture preview from the other computer.
     fn funti_thumbnail(&self, t: FuntiThumbnail) {
         self.push_event(
