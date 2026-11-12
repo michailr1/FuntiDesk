@@ -6,7 +6,7 @@
 2. После разрешения владельца распаковать только публичный архив в новую неизменяемую директорию `/opt/funtidesk-web/releases/<commit>/`. Сохранить предыдущую директорию для отката.
 3. Caddy обслуживает этот webroot и отдельно направляет `/api/account/v1/*` к закрытому account-сервису. Нельзя возвращать HTML вместо API-ошибки или делать fallback на другой сервис.
 4. Для `/account/*` установить `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, CSP с `frame-ancestors 'none'`, `Permissions-Policy: camera=(), microphone=()`. CSP страницы уже запрещает сторонние скрипты, base, формы навигации и внешние соединения; запрет framing требует HTTP-заголовка.
-5. Патч только блока `desk.funti.cc` и его проверка готовятся отдельно с account-инфраструктурой. Caddy входит в общий стек: изменения других маршрутов, Postgres/Valkey/VPN и рестарт соседних сервисов сюда не входят.
+5. Патч только блока `desk.funti.cc` и его проверка готовятся отдельно с account-инфраструктурой. Изменения посторонних маршрутов и перезапуск сервисов вне FuntiDesk в эту задачу не входят.
 6. После `caddy validate` атомарно переключить `/opt/funtidesk-web/current`. Если bind mount Caddy взят через этот symlink, нужен согласованный recreate только Caddy для обновления mount; reload сам по себе не гарантирует новый webroot.
 7. Проверить страницу, все manifest URL, API без HTML-fallback, cookies, CSP/CSRF, вход и выход в браузере. Доставка во входящие и применение удаления реальными компьютерами оформляются отдельной end-to-end приёмкой.
 

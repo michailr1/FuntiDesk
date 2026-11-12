@@ -1,12 +1,11 @@
 # Продолжение запуска кабинета — 2026-10-15
 
+Эксплуатационные сведения об общей инфраструктуре и других узлах перенесены в закрытый архив владельца; здесь сохранены доступные сведения о проверках продукта.
+
 Продолжение [хендофа](2026-10-15-handoff-account-deploy.md), [PR #50](https://github.com/michailr1/FuntiDesk/pull/50). Публичный кабинет **включён на https://desk.funti.cc/account/**. Реальное письмо приходит во Входящие; вход/выход через публичный HTTPS проверены. Реальная M3-приёмка двух Windows-клиентов не завершена.
 
 ## Размещение и сохранность
 
-Закрытый архив владельца восстановлен в `/workspace/.private/funtidesk-handoff/`: каталог `0700`, файлы `0600`, вне Git. Доступ Core через DE с проверкой SSH host key подтверждён. Действующий VPS имеет системное имя `core.funti.cc`; кабинет и SMTP используют `desk.funti.cc`, IPv4 `173.249.195.36`. Выбор SMTP имени `desk.funti.cc` подтверждён владельцем 2026-10-15; системное имя менять не требуется.
-
-На Core остаются web/API/SMTP, resolver hbbs и основные данные. На DE установлены только независимый witness ADR-011 и зашифрованные копии. Account key и основная база на DE не передавались. VPN/Postgres/Valkey и посторонние Caddy-блоки не изменялись. Существующие account/witness/DKIM keys, namespace и server identity сохранены.
 
 ## Закреплённые исходники
 
@@ -15,19 +14,17 @@
 - Действующий API: hotfix `2051ad38c8a4e57472e3b249a81c6485b6ae262b`, успешный Account checks run `38700709102`, artifact `11955489928`, ZIP SHA256 `c1c428f928b9216053982c80b06bdd4dbdce675a8c846cb9d9f24fb3f15f4bc6`. Отдельный `account-api-release.json`; OCI image `sha256:5eaaaf15ba9c913881361b419be4f5f80cea52ae0d70c1d6a5f1754c41c62e09`. Базовый manifest остаётся `a42f05fa`, чтобы проверять реально установленный relay/witness.
 - SMTP package image OCI: `sha256:6797debf4de8eb62776467b89cfbc1e5d1a41e14338ec68f52566d1ee9af3af7`. Новый executable bootstrap монтируется read-only из deploy checkout, SHA256 `43db098df9f0f64ffbb555c7c1b767231dff8e2ada8026b32b715e8a4b8d9189`. Обновлённая конфигурация не приписывается содержимому старого image.
 - Штатный server release: `funtidesk-server-a42f05faa3c4`, image `sha256:b83771360e408b254629a6435dffceeb7ea2dcb277c59b90771a85114ddec13e`. Release binaries и checksums проверены, runtime image собран штатным helper.
-- DE TLS source: `/opt/funtidesk-account-witness-tls-source`, `6316cd2705d1e5dc696425ac26bea64438a2f14d`. Сохранён loopback admin `127.0.0.1:2019`, необходимый уже установленному TLS sync. Переработка TLS PR #48 не продолжалась.
 
 ## DNS и настоящая почта
 
 В Cloudflare изменена существующая единственная SPF, с прежними record ID/TTL и отправителями:
 
 ```text
-v=spf1 mx a:funti.cc ip4:172.245.108.154 ip4:173.249.195.36 include:sendinblue.com ~all
+v=spf1 mx a:funti.cc ip4:[адрес узла] ip4:[адрес узла] include:sendinblue.com ~all
 ```
 
 Добавлен TXT `funtidesk202610._domainkey.funti.cc` с публичным значением **существующего** Core key. Cloudflare API и два независимых публичных резолвера подтвердили обе записи. MX и прочие TXT не менялись. DMARC остаётся `v=DMARC1; p=none`.
 
-Фактический исходящий IP Core — `173.249.195.36`; A `desk.funti.cc` возвращает тот же IP. После установки PTR у VPS-провайдера новая проверка 2026-10-15 07:33 UTC подтвердила `173.249.195.36` → `desk.funti.cc` на обоих авторитетных NS (`ns7/ns8.greencloudvps.com`, TTL 86400), Google и Cloudflare. Gmail Received также содержит разрешённое обратное имя `desk.funti.cc`. Старое указание PTR → `core.funti.cc` больше не применяется.
 
 Реальный native HTTP вход с полученным владельцем письмом прошёл: verify `200`, authenticated session `200`; письмо оказалось **в спаме**. Затем владелец предоставил доступный исполнителю тестовый Gmail. Найдено только соответствующее тестовое письмо; заголовки Gmail подтвердили **SPF=PASS, DKIM=PASS, DMARC=PASS**, присутствует DKIM signature, метка `SPAM`, метки `INBOX` нет. Код прочитан исполнителем и передан браузеру без вывода или добавления в Git. Это исторический результат до исправления формата ниже. После hotfix два новых письма подтвердили доставку во Входящие без SPAM; SPF/DKIM/DMARC сохранили PASS.
 
@@ -57,11 +54,9 @@ Mail работает без опубликованных портов, RestartC
 | Account/witness/DKIM keys и metadata | `funtidesk-account-secrets-20261015T041525Z.tar.gz.age` | `e3aa567ed30ef0b1996b188a4aa5b6b00ce567b48d817362cccfcbf61dd9f077` |
 | Server identity/env/SQLite | `funtidesk-server-20261015T041743Z.tar.gz.age` | `36fb0212059cd3784da7e12666356a6525cbca4418ad2e6c94ec966f7d830ff1` |
 
-Независимые ciphertext-копии с теми же именами находятся на DE в `/opt/funtidesk-account-witness/backups/`; digest совпал с Core. Каталоги `0700`, файлы/receipts `0600`. Приватная age identity не передавалась исполнителю; production расшифрование остаётся проверкой владельца. Account-secrets archive не содержит позднее созданную account DB; актуальные зашифрованные снимки этой базы принимает отдельный witness.
 
 ## Witness, hbbs и API
 
-На DE запущен отдельный Compose project `funtidesk-account-witness`: UID `10002`, machine witness key и прежний namespace, изолированные data/networks, Caddy публикует только TLS `8447`. Перед первым initialize доказан подписанный свежий Head `revision=0`, `event_highwater=0` по прямому TLS и через relay. Выполнен `witness-init` ровно один раз. Неверный MAC получает `401`, чужой путь — `404`. Контейнеры работают без restart; установленный TLS sync service успешно выполнен после запуска контейнеров, hourly timer активен.
 
 hbbs/hbbr обновлены до закреплённого server release штатным build helper с сохранением `/opt/funtidesk/data`, ключей, портов и сети. Штатный verify прошёл. Resolver socket `0660`, GID `10001`; настоящий процесс от API UID/GID `10001:10001` успешно получил корректный ответ на неизвестный ID. Старый `/opt/funtidesk/repo` оставлен чистым и неизменённым. Действующий Compose теперь берётся из нового source с identity override: [точная команда](../ACCOUNT_DEPLOYMENT.md#действующие-серверные-конфигурации).
 

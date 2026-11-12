@@ -3,13 +3,16 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('browser_update', Path(__file__).with_name('update-browser-desk.py'))
 update = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(update)
+with patch.dict(os.environ, {'FUNTI_CADDY_ROOT': '/srv/proxy-fixture'}):
+    spec.loader.exec_module(update)
 
 
 class BrowserUpdate(unittest.TestCase):

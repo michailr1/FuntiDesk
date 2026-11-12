@@ -1,5 +1,7 @@
 # FuntiDesk — live acceptance handoff
 
+Эксплуатационные сведения об общей инфраструктуре и других узлах перенесены в закрытый архив владельца; здесь сохранены доступные сведения о проверках продукта.
+
 Purpose: finish the external-review acceptance after automated CI is green. This document contains no secrets.
 
 ## Preconditions
@@ -58,7 +60,6 @@ Do not reset device identity unless explicitly approved.
 Before deployment:
 - preserve current server identity and backup;
 - confirm a second SSH session works;
-- confirm no unrelated Caddy/Remnawave services are touched.
 
 Deploy only the P0 server branch after its current CI is green.
 

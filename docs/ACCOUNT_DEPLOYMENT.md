@@ -1,6 +1,10 @@
 # Кабинет FuntiDesk на Core
 
-Действующее решение владельца от 2026-10-17 — [ADR-013](ADR-013-core-only-account.md): основная SQLite-база на Core, без witness и DE. Старые отчёты от 14–15 октября описывают прежнюю архитектуру. Обновление применено 2026-10-17; схема v4, действуют только API/SMTP на Core.
+`FUNTI_CADDY_ROOT` — абсолютный путь существующего Caddy из закрытой конфигурации владельца; фактический путь в GitHub не публикуется. Перед командами экспортировать переменную и проверить `test -n "$FUNTI_CADDY_ROOT"`. Скрипты интеграции также требуют эту переменную; отсутствие настройки должно останавливать выполнение до изменений.
+
+Действующее решение владельца от 2026-10-17 — [ADR-013](ADR-013-core-only-account.md): основная SQLite-база на Core, без независимого witness. Старые отчёты от 14–15 октября описывают прежнюю архитектуру. Обновление применено 2026-10-17; схема v4, действуют только API/SMTP на Core.
+
+Для первичной подготовки также требуется `FUNTI_ACCOUNT_SPF_RECORD`: проверенная владельцем текущая SPF-запись его почтовой инфраструктуры. Скрипт не содержит адресов других отправляющих серверов и не меняет DNS; значение для подготовки передаётся через закрытое окружение.
 
 ## Состав
 
@@ -8,7 +12,7 @@
 - `mail` — SMTP/Postfix/OpenDKIM для кодов входа.
 - Используются уже существующие Caddy и hbbs/hbbr. Новые сервисы не нужны.
 
-Данные — `/opt/funtidesk-account/data/account.sqlite3`, секреты — в закрытом `secrets/`, env — `/opt/funtidesk-account/account.env` (`0600`). Account key, DKIM и hbbs identity сохраняются. API/SMTP не имеют публичных портов; аккаунт подключён только к frontend и SMTP. Для схемы v4 не нужны namespace, witness key, recovery directory или адрес DE.
+Данные — `/opt/funtidesk-account/data/account.sqlite3`, секреты — в закрытом `secrets/`, env — `/opt/funtidesk-account/account.env` (`0600`). Account key, DKIM и hbbs identity сохраняются. API/SMTP не имеют публичных портов; аккаунт подключён только к frontend и SMTP. Для схемы v4 не нужны namespace, witness key, recovery directory или адрес внешнего сервера.
 
 ## Обновление
 
@@ -18,7 +22,7 @@
 
 Штатная подготовка image: `python3 -B scripts/account/update-library-desk.py <verified-artifact.zip>`, однократное обновление существующей v3 DB — та же команда с `--apply`. Helper читает migration SQL через `git show` из закреплённого binary source, поэтому работает и с сокращённым checkout. `APPLY_STARTED` запрещает слепой повтор; если выполнение остановилось, сначала сверить DB version/image/env/backup и определить завершённые шаги.
 
-После здорового запуска API удалить только контейнер witness-relay проекта `funtidesk-account` и две его неиспользуемые сети. Не применять общий prune или remove-orphans к чужим проектам. DE уже отключён и не включается. Старые служебные файлы можно сохранить в закрытом архиве обновления; рабочий API их не читает.
+После здорового запуска API удалить только контейнер witness-relay проекта `funtidesk-account` и две его неиспользуемые сети. Не применять общий prune или remove-orphans к чужим проектам. Прежний внешний компонент отключён и не включается. Старые служебные файлы можно сохранить в закрытом архиве обновления; рабочий API их не читает.
 
 ## Caddy и статические страницы
 
@@ -27,7 +31,7 @@
 ```sh
 docker compose -p caddy \
   --env-file /opt/funtidesk-account/account.env \
-  -f /opt/remnawave/caddy/docker-compose.yml \
+  -f "${FUNTI_CADDY_ROOT}/docker-compose.yml" \
   -f /opt/funtidesk-account/integration/caddy-account.override.yaml \
   -f /opt/funtidesk-account/integration/caddy-web-client.override.yaml \
   up -d --no-deps --pull never caddy
@@ -90,14 +94,14 @@ docker compose -p funtidesk-account \
 `connect/session.js` весит 1,1 МБ, сжатый — около 260 КБ; из-за `Cache-Control no-store` телефон скачивает его при каждом открытии. В действующем блоке `desk.funti.cc` в `handle @connect` первой строкой добавить `encode zstd gzip`, как в `infra/funtidesk-account/Caddyfile.web-client.fragment`; остальные строки и блоки не менять. Затем `caddy validate` и `caddy reload` штатной процедурой. Проверка: `curl -sI -H 'Accept-Encoding: gzip' https://desk.funti.cc/connect/session.js` показывает `content-encoding: gzip`; `scripts/web/check-live.py` больше не пишет «отдаётся без сжатия»; веб-консоль на телефоне подключается. Откат — удалить эту строку, validate/reload.
 ## Caddy пересоздан без дополнений FuntiDesk (решение архитектора 2026-11-11, #121)
 
-Что случилось: общий Caddy пересоздали только из `/opt/remnawave/caddy/docker-compose.yml`, а сети `funtidesk-account-front` и `funtidesk-server` потом подключили вручную. Из-за этого Caddy получил в account-сети случайный адрес вместо `172.31.251.4`. Кабинет доверяет заголовку `X-Funti-Client-IP` только от адреса из `FUNTI_ACCOUNT_TRUSTED_PROXIES`, поэтому он видит всех посетителей сайта под одним адресом Caddy, и лимиты по IP становятся общими для всех. Ошибки в безопасности нет (чужому заголовку не верят), но работа неправильная. `update-web-desk.py` справедливо останавливается на `Compose differs from live Caddy`.
+Что случилось: общий Caddy пересоздали только из `${FUNTI_CADDY_ROOT}/docker-compose.yml`, а сети `funtidesk-account-front` и `funtidesk-server` потом подключили вручную. Из-за этого Caddy получил в account-сети случайный адрес вместо `172.31.251.4`. Кабинет доверяет заголовку `X-Funti-Client-IP` только от адреса из `FUNTI_ACCOUNT_TRUSTED_PROXIES`, поэтому он видит всех посетителей сайта под одним адресом Caddy, и лимиты по IP становятся общими для всех. Ошибки в безопасности нет (чужому заголовку не верят), но работа неправильная. `update-web-desk.py` справедливо останавливается на `Compose differs from live Caddy`.
 
 Решение: эталон — репозиторий (`base` + `caddy-account.override.yaml` + `caddy-web-client.override.yaml`, после статистики ещё `caddy-analytics.override.yaml`). Доверенный прокси остаётся фиксированным `172.31.251.4`: разрешать целую подсеть или подстраивать env под случайный адрес не нужно. Фактическое состояние один раз приводится к эталону. Проверку в скрипте не убирать. Подключать сети вручную без пересоздания можно только как временную меру и только с адресом: `docker network connect --ip 172.31.251.4 funtidesk-account-front <контейнер Caddy>`.
 
 Порядок, в спокойное время (соседние сайты прерываются на секунды):
 
 1. Только чтение. Сохранить в закрытый каталог `updates/` вывод `docker inspect` контейнера Caddy и `docker network inspect funtidesk-account-front funtidesk-server`. Убедиться, что `172.31.251.4` в account-сети свободен.
-2. Сравнить `docker compose -p caddy -f /opt/remnawave/caddy/docker-compose.yml config caddy` с той же командой плюс `--env-file /opt/funtidesk-account/account.env -f …/caddy-account.override.yaml -f …/caddy-web-client.override.yaml` (пути, как в `update-web-desk.py`). Допустимы отличия только в `networks`: две сети FuntiDesk и `ipv4_address`. Любое другое отличие (образ, порты, тома, Caddyfile) — стоп и отчёт в PR.
+2. Сравнить `docker compose -p caddy -f "${FUNTI_CADDY_ROOT}/docker-compose.yml" config caddy` с той же командой плюс `--env-file /opt/funtidesk-account/account.env -f …/caddy-account.override.yaml -f …/caddy-web-client.override.yaml` (пути, как в `update-web-desk.py`). Допустимы отличия только в `networks`: две сети FuntiDesk и `ipv4_address`. Любое другое отличие (образ, порты, тома, Caddyfile) — стоп и отчёт в PR.
 3. Записать HTTP-статусы главных страниц всех сайтов из общего Caddyfile (только GET).
 4. Пересоздать только Caddy: та же команда из шага 2 с `up -d --no-deps --pull never --force-recreate caddy`.
 5. Проверить:
@@ -108,9 +112,9 @@ docker compose -p funtidesk-account \
    - `config --hash caddy` совпадает с меткой контейнера.
 6. Дальше штатно: `update-web-desk.py` (полная поставка), затем раздел «Статистика». После установки статистики `update-web-desk.py` сам добавляет `caddy-analytics.override.yaml`, если файл есть в `/opt/funtidesk-analytics/source`.
 
-Откат шага 4: пересоздать Caddy только из `/opt/remnawave/caddy/docker-compose.yml` и подключить обе сети FuntiDesk, как было до шага 1. Вернётся прежнее состояние вместе с прежней ошибкой адреса.
+Откат шага 4: пересоздать Caddy только из `${FUNTI_CADDY_ROOT}/docker-compose.yml` и подключить обе сети FuntiDesk, как было до шага 1. Вернётся прежнее состояние вместе с прежней ошибкой адреса.
 
-Если VPN-стек снова пересоздаст Caddy своим compose, сети FuntiDesk пропадут: кабинет и консоль перестанут работать, ежедневная проверка `site-drift` покажет, что адрес API отвечает не `401`. Исправление — шаги 1–5.
+Если общий Caddy будет пересоздан без дополнений FuntiDesk, сети FuntiDesk пропадут: кабинет и консоль перестанут работать, ежедневная проверка `site-drift` покажет, что адрес API отвечает не `401`. Исправление — шаги 1–5.
 
 ## Статистика (ADR-019, #115)
 
@@ -137,7 +141,7 @@ umask 077; sed -e "s#__PATH__#$P#g" -e "s#__USER__#owner#" -e "s#__HASH__#$HASH#
 ```sh
 docker compose -p caddy \
   --env-file /opt/funtidesk-account/account.env \
-  -f /opt/remnawave/caddy/docker-compose.yml \
+  -f "${FUNTI_CADDY_ROOT}/docker-compose.yml" \
   -f /opt/funtidesk-account/integration/caddy-account.override.yaml \
   -f /opt/funtidesk-account/integration/caddy-web-client.override.yaml \
   -f /opt/funtidesk-analytics/source/infra/funtidesk-analytics/caddy-analytics.override.yaml \

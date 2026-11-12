@@ -13,7 +13,7 @@ Write-Host '1/4 Сеть, маршруты, брандмауэр...'
 Save 'net-adapters.txt' { Get-NetAdapter | Sort-Object Status | Format-Table -AutoSize Name, InterfaceDescription, Status, LinkSpeed }
 Save 'ip.txt' { Get-NetIPAddress -AddressFamily IPv4 | Format-Table -AutoSize InterfaceAlias, IPAddress, PrefixLength }
 Save 'routes-default.txt' { Get-NetRoute -DestinationPrefix '0.0.0.0/0','0.0.0.0/1','128.0.0.0/1' -ErrorAction SilentlyContinue | Format-Table -AutoSize InterfaceAlias, DestinationPrefix, NextHop, RouteMetric }
-Save 'route-to-server.txt' { Find-NetRoute -RemoteIPAddress 173.249.195.36 | Format-List InterfaceAlias, IPAddress, NextHop }
+Save 'route-to-server.txt' { Resolve-DnsName desk.funti.cc -Type A | Where-Object IPAddress | ForEach-Object { Find-NetRoute -RemoteIPAddress $_.IPAddress } | Format-List InterfaceAlias, IPAddress, NextHop }
 Save 'firewall-profiles.txt' { Get-NetFirewallProfile | Format-Table -AutoSize Name, Enabled, DefaultInboundAction, DefaultOutboundAction }
 Save 'firewall-funtidesk.txt' {
     Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match 'funti|rustdesk' } | ForEach-Object {

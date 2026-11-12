@@ -110,6 +110,9 @@ def create_mail_queue(path, uid=0, gid=0):
 
 
 def prepare(archive):
+    spf_record = os.environ.get('FUNTI_ACCOUNT_SPF_RECORD', '')
+    if not spf_record.startswith('v=spf1 ') or '\n' in spf_record or '\r' in spf_record:
+        raise RuntimeError('Set FUNTI_ACCOUNT_SPF_RECORD from verified private mail configuration')
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc':
         raise RuntimeError('Preparation must run as root on Core')
     if run('git', '-C', str(REPO), 'status', '--porcelain').strip():
@@ -154,7 +157,7 @@ def prepare(archive):
         environment='\n'.join(name+'='+loaded[image] if line.startswith(name+'=') else line for line in lines)+'\n'
     (ROOT/'account.env').write_text(environment)
     (ROOT/'account.env').chmod(0o600)
-    records={'SPF':{'name':'funti.cc','value':'v=spf1 mx a:funti.cc ip4:172.245.108.154 ip4:173.249.195.36 include:sendinblue.com ~all'},
+    records={'SPF':{'name':'funti.cc','value':spf_record},
              'DKIM':{'name':'funtidesk202610._domainkey.funti.cc','value':'v=DKIM1; k=rsa; p='+base64.b64encode(public).decode()}}
     (ROOT/'dns-records.json').write_text(json.dumps(records,indent=2)+'\n')
     print(json.dumps({'prepared':True,'source':RELEASE['source'],'databaseInitialized':False,'dnsRecords':records}))

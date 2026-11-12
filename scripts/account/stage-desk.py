@@ -12,7 +12,8 @@ import tempfile
 
 REPO = Path(__file__).resolve().parents[2]
 ROOT = Path('/opt/funtidesk-account')
-CADDY = Path('/opt/remnawave/caddy/Caddyfile')
+HOST_ROOT = os.environ.get('FUNTI_CADDY_ROOT')
+CADDY = Path(HOST_ROOT) / 'Caddyfile' if HOST_ROOT else None
 
 
 def run(*args, data=None):
@@ -39,6 +40,8 @@ def replace_desk(original, block):
 
 
 def stage():
+    if CADDY is None or not CADDY.is_absolute():
+        raise RuntimeError("Set absolute FUNTI_CADDY_ROOT from private deployment configuration")
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc':
         raise RuntimeError('Stage must run as root on Core')
     if run('git', '-C', str(REPO), 'status', '--porcelain').strip():

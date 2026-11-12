@@ -12,7 +12,8 @@ import socket
 REPO = Path(__file__).resolve().parents[2]
 ROOT = Path('/opt/funtidesk-account')
 CURRENT = Path('/opt/funtidesk-web/current')
-CADDY = Path('/opt/remnawave/caddy/Caddyfile')
+HOST_ROOT = os.environ.get('FUNTI_CADDY_ROOT')
+CADDY = Path(HOST_ROOT) / 'Caddyfile' if HOST_ROOT else None
 # ADR-019: the statistics overlay, once it is installed. Caddy recreated
 # without it would lose the protected report and fail on its import.
 ANALYTICS_OVERRIDE = Path('/opt/funtidesk-analytics/source/infra/funtidesk-analytics/caddy-analytics.override.yaml')
@@ -46,6 +47,8 @@ def stage_subset(release, files):
 
 
 def update(landing_only=False, console_only=False):
+    if CADDY is None or not CADDY.is_absolute():
+        raise RuntimeError("Set absolute FUNTI_CADDY_ROOT from private deployment configuration")
     if landing_only and console_only:
         raise RuntimeError('Select only one static component')
     selected = CONSOLE_FILES if console_only else LANDING_FILES if landing_only else None
@@ -69,7 +72,7 @@ def update(landing_only=False, console_only=False):
         raise RuntimeError('Expected the active compatible v4/v5 API')
     library.api_ready(api['NetworkSettings']['Networks']['funtidesk-account-front']['IPAddress'])
     compose = ['docker', 'compose', '-p', 'caddy', '--env-file', str(ROOT / 'account.env'),
-               '-f', '/opt/remnawave/caddy/docker-compose.yml',
+               '-f', str(CADDY.parent / 'docker-compose.yml'),
                '-f', str(ROOT / 'integration/caddy-account.override.yaml'),
                '-f', str(ROOT / 'integration/caddy-web-client.override.yaml')]
     if ANALYTICS_OVERRIDE.is_file():

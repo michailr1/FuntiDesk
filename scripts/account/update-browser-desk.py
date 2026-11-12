@@ -12,8 +12,9 @@ import subprocess
 REPO = Path(__file__).resolve().parents[2]
 ROOT = Path('/opt/funtidesk-account')
 CURRENT = Path('/opt/funtidesk-web/current')
-CADDY = Path('/opt/remnawave/caddy/Caddyfile')
-BASE = Path('/opt/remnawave/caddy/docker-compose.yml')
+HOST_ROOT = os.environ.get('FUNTI_CADDY_ROOT')
+CADDY = Path(HOST_ROOT) / 'Caddyfile' if HOST_ROOT else None
+BASE = CADDY.parent / 'docker-compose.yml' if CADDY else None
 
 
 def load(name):
@@ -90,6 +91,8 @@ def stage_files(old, source, release):
 
 
 def update():
+    if CADDY is None or not CADDY.is_absolute():
+        raise RuntimeError("Set absolute FUNTI_CADDY_ROOT from private deployment configuration")
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc' or not (ROOT / 'ACTIVATED').is_file():
         raise RuntimeError('Browser update requires the active Core cabinet')
     if run('git', '-C', str(REPO), 'status', '--porcelain').strip():
