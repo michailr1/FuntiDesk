@@ -1,3 +1,4 @@
+import 'package:flutter_hbb/common/widgets/funti_admin.dart';
 import 'dart:async';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -793,6 +794,8 @@ class _RemotePageState extends State<RemotePage>
                         ])
                       : remoteToolbar(context)),
               _ffi.ffiModel.pi.isSet.isFalse ? emptyOverlay() : Offstage(),
+              // FUNTIDESK (ADR-023): the other computer's state.
+              Positioned(top: 4, left: 8, child: FuntiAdminBar(ffi: _ffi)),
             ],
           ),
         ],

@@ -60,6 +60,12 @@ pub fn file_event(
     write(&STORE.lock().unwrap(), event);
 }
 
+/// ADR-023: an action of the administration layer, e.g. an ended process.
+pub fn admin_event(conn: i32, peer: &str, ip: &str, action: &str, target: &str) {
+    let event = store::admin(hbb_common::get_time(), conn, peer, ip, action, target);
+    write(&STORE.lock().unwrap(), event);
+}
+
 pub fn alarm_event(conn: i32, alarm: i8, info: &Value) {
     let event = store::refused(hbb_common::get_time(), conn, alarm, info);
     write(&STORE.lock().unwrap(), event);

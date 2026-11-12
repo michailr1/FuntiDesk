@@ -4303,6 +4303,37 @@ impl Connection {
                         }
                     }
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    Some(misc::Union::FuntiAdminRequest(request)) => {
+                        // FUNTIDESK (ADR-023): the state bar is for every
+                        // screen session; processes and actions only for
+                        // whoever may control this computer. Anyone else
+                        // gets no answer.
+                        let request = crate::funti_admin::parse(&request);
+                        if self.is_remote()
+                            && (!request.needs_control() || self.peer_keyboard_enabled())
+                        {
+                            let (answer, ended) = tokio::task::spawn_blocking(move || {
+                                crate::funti_admin::handle(&request)
+                            })
+                            .await
+                            .unwrap_or_default();
+                            if let Some((name, pid)) = ended {
+                                crate::funti_journal::admin_event(
+                                    self.inner.id(),
+                                    &self.lr.my_id,
+                                    &self.ip,
+                                    "kill",
+                                    &format!("{name} ({pid})"),
+                                );
+                            }
+                            let mut misc = Misc::new();
+                            misc.set_funti_admin_result(answer);
+                            let mut msg = Message::new();
+                            msg.set_misc(misc);
+                            self.send(msg).await;
+                        }
+                    }
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
                     Some(misc::Union::FuntiWakeRequest(request)) => {
                         // FUNTIDESK (ADR-021): only whoever may control this
                         // computer; anyone else gets no answer.

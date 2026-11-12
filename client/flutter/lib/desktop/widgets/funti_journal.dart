@@ -99,6 +99,15 @@ Widget _row(BuildContext context, FuntiJournalRow r) {
         if (r.ip.isNotEmpty && _who(r) != r.ip) r.ip,
       ].join(' · '));
       break;
+    case 'admin':
+      icon = Icons.build_outlined;
+      title = translate('funti-journal-admin-kill').replaceAll('{}', r.name);
+      lines.add([
+        _when(r.time),
+        if (r.peer.isNotEmpty) formatID(r.peer),
+        if (r.ip.isNotEmpty) r.ip,
+      ].join(' · '));
+      break;
     case 'cleared':
       icon = Icons.delete_sweep_outlined;
       title = translate('funti-journal-cleared');
