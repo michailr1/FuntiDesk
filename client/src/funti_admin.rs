@@ -4,11 +4,29 @@
 //! The requests arrive in `server/connection.rs` (`funti_admin_request`),
 //! which checks who asks and writes ended processes to the journal.
 
+mod autostart_rules;
 mod rules;
+#[cfg(windows)]
+mod autostart;
 #[cfg(windows)]
 mod services;
 
-pub use rules::Request;
+/// A request of the other side: the bar, processes, services (`rules`) or
+/// what starts with Windows (`autostart_rules`).
+pub enum Request {
+    Core(rules::Request),
+    Autostart(autostart_rules::Request),
+}
+
+impl Request {
+    /// The bar is for every session; the rest only for whoever may control.
+    pub fn needs_control(&self) -> bool {
+        match self {
+            Request::Core(r) => r.needs_control(),
+            Request::Autostart(_) => true,
+        }
+    }
+}
 
 use hbb_common::{
     log,
@@ -23,7 +41,34 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    rules::parse_request(request)
+    let autostart = serde_json::from_str::<serde_json::Value>(request)
+        .ok()
+        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
+    match autostart {
+        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
+        None => Request::Core(rules::parse_request(request)),
+    }
+}
+
+fn handle_autostart(request: &autostart_rules::Request) -> (String, Option<(&'static str, String)>) {
+    use autostart_rules::Request as A;
+    #[cfg(windows)]
+    match request {
+        A::List => (autostart::list(), None),
+        A::Set(source, name, enabled) => match autostart::set(*source, name, *enabled) {
+            Ok(()) => (
+                serde_json::json!({"op": "autostart_set", "name": name, "enabled": enabled}).to_string(),
+                Some((if *enabled { "autostart-on" } else { "autostart-off" }, name.clone())),
+            ),
+            Err(error) => (rules::error_json("autostart_set", error).to_string(), None),
+        },
+        A::Bad => (rules::error_json("autostart", "funti-admin-bad-request").to_string(), None),
+    }
+    #[cfg(not(windows))]
+    match request {
+        A::Bad => (rules::error_json("autostart", "funti-admin-bad-request").to_string(), None),
+        _ => (rules::error_json("autostart", "funti-admin-windows-only").to_string(), None),
+    }
 }
 
 fn own_name() -> String {
@@ -114,10 +159,14 @@ fn kill(pid: u32) -> Result<String, &'static str> {
 /// action and what it was done to. The caller has already checked that
 /// `request` is allowed.
 pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
+    let request = match request {
+        Request::Core(r) => r,
+        Request::Autostart(a) => return handle_autostart(a),
+    };
     match request {
-        Request::Status => (status(), None),
-        Request::Processes => (processes(), None),
-        Request::Kill(pid) => match kill(*pid) {
+        rules::Request::Status => (status(), None),
+        rules::Request::Processes => (processes(), None),
+        rules::Request::Kill(pid) => match kill(*pid) {
             Ok(name) => (
                 serde_json::json!({"op": "kill", "killed": true, "pid": pid, "name": name}).to_string(),
                 Some(("kill", format!("{name} ({pid})"))),
@@ -125,9 +174,9 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
             Err(error) => (rules::error_json("kill", error).to_string(), None),
         },
         #[cfg(windows)]
-        Request::Services => (services::list(), None),
+        rules::Request::Services => (services::list(), None),
         #[cfg(windows)]
-        Request::Service(name, action) => match services::act(name, *action) {
+        rules::Request::Service(name, action) => match services::act(name, *action) {
             Ok(state) => (
                 serde_json::json!({"op": "service", "name": name, "action": action.name(), "state": state})
                     .to_string(),
@@ -143,10 +192,10 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
             Err(error) => (rules::error_json("service", error).to_string(), None),
         },
         #[cfg(not(windows))]
-        Request::Services | Request::Service(..) => (
+        rules::Request::Services | rules::Request::Service(..) => (
             rules::error_json(request.op(), "funti-admin-windows-only").to_string(),
             None,
         ),
-        Request::Bad => (rules::error_json("", "funti-admin-bad-request").to_string(), None),
+        rules::Request::Bad => (rules::error_json("", "funti-admin-bad-request").to_string(), None),
     }
 }

@@ -54,6 +54,8 @@ class _Answers {
   final killed = Rxn<Map<String, dynamic>>();
   final services = Rxn<List<FuntiAdminService>>();
   final serviceDone = Rxn<Map<String, dynamic>>();
+  final autostart = Rxn<List<FuntiAdminAutostart>>();
+  final autostartDone = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -91,6 +93,18 @@ void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
     case 'service':
       a.serviceDone.value = answer;
       _ask(ffi, {'op': 'services'});
+      break;
+    case 'autostart':
+      if (answer['error'] != null) {
+        a.autostartDone.value = answer;
+        a.autostart.value = const [];
+      } else {
+        a.autostart.value = funtiAdminAutostart(answer);
+      }
+      break;
+    case 'autostart_set':
+      a.autostartDone.value = answer;
+      _ask(ffi, {'op': 'autostart'});
       break;
   }
 }
@@ -424,6 +438,111 @@ void showFuntiAdminServices(FFI ffi) {
                 itemCount: shown.length,
                 itemExtent: 44,
                 itemBuilder: (context, i) => row(shown[i]));
+          })),
+        ]),
+      ),
+      actions: [dialogButton('Close', onPressed: close)],
+      onCancel: close,
+    );
+  });
+}
+
+/// "Autostart…" in the session menu (Windows): programs that start with
+/// Windows, for every user and for the signed-in one. "Turn off" works as in
+/// Task Manager — nothing is deleted, and "Turn on" brings it back.
+void showFuntiAdminAutostart(FFI ffi) {
+  final a = _of(ffi);
+  a.autostart.value = null;
+  a.autostartDone.value = null;
+  _ask(ffi, {'op': 'autostart'});
+  ffi.dialogManager.show((setState, close, context) {
+    final t = FuntiTokens.of(context);
+    Widget row(FuntiAdminAutostart e) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(e.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: e.enabled ? t.text : t.muted)),
+                    Text(e.command,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: t.muted)),
+                  ]),
+            ),
+            SizedBox(
+                width: 150,
+                child: Text(
+                    translate(e.everyone
+                        ? 'funti-admin-autostart-everyone'
+                        : 'funti-admin-autostart-this-user'),
+                    style: TextStyle(fontSize: 12, color: t.muted))),
+            SizedBox(
+              width: 120,
+              child: e.protected
+                  ? const SizedBox()
+                  : Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                          onPressed: () => _ask(ffi, {
+                                'op': 'autostart_set',
+                                'source': e.source,
+                                'name': e.name,
+                                'enabled': !e.enabled,
+                              }),
+                          child: Text(translate(e.enabled
+                              ? 'funti-admin-autostart-off'
+                              : 'funti-admin-autostart-on')))),
+            ),
+          ]),
+        );
+
+    return CustomAlertDialog(
+      title: Text(translate('funti-admin-autostart')),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 720),
+      content: SizedBox(
+        width: 720,
+        height: 420,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(translate('funti-admin-autostart-note'),
+              style: TextStyle(fontSize: 12, color: t.muted)),
+          const SizedBox(height: 6),
+          Obx(() {
+            final done = a.autostartDone.value;
+            if (done == null) return const Offstage();
+            final error = done['error'];
+            return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                    error is String
+                        ? translate(error)
+                        : translate(done['enabled'] == true
+                                ? 'funti-admin-autostart-done-on'
+                                : 'funti-admin-autostart-done-off')
+                            .replaceAll('{}', '${done['name']}'),
+                    style: TextStyle(fontSize: 13, color: t.text)));
+          }),
+          Expanded(child: Obx(() {
+            final list = a.autostart.value;
+            if (list == null) {
+              return Center(
+                  child: Text(translate('funti-admin-waiting'),
+                      style: TextStyle(color: t.muted)));
+            }
+            if (list.isEmpty) {
+              return Center(
+                  child: Text(translate('funti-admin-autostart-empty'),
+                      style: TextStyle(color: t.muted)));
+            }
+            return ListView.builder(
+                itemCount: list.length,
+                itemExtent: 44,
+                itemBuilder: (context, i) => row(list[i]));
           })),
         ]),
       ),
