@@ -809,6 +809,11 @@ impl InvokeUiSession for FlutterHandler {
         }
     }
 
+    // FUNTIDESK (ADR-023): an answer of the administration layer.
+    fn funti_admin_result(&self, json: String) {
+        self.push_event("funti_admin", &[("result", json)], &[]);
+    }
+
     // FUNTIDESK (ADR-021): the devices the other computer can wake.
     fn funti_wake_result(&self, json: String) {
         self.push_event("funti_wake", &[("result", json)], &[]);

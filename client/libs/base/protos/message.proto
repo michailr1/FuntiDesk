@@ -932,6 +932,11 @@ message Misc {
     string funti_wake_request = 1004;
     // JSON: the device list, and "sent" or "error" for a wake request.
     string funti_wake_result = 1005;
+    // ADR-023: the administration layer. The controlling side asks about
+    // this computer's state or to act on it (JSON with "op", see
+    // client/src/funti_admin/rules.rs); the answer is funti_admin_result.
+    string funti_admin_request = 1006;
+    string funti_admin_result = 1007;
   }
 }
 

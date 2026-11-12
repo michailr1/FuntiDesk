@@ -1673,6 +1673,15 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(msg_out));
     }
 
+    /// FUNTIDESK (ADR-023): the answer comes as funti_admin_result.
+    pub fn funti_admin(&self, request: String) {
+        let mut misc = Misc::new();
+        misc.set_funti_admin_request(request);
+        let mut msg_out = Message::new();
+        msg_out.set_misc(misc);
+        self.send(Data::Message(msg_out));
+    }
+
     /// FUNTIDESK (ADR-021): the answer comes as funti_wake_result.
     pub fn funti_wake(&self, request: String) {
         let mut misc = Misc::new();
@@ -1829,6 +1838,8 @@ pub trait InvokeUiSession: Send + Sync + Clone + 'static + Sized + Default {
     fn funti_thumbnail(&self, _thumbnail: FuntiThumbnail) {}
     /// FUNTIDESK (ADR-021): the devices the other computer can wake.
     fn funti_wake_result(&self, _json: String) {}
+    /// FUNTIDESK (ADR-023): an answer of the administration layer.
+    fn funti_admin_result(&self, _json: String) {}
     fn printer_request(&self, id: i32, path: String);
     fn handle_screenshot_resp(&self, sid: String, msg: String);
     fn handle_terminal_response(&self, response: TerminalResponse);

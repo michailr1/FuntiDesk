@@ -1942,6 +1942,14 @@ pub fn session_request_voice_call(session_id: SessionID) {
     }
 }
 
+/// FUNTIDESK (ADR-023): a request of the administration layer (JSON with
+/// "op"); the answer is the "funti_admin" event.
+pub fn session_funti_admin(session_id: SessionID, request: String) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.funti_admin(request);
+    }
+}
+
 /// FUNTIDESK (ADR-021): ask the other computer for the devices it can wake
 /// (empty request) or to wake one; the answer is the "funti_wake" event.
 pub fn session_funti_wake(session_id: SessionID, request: String) {

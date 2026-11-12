@@ -43,6 +43,7 @@ import '../utils/image.dart' as img;
 import '../common/widgets/dialog.dart';
 import '../common/widgets/funti_remote_update.dart';
 import '../common/widgets/funti_wake.dart';
+import '../common/widgets/funti_admin.dart';
 import 'input_model.dart';
 import 'platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
@@ -371,6 +372,9 @@ class FfiModel with ChangeNotifier {
         parent.target?.routeTerminalResponse(evt);
       } else if (name == 'file_dir') {
         parent.target?.fileModel.receiveFileDir(evt);
+      } else if (name == 'funti_admin') {
+        final target = parent.target;
+        if (target != null) funtiAdminOnEvent(target, evt);
       } else if (name == 'funti_wake') {
         final target = parent.target;
         if (target != null) funtiWakeOnEvent(target, evt);

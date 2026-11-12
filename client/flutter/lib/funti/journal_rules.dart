@@ -3,8 +3,8 @@
 
 /// One row of the journal page.
 class FuntiJournalRow {
-  /// "session", "files" (a transfer outside a known session), "refused" or
-  /// "cleared".
+  /// "session", "files" (a transfer outside a known session), "refused",
+  /// "admin" (name is what was acted on) or "cleared".
   final String kind;
 
   /// Unix time, seconds.
@@ -78,6 +78,11 @@ List<FuntiJournalRow> funtiJournalRows(List<dynamic> events) {
         rows.add(FuntiJournalRow(
             'refused', t, _str(e['peer']), _str(e['name']), _str(e['ip']))
           ..alarm = _int(e['alarm']));
+        break;
+      case 'admin':
+        // ADR-023: an action through the administration layer.
+        rows.add(FuntiJournalRow(
+            'admin', t, _str(e['peer']), _str(e['target']), _str(e['ip'])));
         break;
       case 'cleared':
         // The service restarted its connection numbers or the journal was

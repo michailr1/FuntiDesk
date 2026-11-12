@@ -2312,6 +2312,10 @@ impl<T: InvokeUiSession> Remote<T> {
                     Some(misc::Union::ChatMessage(c)) => {
                         self.handler.new_message(c.text);
                     }
+                    Some(misc::Union::FuntiAdminResult(json)) => {
+                        // FUNTIDESK (ADR-023)
+                        self.handler.funti_admin_result(json);
+                    }
                     Some(misc::Union::FuntiWakeResult(json)) => {
                         // FUNTIDESK (ADR-021)
                         self.handler.funti_wake_result(json);

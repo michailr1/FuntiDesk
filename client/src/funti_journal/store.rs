@@ -144,6 +144,20 @@ pub fn files(
     })
 }
 
+/// Something the other side did through the administration layer
+/// (ADR-023): `action` is "kill", `target` the process.
+pub fn admin(now_ms: i64, conn: i32, peer: &str, ip: &str, action: &str, target: &str) -> Value {
+    json!({
+        "t": now_ms / 1000,
+        "kind": "admin",
+        "conn": conn,
+        "ip": text(ip),
+        "peer": text(peer),
+        "action": text(action),
+        "target": cut(target, PATH_MAX),
+    })
+}
+
 /// A refused attempt. `alarm` is the number of upstream's AlarmAuditType.
 pub fn refused(now_ms: i64, conn: i32, alarm: i8, info: &Value) -> Value {
     json!({
@@ -279,6 +293,15 @@ mod tests {
         assert!(s.read(10).is_empty());
         assert!(!s.previous().exists());
         s.clear();
+    }
+
+    #[test]
+    fn an_administration_action_is_kept() {
+        let e = admin(9000, 4, "123", "::1", "kill", "chrome.exe (5120)\n");
+        assert_eq!(e["kind"], "admin");
+        assert_eq!(e["t"], 9);
+        assert_eq!(e["action"], "kill");
+        assert_eq!(e["target"], "chrome.exe (5120)");
     }
 
     #[test]
