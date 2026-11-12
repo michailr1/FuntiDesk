@@ -38,6 +38,7 @@ impl ServiceAction {
 
 impl Request {
     /// The bar is for every session; the rest only for whoever may control.
+    #[allow(dead_code)]
     pub fn needs_control(&self) -> bool {
         !matches!(self, Request::Status)
     }

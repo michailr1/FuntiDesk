@@ -99,6 +99,31 @@ List<FuntiAdminService> funtiAdminServicesShown(
       .toList();
 }
 
+class FuntiAdminAutostart {
+  /// "machine", "machine32", "user", "common-folder" or "user-folder".
+  final String source;
+  final String name, command;
+  final bool enabled, protected;
+  FuntiAdminAutostart(
+      this.source, this.name, this.command, this.enabled, this.protected);
+
+  /// For every user of that computer, or only for the signed-in one.
+  bool get everyone => source == 'machine' || source == 'machine32' ||
+      source == 'common-folder';
+}
+
+List<FuntiAdminAutostart>? funtiAdminAutostart(dynamic answer) {
+  if (answer is! Map || answer['op'] != 'autostart') return null;
+  final list = answer['entries'];
+  if (list is! List) return null;
+  return [
+    for (final e in list)
+      if (e is Map && _str(e['name']).isNotEmpty && _str(e['source']).isNotEmpty)
+        FuntiAdminAutostart(_str(e['source']), _str(e['name']),
+            _str(e['command']), e['enabled'] != false, e['protected'] == true)
+  ];
+}
+
 /// The list as shown: filtered by a part of the name (any case), the
 /// heaviest first by processor or by memory; equal ones by name.
 List<FuntiAdminProcess> funtiAdminSorted(

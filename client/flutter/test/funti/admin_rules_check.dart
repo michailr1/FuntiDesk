@@ -59,6 +59,20 @@ void main() {
   check('service search name', funtiAdminServicesShown(services, 'WUAU').map((s) => s.name).toList(), ['wuauserv']);
   check('services other op', funtiAdminServices({'op': 'processes'}), null);
 
+  final auto = funtiAdminAutostart({
+    'op': 'autostart',
+    'entries': [
+      {'source': 'user', 'name': 'Steam', 'command': 'steam.exe -silent', 'enabled': true},
+      {'source': 'machine32', 'name': 'Updater', 'command': 'u.exe', 'enabled': false},
+      {'source': 'machine', 'name': 'FuntiDesk', 'command': 'f.exe', 'protected': true},
+      {'source': '', 'name': 'x'},
+      {'name': 'no source'},
+    ]
+  })!;
+  check('autostart', auto.map((e) => '${e.name}:${e.enabled}:${e.everyone}:${e.protected}').toList(),
+      ['Steam:true:false:false', 'Updater:false:true:false', 'FuntiDesk:true:true:true']);
+  check('autostart other op', funtiAdminAutostart({'op': 'services'}), null);
+
   if (failed > 0) throw 'admin_rules: $failed check(s) failed';
   print('admin_rules: ok');
 }
