@@ -98,7 +98,7 @@ APK для телефонов arm64 — в релизах `funtidesk-android-<к
 | Android | тестовая сборка, проверка на телефоне впереди |
 | iPhone | через браузер (desk.funti.cc/connect/); отдельного приложения не будет без платной учётной записи Apple |
 
-План — [docs/ROADMAP.md](docs/ROADMAP.md), результаты проверок — [docs/reviews/](docs/reviews/).
+Публичный статус — [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 
@@ -112,7 +112,7 @@ APK для телефонов arm64 — в релизах `funtidesk-android-<к
 
 - Все production-клиенты работают только через инфраструктуру FuntiDesk.
 - Числовой ID устройства сохраняется как универсальный резервный способ подключения; поверх него — понятные имена, избранное, семья.
-- Сначала Windows↔Windows, затем Android, Linux и iOS (Android начат раньше Family Release по решению владельца 2026-10-08; iPhone — через браузер, ADR-014).
+- Сначала Windows↔Windows, затем Android, Linux и iOS (Android начат раньше Family Release ; iPhone — через браузер, ADR-014).
 - Собственный интерфейс и сценарии FuntiDesk, а не перекрашенный исходный проект.
 - Изменения протокола и ядра — по возможности минимальные (собственные поля протокола — с номерами от 1000).
 - Поведение, связанное с безопасностью, явное, задокументированное и fail closed.
@@ -130,7 +130,7 @@ APK для телефонов arm64 — в релизах `funtidesk-android-<к
 - GitHub — единственный источник истины для кода, архитектуры, ролей, планов, статусов (`docs/ROADMAP.md`, PR), ADR и эксплуатационной документации.
 - Изменения production-поведения — через историю репозитория и задокументированные критерии приёмки.
 
-Документы: `AGENTS.md` (правила работы), `docs/ROLES.md`, `docs/ROADMAP.md`, `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/UPSTREAM.md`, `docs/UPSTREAM_REVIEW.md`, ADR `docs/ADR-*.md`.
+Документы: `AGENTS.md` (правила работы), `docs/ROADMAP.md`, `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/UPSTREAM.md`, `docs/UPSTREAM_REVIEW.md`, ADR `docs/ADR-*.md`.
 
 ### Лицензирование и атрибуция
 

@@ -108,7 +108,7 @@ Workflow `.github/workflows/server-monitor.yml` (с 2026-10-14) каждые 10 
 
 - создать backup после генерации server identity;
 - выполнить `restore-check.sh`;
-- скопировать backup **off-host** в разрешённое владельцем хранилище;
+- скопировать backup **off-host** в разрешённое проектом хранилище;
 - не удалять единственную копию server private key.
 
 ## Фактическая приёмка M1
