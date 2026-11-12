@@ -13,7 +13,8 @@ from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('static_update', Path(__file__).with_name('update-web-desk.py'))
 update = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(update)
+with patch.dict(os.environ, {'FUNTI_CADDY_ROOT': '/srv/proxy-fixture'}):
+    spec.loader.exec_module(update)
 
 
 class StaticUpdate(unittest.TestCase):

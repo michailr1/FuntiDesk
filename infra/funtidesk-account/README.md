@@ -1,6 +1,6 @@
 # Кабинет FuntiDesk на Core
 
-По [ADR-013](../../docs/ADR-013-core-only-account.md) проект Compose содержит только account API и SMTP. SQLite и существующий account key находятся на Core; независимого witness, relay для него и зависимости от DE нет.
+По [ADR-013](../../docs/ADR-013-core-only-account.md) проект Compose содержит только account API и SMTP. SQLite и существующий account key находятся на Core; независимого witness, relay для него и зависимости от внешнего сервера нет.
 
 API доступен только во frontend-сети действующему Caddy; SMTP — только во внутренней сети API. SMTP использует собственную outbound-сеть для отправки писем. Публичные дополнительные порты API/SMTP не открываются. Resolver hbbs и действующие идентичности компьютеров сохраняются.
 

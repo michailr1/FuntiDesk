@@ -1,5 +1,7 @@
 # Передача: запуск кабинета на desk.funti.cc — 2026-10-15
 
+Эксплуатационные сведения об общей инфраструктуре и других узлах перенесены в закрытый архив владельца; здесь сохранены доступные сведения о проверках продукта.
+
 Продолжение [исходной передачи](2026-10-13-handoff-account.md). Работа остановлена по просьбе владельца для перехода в новый контекст. После этой просьбы серверы не изменялись. Публичный запуск кабинета и настоящая E2E-приёмка пока не завершены.
 
 Актуальное продолжение: [публичный кабинет, SMTP/DNS и реальные входы 2026-10-15](2026-10-15-account-deploy-continuation.md). Состояние ниже сохранено исторически. По последующему решению владельца SMTP/HELO и требуемый PTR используют **desk.funti.cc**; `core.funti.cc` остаётся системным hostname. Закрытый доступ восстановлен, подробные текущие результаты и остаток приёмки находятся в новом отчёте.
@@ -8,7 +10,6 @@
 
 Продолжить основной запуск первого этапа на **desk.funti.cc / Core**: web, account API, собственный SMTP и resolver hbbs. Владелец уже поручил продолжать развёртывание. Повторно спрашивать общее разрешение не нужно.
 
-Владелец отдельно остановил уход в настройку DE: основной сервис должен быть на Core. DE используется для доступа к Core и как предусмотренный ADR-011 независимый witness. Его настройка нужна как зависимость основного сервиса; не переносить туда кабинет/API/SMTP и не превращать это в отдельную задачу.
 
 Тестовый почтовый ящик и публичный age recipient **уже получены** и сохранены отдельно от Git, см. «Доступ». Не просить их повторно. Применение DNS пока не подтверждено: сначала проверить фактические записи.
 
@@ -52,7 +53,6 @@
 
 Это сохранённый результат предыдущей работы. В новом контексте сначала сверить его чтением.
 
-SSH `root@desk.funti.cc` работает **с DE**, с проверкой host key. Фактический hostname — `core.funti.cc`, IPv4 `173.249.195.36`. Прямой SSH из managed workspace ранее не работал.
 
 ### Подготовка account
 
@@ -97,9 +97,6 @@ docker compose -p funtidesk-account \
 
 **Публичный сайт ещё не переключён.** `current` по-прежнему указывает на `/opt/funtidesk-web/releases/0344118bcc88a6185b81f701ba9e43d7e8705495-artifact`.
 
-Действующий Caddy: project/service `caddy`, `/opt/remnawave/caddy/docker-compose.yml`, Caddyfile в том же каталоге. Исходный container ID `53359f2b2986`; image `sha256:748016f285ed8c43a9ce6e3aed6d92d3009d90ca41157950880f40beaf3ff62b`.
-
-Сохранить исходный SSL volume, remnawave-network и остальные блоки. При применении добавить frontend собственным override и пересоздать только Caddy с исходным Compose; не запускать весь VPN stack заново. `stage-desk.py` повторно вслепую не запускать: артефакты уже существуют.
 
 ### Действующий hbbs/hbbr
 
@@ -107,17 +104,12 @@ docker compose -p funtidesk-account \
 
 Перед обновлением сохранить согласованную encrypted копию SQLite и server identity. Применять pinned release `a42f05fa` по процедуре репозитория с `hbbs-identity.override.yaml`, socket `/run/funtidesk-identity/hbbs.sock` и GID `10001`. Проверить прежнюю server identity после обновления. Новый hbbr имеет тот же binary digest; изменённый hbbs нужен для resolver.
 
-## Независимый witness на DE
 
 Это зависимость безопасности ADR-011; основной account остаётся на Core. Не отключать freshness/HMAC и не помещать оба состояния на Core.
 
-От прошлой работы остались TLS mirror и активный hourly timer `funtidesk-account-witness-tls.timer` на DE. Сертификат действующего Caddy для `de.funti.cc` был проверен, срок до 2026-12-03. Собственный mirror: `/opt/funtidesk-account-witness/secrets/tls`.
 
 **Сам witness ещё не установлен**: данные/namespace/HMAC key не инициализированы, постоянных контейнеров нет. Порт `8447` выбран вместо занятого `8446`; снова проверить свободность и сети.
 
-TLS-ветка `codex/account-witness-tls`, commit `e3a98f77`, PR #48 не merged. На DE TLS source checkout `/opt/funtidesk-account-witness-tls-source` закреплён на `6316cd27`. Не продолжать отдельную переработку TLS. Использовать проверенную конфигурацию с loopback admin `127.0.0.1:2019`, необходимую установленному sync script.
-
-Передать по защищённому каналу только machine witness key, тот же namespace и проверенный API image `a42f05fa`. Account key остаётся на Core и в encrypted backup владельца. Не выводить ключи при копировании. На DE было около 1,5 ГБ свободно: не передавать туда весь архив API/mail/server и не удалять чужие Docker resources. UID witness `10002`; сети `172.31.253.0/29`, `172.31.254.0/29` требуют повторной проверки пересечений.
 
 ## DNS и почта
 
@@ -126,7 +118,7 @@ DNS — Cloudflare; готового DNS credential или инструмент�
 SPF заменить **в существующей единственной TXT**, сохранив отправителей:
 
 ```text
-v=spf1 mx a:funti.cc ip4:172.245.108.154 ip4:173.249.195.36 include:sendinblue.com ~all
+v=spf1 mx a:funti.cc ip4:[адрес узла] ip4:[адрес узла] include:sendinblue.com ~all
 ```
 
 DKIM TXT: `funtidesk202610._domainkey.funti.cc`; полное публичное значение брать из `/opt/funtidesk-account/dns-records.json` на Core. Не генерировать другой ключ. DMARC уже был `v=DMARC1; p=none`, MX не менять. PTR содержит `core.funti.cc`, forward имени ведёт на Core. Исходящий SMTP/25 ранее проверен.
@@ -135,9 +127,7 @@ DKIM TXT: `funtidesk202610._domainkey.funti.cc`; полное публичное
 
 ## Доступ и локальное продолжение
 
-Рабочий endpoint — **`https://de.funti.cc/mcp`** на 443. Старый `:8445/mcp` возвращал 503. Прямой MCP с bearer пользователя работал: protocol `2025-03-26`, server `hermes-vps`, tools `health`, `run_shell`, `ask_hermes`. Shell tool принимает `command`, `workdir`, `timeout`. Долгие операции запускать с безопасным background log и опросом состояния, не держать HTTP дольше timeout.
 
-Клиент без встроенных секретов — `/workspace/scratch/funti-de-mcp-client.py`. Получает bearer первой строкой stdin, затем JSON lines. Старый session ID `79318` **недействителен**: создать новый процесс. Для Core использовать SSH с `BatchMode=yes`, `StrictHostKeyChecking=yes`; host key и authentication уже есть на DE. Проверку ключа хоста не отключать.
 
 Параметры продолжения сохранены **вне Git**: `/workspace/.private/funtidesk-handoff/continuation.json` (`0600`, каталог `0700`). Там ранее предоставленные MCP bearer, тестовый mailbox и публичный age recipient. Не печатать файл целиком: читать нужные поля внутри процесса. Приватной age identity у исполнителя нет и не нужно. В том же каталоге есть копии MCP client и activation draft.
 

@@ -15,9 +15,10 @@ import urllib.request
 import uuid
 
 ROOT = Path('/opt/funtidesk-account')
-CADDY = Path('/opt/remnawave/caddy/Caddyfile')
+HOST_ROOT = os.environ.get('FUNTI_CADDY_ROOT')
+CADDY = Path(HOST_ROOT) / 'Caddyfile' if HOST_ROOT else None
 CURRENT = Path('/opt/funtidesk-web/current')
-BASE = Path('/opt/remnawave/caddy/docker-compose.yml')
+BASE = CADDY.parent / 'docker-compose.yml' if CADDY else None
 
 
 def run(*args):
@@ -194,6 +195,8 @@ def write_config(contents):
 
 
 def activate():
+    if CADDY is None or not CADDY.is_absolute():
+        raise RuntimeError("Set absolute FUNTI_CADDY_ROOT from private deployment configuration")
     if os.geteuid() != 0 or socket.gethostname() != 'core.funti.cc':
         raise RuntimeError('Activation must run as root on Core')
     stage = ROOT / 'integration'
