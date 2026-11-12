@@ -19,6 +19,9 @@ class FuntiJournalRow {
   /// Session length; null while it is open (or its end was not written).
   int? seconds;
 
+  /// Admin: what was done ("kill", "service-start", ...).
+  String action = '';
+
   /// Refused: the number of the reason.
   int alarm = 0;
 
@@ -82,7 +85,8 @@ List<FuntiJournalRow> funtiJournalRows(List<dynamic> events) {
       case 'admin':
         // ADR-023: an action through the administration layer.
         rows.add(FuntiJournalRow(
-            'admin', t, _str(e['peer']), _str(e['target']), _str(e['ip'])));
+            'admin', t, _str(e['peer']), _str(e['target']), _str(e['ip']))
+          ..action = _str(e['action']));
         break;
       case 'cleared':
         // The service restarted its connection numbers or the journal was

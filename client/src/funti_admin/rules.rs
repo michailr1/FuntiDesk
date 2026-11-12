@@ -13,7 +13,27 @@ pub enum Request {
     Status,
     Processes,
     Kill(u32),
+    /// Windows services (stage 2).
+    Services,
+    Service(String, ServiceAction),
     Bad,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ServiceAction {
+    Start,
+    Stop,
+    Restart,
+}
+
+impl ServiceAction {
+    pub fn name(self) -> &'static str {
+        match self {
+            ServiceAction::Start => "start",
+            ServiceAction::Stop => "stop",
+            ServiceAction::Restart => "restart",
+        }
+    }
 }
 
 impl Request {
@@ -27,6 +47,8 @@ impl Request {
             Request::Status => "status",
             Request::Processes => "processes",
             Request::Kill(_) => "kill",
+            Request::Services => "services",
+            Request::Service(..) => "service",
             Request::Bad => "",
         }
     }
@@ -43,6 +65,19 @@ pub fn parse_request(text: &str) -> Request {
             Some(pid) => Request::Kill(pid),
             None => Request::Bad,
         },
+        Some("services") => Request::Services,
+        Some("service") => {
+            let action = match v["action"].as_str() {
+                Some("start") => ServiceAction::Start,
+                Some("stop") => ServiceAction::Stop,
+                Some("restart") => ServiceAction::Restart,
+                _ => return Request::Bad,
+            };
+            match v["name"].as_str().filter(|n| service_name_ok(n)) {
+                Some(name) => Request::Service(name.to_owned(), action),
+                None => Request::Bad,
+            }
+        }
         _ => Request::Bad,
     }
 }
@@ -65,6 +100,68 @@ pub fn protected(pid: u32, name: &str, own_name: &str) -> bool {
     };
     let name = plain(name);
     pid <= 4 || name.is_empty() || name == plain(own_name) || PROTECTED.contains(&name.as_str())
+}
+
+/// A service name as Windows keeps it: a registry key name, no path parts.
+pub fn service_name_ok(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 256
+        && name.chars().all(|c| c.is_ascii_graphic() && c != '\\' && c != '/')
+}
+
+/// Windows does not work without these, or they keep it safe; FuntiDesk's
+/// own service keeps the session itself. They are only shown.
+const PROTECTED_SERVICES: &[&str] = &[
+    "rpcss", "rpceptmapper", "dcomlaunch", "lsm", "samss", "winmgmt", "eventlog", "plugplay",
+    "power", "bfe", "mpssvc", "windefend", "wscsvc", "securityhealthservice", "cryptsvc",
+    "dhcp", "dnscache", "nsi", "profsvc", "schedule", "sens", "systemeventsbroker", "gpsvc",
+    "brokerinfrastructure", "coremessagingregistrar", "staterepository", "termservice",
+    "umrdpservice", "sessionenv", "audiosrv", "audioendpointbuilder", "lanmanworkstation",
+    "netlogon", "keyiso", "vaultsvc", "wdnissvc", "sgrmbroker",
+];
+
+pub fn service_protected(name: &str, own_service: &str) -> bool {
+    let name = name.to_lowercase();
+    name == own_service.to_lowercase() || PROTECTED_SERVICES.contains(&name.as_str())
+}
+
+/// "auto", "delayed", "manual", "disabled" or "boot" from the registry
+/// value `Start` and `DelayedAutostart`.
+pub fn start_type(start: u32, delayed: bool) -> &'static str {
+    match start {
+        0 | 1 => "boot",
+        2 if delayed => "delayed",
+        2 => "auto",
+        3 => "manual",
+        _ => "disabled",
+    }
+}
+
+pub struct Svc {
+    pub name: String,
+    pub display: String,
+    /// "running", "stopped", "starting", "stopping", "paused" or "".
+    pub state: &'static str,
+    pub start: &'static str,
+}
+
+/// Running ones first, then by the shown name.
+pub fn services_json(mut list: Vec<Svc>, own_service: &str) -> Value {
+    list.sort_by(|a, b| {
+        (b.state == "running")
+            .cmp(&(a.state == "running"))
+            .then_with(|| a.display.to_lowercase().cmp(&b.display.to_lowercase()))
+    });
+    json!({
+        "op": "services",
+        "services": list.iter().map(|s| json!({
+            "name": text(&s.name),
+            "display": text(if s.display.is_empty() { &s.name } else { &s.display }),
+            "state": s.state,
+            "start": s.start,
+            "protected": service_protected(&s.name, own_service),
+        })).collect::<Vec<_>>(),
+    })
 }
 
 pub struct Proc {
@@ -135,6 +232,19 @@ mod tests {
                     "{\"op\":\"format\"}"] {
             assert!(matches!(parse_request(bad), Request::Bad), "{bad}");
         }
+        assert!(matches!(parse_request("{\"op\":\"services\"}"), Request::Services));
+        assert!(matches!(
+            parse_request("{\"op\":\"service\",\"name\":\"Spooler\",\"action\":\"restart\"}"),
+            Request::Service(n, ServiceAction::Restart) if n == "Spooler"
+        ));
+        for bad in ["{\"op\":\"service\",\"name\":\"Spooler\"}",
+                    "{\"op\":\"service\",\"name\":\"Spooler\",\"action\":\"delete\"}",
+                    "{\"op\":\"service\",\"name\":\"..\\\\x\",\"action\":\"stop\"}",
+                    "{\"op\":\"service\",\"name\":\"a b\",\"action\":\"stop\"}",
+                    "{\"op\":\"service\",\"name\":\"\",\"action\":\"stop\"}"] {
+            assert!(matches!(parse_request(bad), Request::Bad), "{bad}");
+        }
+        assert!(Request::Services.needs_control());
         assert!(!Request::Status.needs_control());
         assert!(Request::Processes.needs_control() && Request::Kill(1).needs_control());
     }
@@ -170,6 +280,31 @@ mod tests {
         assert_eq!(rows[1]["cpu"], 3.3);
         assert_eq!(rows[1]["protected"], true);
         assert_eq!(rows[2]["mem"], 499);
+    }
+
+    #[test]
+    fn services() {
+        assert_eq!(start_type(2, false), "auto");
+        assert_eq!(start_type(2, true), "delayed");
+        assert_eq!(start_type(3, true), "manual");
+        assert_eq!(start_type(4, false), "disabled");
+        assert_eq!(start_type(1, false), "boot");
+        assert!(service_protected("RpcSs", "FuntiDesk"));
+        assert!(service_protected("funtidesk", "FuntiDesk"));
+        assert!(!service_protected("Spooler", "FuntiDesk"));
+        let list = vec![
+            Svc { name: "b".into(), display: "Zeta".into(), state: "stopped", start: "manual" },
+            Svc { name: "Spooler".into(), display: "Диспетчер печати".into(), state: "running", start: "auto" },
+            Svc { name: "WinDefend".into(), display: "".into(), state: "running", start: "auto" },
+            Svc { name: "a".into(), display: "alpha".into(), state: "stopped", start: "disabled" },
+        ];
+        let v = services_json(list, "FuntiDesk");
+        let rows = v["services"].as_array().unwrap();
+        let names: Vec<_> = rows.iter().map(|r| r["name"].as_str().unwrap()).collect();
+        assert_eq!(names, ["WinDefend", "Spooler", "a", "b"]);
+        assert_eq!(rows[0]["display"], "WinDefend");
+        assert_eq!(rows[0]["protected"], true);
+        assert_eq!(rows[1]["protected"], false);
     }
 
     #[test]

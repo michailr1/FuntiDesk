@@ -101,7 +101,10 @@ Widget _row(BuildContext context, FuntiJournalRow r) {
       break;
     case 'admin':
       icon = Icons.build_outlined;
-      title = translate('funti-journal-admin-kill').replaceAll('{}', r.name);
+      final key = 'funti-journal-admin-${r.action}';
+      final known = translate(key) != key;
+      title = translate(known ? key : 'funti-journal-admin-kill')
+          .replaceAll('{}', r.name);
       lines.add([
         _when(r.time),
         if (r.peer.isNotEmpty) formatID(r.peer),

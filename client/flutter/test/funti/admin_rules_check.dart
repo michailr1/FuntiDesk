@@ -42,6 +42,23 @@ void main() {
   check('not a list', funtiAdminProcesses({'op': 'processes'}), null);
   check('other answer', funtiAdminProcesses({'op': 'status'}), null);
 
+  final services = funtiAdminServices({
+    'op': 'services',
+    'services': [
+      {'name': 'Spooler', 'display': 'Диспетчер печати', 'state': 'running', 'start': 'auto'},
+      {'name': 'WinDefend', 'display': '', 'state': 'running', 'start': 'auto', 'protected': true},
+      {'name': 'wuauserv', 'display': 'Центр обновления Windows', 'state': 'stopped', 'start': 'manual'},
+      {'name': ''},
+      7,
+    ]
+  })!;
+  check('services', services.map((s) => s.display).toList(),
+      ['Диспетчер печати', 'WinDefend', 'Центр обновления Windows']);
+  check('service flags', '${services[0].running} ${services[2].stopped} ${services[1].protected}', 'true true true');
+  check('service search display', funtiAdminServicesShown(services, 'печат').map((s) => s.name).toList(), ['Spooler']);
+  check('service search name', funtiAdminServicesShown(services, 'WUAU').map((s) => s.name).toList(), ['wuauserv']);
+  check('services other op', funtiAdminServices({'op': 'processes'}), null);
+
   if (failed > 0) throw 'admin_rules: $failed check(s) failed';
   print('admin_rules: ok');
 }

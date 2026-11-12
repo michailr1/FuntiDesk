@@ -47,7 +47,7 @@ void main() {
   final admin = funtiJournalRows([
     {'t': 5, 'kind': 'admin', 'conn': 2, 'peer': '111', 'ip': '::1', 'action': 'kill', 'target': 'chrome.exe (5120)'},
   ]);
-  check('admin', '${admin[0].kind} ${admin[0].peer} ${admin[0].name}', 'admin 111 chrome.exe (5120)');
+  check('admin', '${admin[0].kind} ${admin[0].peer} ${admin[0].name} ${admin[0].action}', 'admin 111 chrome.exe (5120) kill');
 
   check('seconds', funtiJournalDuration(45, 'с', 'мин', 'ч'), '45 с');
   check('minutes', funtiJournalDuration(720, 'с', 'мин', 'ч'), '12 мин');

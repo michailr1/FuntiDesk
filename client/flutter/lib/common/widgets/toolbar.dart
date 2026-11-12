@@ -677,6 +677,13 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
           onPressed: () => showFuntiAdminProcesses(ffi)),
     );
   }
+  if (funtiPeerHasServices(ffi)) {
+    v.add(
+      TTextMenu(
+          child: Text(translate('funti-admin-services-menu')),
+          onPressed: () => showFuntiAdminServices(ffi)),
+    );
+  }
   if (funtiPeerHasAdminBar(ffi)) {
     v.add(
       TTextMenu(
