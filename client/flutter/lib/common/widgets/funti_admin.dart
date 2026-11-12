@@ -36,6 +36,11 @@ bool _desktopPeer(FFI ffi) =>
 bool funtiPeerHasAdminBar(FFI ffi) =>
     ffi.connType == ConnType.defaultConn && _desktopPeer(ffi);
 
+/// Windows services are only on Windows.
+bool funtiPeerHasServices(FFI ffi) =>
+    funtiPeerCanAdmin(ffi) &&
+    ffi.ffiModel.pi.platform == kPeerPlatformWindows;
+
 /// Whoever may control the other computer sees its processes.
 bool funtiPeerCanAdmin(FFI ffi) =>
     funtiPeerHasAdminBar(ffi) &&
@@ -47,6 +52,8 @@ class _Answers {
   final status = Rxn<FuntiAdminStatus>();
   final processes = Rxn<List<FuntiAdminProcess>>();
   final killed = Rxn<Map<String, dynamic>>();
+  final services = Rxn<List<FuntiAdminService>>();
+  final serviceDone = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -77,6 +84,13 @@ void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
       break;
     case 'kill':
       a.killed.value = answer;
+      break;
+    case 'services':
+      a.services.value = funtiAdminServices(answer);
+      break;
+    case 'service':
+      a.serviceDone.value = answer;
+      _ask(ffi, {'op': 'services'});
       break;
   }
 }
@@ -287,6 +301,134 @@ void showFuntiAdminProcesses(FFI ffi) {
       ),
       actions: [dialogButton('Close', onPressed: done)],
       onCancel: done,
+    );
+  });
+}
+
+/// "Services…" in the session menu (Windows): the list with the state and
+/// start type; start, stop and restart ask once more in the same row.
+/// Services Windows cannot do without, and FuntiDesk's own, are only shown.
+void showFuntiAdminServices(FFI ffi) {
+  final a = _of(ffi);
+  a.services.value = null;
+  a.serviceDone.value = null;
+  _ask(ffi, {'op': 'services'});
+  final search = TextEditingController();
+  String? confirm; // "<name>/<action>"
+  final busy = <String>{};
+  ffi.dialogManager.show((setState, close, context) {
+    final t = FuntiTokens.of(context);
+
+    void act(FuntiAdminService s, String action) {
+      _ask(ffi, {'op': 'service', 'name': s.name, 'action': action});
+      setState(() {
+        confirm = null;
+        busy.add(s.name);
+      });
+    }
+
+    Widget button(FuntiAdminService s, String action) {
+      final key = '${s.name}/$action';
+      if (confirm == key) {
+        return TextButton(
+            onPressed: () => act(s, action),
+            child: Text(translate('funti-admin-service-$action-yes'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error)));
+      }
+      return TextButton(
+          onPressed: () => setState(() => confirm = key),
+          child: Text(translate('funti-admin-service-$action')));
+    }
+
+    Widget row(FuntiAdminService s) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(s.display,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: t.text)),
+                    Text(
+                        '${s.name} · ${translate('funti-admin-start-${s.start}')}',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: t.muted)),
+                  ]),
+            ),
+            SizedBox(
+                width: 110,
+                child: Text(translate('funti-admin-state-${s.state}'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: s.running ? t.text : t.muted))),
+            SizedBox(
+              width: 230,
+              child: s.protected
+                  ? const SizedBox()
+                  : busy.contains(s.name)
+                      ? Text(translate('funti-admin-service-busy'),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(fontSize: 12, color: t.muted))
+                      : Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                          if (s.stopped) button(s, 'start'),
+                          if (s.running) button(s, 'restart'),
+                          if (s.running) button(s, 'stop'),
+                        ]),
+            ),
+          ]),
+        );
+
+    return CustomAlertDialog(
+      title: Text(translate('funti-admin-services')),
+      contentBoxConstraints: const BoxConstraints(maxWidth: 760),
+      content: SizedBox(
+        width: 760,
+        height: 480,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(
+              controller: search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: translate('funti-admin-search'))),
+          const SizedBox(height: 6),
+          Obx(() {
+            final done = a.serviceDone.value;
+            if (done == null) return const Offstage();
+            // The answer ends the wait for that service.
+            final name = done['name'];
+            if (name is String) busy.remove(name);
+            final error = done['error'];
+            if (error is String) busy.clear();
+            return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                    error is String
+                        ? translate(error)
+                        : translate('funti-admin-service-done-${done['action']}')
+                            .replaceAll('{}', '$name'),
+                    style: TextStyle(fontSize: 13, color: t.text)));
+          }),
+          Expanded(child: Obx(() {
+            final list = a.services.value;
+            if (list == null) {
+              return Center(
+                  child: Text(translate('funti-admin-waiting'),
+                      style: TextStyle(color: t.muted)));
+            }
+            final shown = funtiAdminServicesShown(list, search.text);
+            return ListView.builder(
+                itemCount: shown.length,
+                itemExtent: 44,
+                itemBuilder: (context, i) => row(shown[i]));
+          })),
+        ]),
+      ),
+      actions: [dialogButton('Close', onPressed: close)],
+      onCancel: close,
     );
   });
 }

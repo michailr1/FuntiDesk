@@ -4317,13 +4317,13 @@ impl Connection {
                             })
                             .await
                             .unwrap_or_default();
-                            if let Some((name, pid)) = ended {
+                            if let Some((action, target)) = ended {
                                 crate::funti_journal::admin_event(
                                     self.inner.id(),
                                     &self.lr.my_id,
                                     &self.ip,
-                                    "kill",
-                                    &format!("{name} ({pid})"),
+                                    action,
+                                    &target,
                                 );
                             }
                             let mut misc = Misc::new();

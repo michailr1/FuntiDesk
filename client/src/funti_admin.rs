@@ -5,6 +5,8 @@
 //! which checks who asks and writes ended processes to the journal.
 
 mod rules;
+#[cfg(windows)]
+mod services;
 
 pub use rules::Request;
 
@@ -108,19 +110,43 @@ fn kill(pid: u32) -> Result<String, &'static str> {
     }
 }
 
-/// The answer (JSON) and, for an ended process, its name and number for the
-/// journal. The caller has already checked that `request` is allowed.
-pub fn handle(request: &Request) -> (String, Option<(String, u32)>) {
+/// The answer (JSON) and, for an action, what goes to the journal: the
+/// action and what it was done to. The caller has already checked that
+/// `request` is allowed.
+pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     match request {
         Request::Status => (status(), None),
         Request::Processes => (processes(), None),
         Request::Kill(pid) => match kill(*pid) {
             Ok(name) => (
                 serde_json::json!({"op": "kill", "killed": true, "pid": pid, "name": name}).to_string(),
-                Some((name, *pid)),
+                Some(("kill", format!("{name} ({pid})"))),
             ),
             Err(error) => (rules::error_json("kill", error).to_string(), None),
         },
+        #[cfg(windows)]
+        Request::Services => (services::list(), None),
+        #[cfg(windows)]
+        Request::Service(name, action) => match services::act(name, *action) {
+            Ok(state) => (
+                serde_json::json!({"op": "service", "name": name, "action": action.name(), "state": state})
+                    .to_string(),
+                Some((
+                    match action {
+                        rules::ServiceAction::Start => "service-start",
+                        rules::ServiceAction::Stop => "service-stop",
+                        rules::ServiceAction::Restart => "service-restart",
+                    },
+                    name.clone(),
+                )),
+            ),
+            Err(error) => (rules::error_json("service", error).to_string(), None),
+        },
+        #[cfg(not(windows))]
+        Request::Services | Request::Service(..) => (
+            rules::error_json(request.op(), "funti-admin-windows-only").to_string(),
+            None,
+        ),
         Request::Bad => (rules::error_json("", "funti-admin-bad-request").to_string(), None),
     }
 }

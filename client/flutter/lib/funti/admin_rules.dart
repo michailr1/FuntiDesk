@@ -60,6 +60,45 @@ List<FuntiAdminProcess>? funtiAdminProcesses(dynamic answer) {
   ];
 }
 
+class FuntiAdminService {
+  final String name, display, state, start;
+  final bool protected;
+  FuntiAdminService(
+      this.name, this.display, this.state, this.start, this.protected);
+
+  bool get running => state == 'running';
+  bool get stopped => state == 'stopped';
+}
+
+List<FuntiAdminService>? funtiAdminServices(dynamic answer) {
+  if (answer is! Map || answer['op'] != 'services') return null;
+  final list = answer['services'];
+  if (list is! List) return null;
+  return [
+    for (final s in list)
+      if (s is Map && _str(s['name']).isNotEmpty)
+        FuntiAdminService(
+            _str(s['name']),
+            _str(s['display']).isEmpty ? _str(s['name']) : _str(s['display']),
+            _str(s['state']),
+            _str(s['start']),
+            s['protected'] == true)
+  ];
+}
+
+/// Filtered by a part of the shown or the service name; the order of the
+/// other side (running first) is kept.
+List<FuntiAdminService> funtiAdminServicesShown(
+    List<FuntiAdminService> list, String search) {
+  final needle = search.trim().toLowerCase();
+  if (needle.isEmpty) return List.of(list);
+  return list
+      .where((s) =>
+          s.display.toLowerCase().contains(needle) ||
+          s.name.toLowerCase().contains(needle))
+      .toList();
+}
+
 /// The list as shown: filtered by a part of the name (any case), the
 /// heaviest first by processor or by memory; equal ones by name.
 List<FuntiAdminProcess> funtiAdminSorted(
