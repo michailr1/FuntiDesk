@@ -31,21 +31,21 @@ assert set(account["services"]) == {"account", "mail"}
 assert all("WITNESS" not in k for k in account["services"]["account"]["environment"])
 assert account["services"]["account"]["environment"]["FUNTI_ACCOUNT_TRUSTED_PROXIES"] == "172.31.251.4"
 
-# Only the inspected Caddy service fields are reproduced; no VPN configuration or secrets.
+# Only the inspected Caddy service fields are reproduced; no unrelated configuration or secrets.
 with tempfile.TemporaryDirectory(prefix="funtidesk-compose-check-") as temporary:
     base = pathlib.Path(temporary) / "base.yaml"
     base.write_text("""services:
   caddy:
     image: caddy:local-config-check
-    networks: [remnawave-network]
+    networks: [existing-proxy-network]
     volumes:
-      - /opt/remnawave/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/proxy-fixture/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/funtidesk-web/current:/usr/share/caddy:ro
       - caddy-ssl-data:/data
 networks:
-  remnawave-network:
+  existing-proxy-network:
     external: true
-    name: remnawave-network
+    name: existing-proxy-network
 volumes:
   caddy-ssl-data: {}
 """)
@@ -53,7 +53,7 @@ volumes:
                             "-f", str(base), "-f", str(infra / "caddy-account.override.yaml"),
                             "config", "--format", "json"))
     service = merged["services"]["caddy"]
-    assert set(service["networks"]) == {"remnawave-network", "funtidesk-account-front"}
+    assert set(service["networks"]) == {"existing-proxy-network", "funtidesk-account-front"}
     assert service["networks"]["funtidesk-account-front"]["ipv4_address"] == "172.31.251.4"
     assert service["image"] == "caddy:local-config-check"
     mounts = {mount["target"]: mount for mount in service["volumes"]}

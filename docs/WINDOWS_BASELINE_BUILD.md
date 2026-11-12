@@ -4,7 +4,6 @@
 
 Цель этапа — получить рабочую Windows x64-сборку **неизменённого импортированного baseline** до любых FuntiDesk security/branding-патчей. Это позволяет отделить проблемы toolchain от наших изменений.
 
-> Для текущей разработки Windows-клиента поверх baseline используется постоянный Windows build worker. Его режимы, границы ответственности и merge/release gates описаны в `docs/WINDOWS_BUILD_WORKER.md`. Этот worker ускоряет итерационные сборки, но **не заменяет** R21 clean build на GitHub.
 
 ## Зафиксированная upstream-конфигурация
 

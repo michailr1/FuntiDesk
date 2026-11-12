@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -15,7 +16,8 @@ from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('activate_desk', Path(__file__).with_name('activate-desk.py'))
 activation = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(activation)
+with patch.dict(os.environ, {'FUNTI_CADDY_ROOT': '/srv/proxy-fixture'}):
+    spec.loader.exec_module(activation)
 
 
 class ActivationTests(unittest.TestCase):
@@ -267,17 +269,17 @@ class CaddyPreflightTests(unittest.TestCase):
             {'Destination': '/etc/caddy/Caddyfile', 'Source': str(activation.CADDY), 'Type': 'bind', 'RW': False},
             {'Destination': '/usr/share/caddy', 'Source': str(activation.CURRENT), 'Type': 'bind', 'RW': False},
             {'Destination': '/data', 'Name': 'original-ssl', 'Type': 'volume', 'RW': True},
-        ], 'NetworkSettings': {'Networks': {'remnawave-network': {'NetworkID': 'original-network-id'}}},
+        ], 'NetworkSettings': {'Networks': {'existing-proxy-network': {'NetworkID': 'original-network-id'}}},
             'Config': {'Labels': {'com.docker.compose.config-hash': 'original-config-hash'}}}
         self.original = {'services': {'caddy': {
-            'image': 'caddy:production', 'networks': {'remnawave-network': {}},
+            'image': 'caddy:production', 'networks': {'existing-proxy-network': {}},
             'volumes': [
                 {'target': '/etc/caddy/Caddyfile', 'type': 'bind', 'source': str(activation.CADDY), 'read_only': True},
                 {'target': '/usr/share/caddy', 'type': 'bind', 'source': str(activation.CURRENT), 'read_only': True},
                 {'target': '/data', 'type': 'volume', 'source': 'ssl'},
             ],
         }}, 'volumes': {'ssl': {'name': 'original-ssl'}},
-            'networks': {'remnawave-network': {'name': 'remnawave-network', 'external': True}}}
+            'networks': {'existing-proxy-network': {'name': 'existing-proxy-network', 'external': True}}}
         self.candidate = copy.deepcopy(self.original)
         self.candidate['services']['caddy']['networks']['funtidesk-account-front'] = {'ipv4_address': '172.31.251.4'}
         self.image_id = 'sha256:caddy'
@@ -292,7 +294,7 @@ class CaddyPreflightTests(unittest.TestCase):
         if args[:3] == ('docker', 'image', 'inspect'):
             return json.dumps([{'Id': self.image_id}]).encode()
         if args[:3] == ('docker', 'network', 'inspect'):
-            return json.dumps([{'Name': 'remnawave-network', 'Id': 'original-network-id'}]).encode()
+            return json.dumps([{'Name': 'existing-proxy-network', 'Id': 'original-network-id'}]).encode()
         if '--hash' in args:
             return b'caddy original-config-hash\n'
         return json.dumps(self.candidate if 'account.yaml' in args else self.original).encode()
@@ -351,32 +353,32 @@ class CaddyPreflightTests(unittest.TestCase):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_override_cannot_remove_existing_network(self):
-        del self.candidate['services']['caddy']['networks']['remnawave-network']
+        del self.candidate['services']['caddy']['networks']['existing-proxy-network']
         with self.assertRaisesRegex(RuntimeError, 'existing networks'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_short_network_attachment_and_empty_mapping_are_equivalent(self):
-        self.original['services']['caddy']['networks']['remnawave-network'] = None
+        self.original['services']['caddy']['networks']['existing-proxy-network'] = None
         activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_existing_network_attachment_options_are_still_preserved(self):
-        self.original['services']['caddy']['networks']['remnawave-network'] = {'aliases': ['existing-caddy']}
+        self.original['services']['caddy']['networks']['existing-proxy-network'] = {'aliases': ['existing-caddy']}
         with self.assertRaisesRegex(RuntimeError, 'existing networks'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_override_cannot_redirect_existing_network_definition(self):
-        self.candidate['networks']['remnawave-network']['name'] = 'other-network'
+        self.candidate['networks']['existing-proxy-network']['name'] = 'other-network'
         with self.assertRaisesRegex(RuntimeError, 'existing network definition'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_base_compose_network_name_drift_is_rejected(self):
-        self.original['networks']['remnawave-network']['name'] = 'other-network'
-        self.candidate['networks']['remnawave-network']['name'] = 'other-network'
+        self.original['networks']['existing-proxy-network']['name'] = 'other-network'
+        self.candidate['networks']['existing-proxy-network']['name'] = 'other-network'
         with self.assertRaisesRegex(RuntimeError, 'changes a live Caddy network'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
     def test_recreated_physical_network_is_rejected(self):
-        self.info['NetworkSettings']['Networks']['remnawave-network']['NetworkID'] = 'different-network-id'
+        self.info['NetworkSettings']['Networks']['existing-proxy-network']['NetworkID'] = 'different-network-id'
         with self.assertRaisesRegex(RuntimeError, 'network identity'):
             activation.verify_caddy(self.record, self.base, self.proposed)
 
