@@ -1213,5 +1213,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-admin-autostart-failed", "Изменить не удалось: система не разрешила."),
         ("funti-journal-admin-autostart-off", "Отключён автозапуск: {}"),
         ("funti-journal-admin-autostart-on", "Включён автозапуск: {}"),
+        ("funti-journal-type-5", "Служебное подключение (без экрана)"),
+        ("funti-service-refused", "Служебное подключение этому члену семьи не разрешено."),
+        ("funti-service-no-access", "Нет сохранённого пароля, и компьютер не в семье."),
+        ("funti-service-old-version", "На том компьютере старая версия FuntiDesk."),
+        ("funti-service-offline", "Компьютер не в сети."),
     ].iter().cloned().collect();
 }

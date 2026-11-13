@@ -97,6 +97,12 @@ message LoginRequest {
   // A family member leaves this computer's family ("unpair" family message
   // signed in funti_family_proof); no session follows.
   bool funti_family_unpair = 1004;
+  // FUNTIDESK (ADR-024): a service connection — sent with the file transfer
+  // union, authorized as usual (saved password or family), but with no
+  // files, video or input: only the administration requests. An older
+  // FuntiDesk ignores the field and opens a plain file transfer connection;
+  // the asking side sees no "funti_service" in the peer info and closes it.
+  bool funti_service = 1005;
 }
 
 // FUNTIDESK (ADR-006): pairing with the one-time code shown on the other

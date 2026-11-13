@@ -1212,5 +1212,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-admin-autostart-failed", ""),
         ("funti-journal-admin-autostart-off", ""),
         ("funti-journal-admin-autostart-on", ""),
+        ("funti-journal-type-5", ""),
+        ("funti-service-refused", ""),
+        ("funti-service-no-access", ""),
+        ("funti-service-old-version", ""),
+        ("funti-service-offline", ""),
     ].iter().cloned().collect();
 }
