@@ -6314,6 +6314,12 @@ impl Connection {
     }
 
     fn authorized_scope_violation(&self, msg: &Message) -> Option<&'static str> {
+        // FUNTIDESK (ADR-024): a service connection is a file-transfer login
+        // that carries administration requests only; the gate in the
+        // authorized branch drops everything else.
+        if self.funti_service && Self::is_funti_admin_request(msg) {
+            return None;
+        }
         let Some(conn_type) = self.authed_conn_type() else {
             return (!Self::is_connection_housekeeping_message(msg)).then_some("session.auth_type");
         };
@@ -6443,6 +6449,14 @@ impl Connection {
             && Self::is_bool_option_not_set(option.disable_camera)
             && Self::is_bool_option_not_set(option.terminal_persistent)
             && Self::is_bool_option_not_set(option.show_my_cursor)
+    }
+
+    fn is_funti_admin_request(msg: &Message) -> bool {
+        matches!(
+            msg.union.as_ref(),
+            Some(message::Union::Misc(misc))
+                if matches!(misc.union.as_ref(), Some(misc::Union::FuntiAdminRequest(_)))
+        )
     }
 
     fn is_connection_housekeeping_message(msg: &Message) -> bool {
