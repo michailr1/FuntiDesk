@@ -39,6 +39,21 @@ class FuntiRunBoard extends ChangeNotifier {
 
 const _timeouts = [30, 60, 300, 600];
 
+/// Ready-made group actions: (translation key, shell, script).
+const _presets = [
+  ('funti-run-preset-restart', 'cmd',
+      'shutdown /r /t 60 /c "FuntiDesk: перезагрузка через 1 минуту. Сохраните работу."'),
+  ('funti-run-preset-shutdown', 'cmd',
+      'shutdown /s /t 60 /c "FuntiDesk: выключение через 1 минуту. Сохраните работу."'),
+  ('funti-run-preset-cancel', 'cmd', 'shutdown /a'),
+  ('funti-run-preset-gpupdate', 'cmd', 'gpupdate /force'),
+  ('funti-run-preset-temp', 'powershell',
+      r"Get-ChildItem $env:windir\Temp, 'C:\Users\*\AppData\Local\Temp' -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; 'done'"),
+  ('funti-run-preset-ip', 'powershell',
+      'Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -ne "127.0.0.1" } | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize | Out-String'),
+  ('funti-run-preset-sessions', 'cmd', 'query user'),
+];
+
 class FuntiRunPanel extends StatefulWidget {
   final List<FuntiRunHost> hosts;
   final FuntiRunBoard board;
@@ -326,6 +341,25 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                       DropdownMenuItem(value: s, child: Text(_timeoutText(s)))
                   ],
                   onChanged: (v) => setState(() => _timeout = v ?? 60)),
+              const SizedBox(width: 12),
+              PopupMenuButton<int>(
+                tooltip: translate('funti-run-presets'),
+                onSelected: (i) => setState(() {
+                  _shell = _presets[i].$2;
+                  _script.text = _presets[i].$3;
+                }),
+                itemBuilder: (_) => [
+                  for (var i = 0; i < _presets.length; i++)
+                    PopupMenuItem(value: i, child: Text(translate(_presets[i].$1))),
+                ],
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.bolt, size: 16, color: t.muted),
+                  const SizedBox(width: 4),
+                  Text(translate('funti-run-presets'),
+                      style: TextStyle(fontSize: 13, color: t.text)),
+                  Icon(Icons.arrow_drop_down, color: t.muted),
+                ]),
+              ),
               const Spacer(),
               ElevatedButton.icon(
                   onPressed: count == 0 ? null : _start,

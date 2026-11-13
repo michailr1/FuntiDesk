@@ -1286,5 +1286,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-failed", "Не удалось запустить"),
         ("funti-run-too-long", "Скрипт слишком длинный (больше 32 КБ)"),
         ("funti-journal-admin-run", "Выполнена команда: {}"),
+        ("funti-run-presets", "Готовые действия"),
+        ("funti-run-preset-restart", "Перезагрузить (через 1 минуту, с предупреждением)"),
+        ("funti-run-preset-shutdown", "Выключить (через 1 минуту, с предупреждением)"),
+        ("funti-run-preset-cancel", "Отменить перезагрузку или выключение"),
+        ("funti-run-preset-gpupdate", "Обновить групповые политики"),
+        ("funti-run-preset-temp", "Очистить временные файлы"),
+        ("funti-run-preset-ip", "Показать IP-адреса"),
+        ("funti-run-preset-sessions", "Кто вошёл в систему"),
     ].iter().cloned().collect();
 }

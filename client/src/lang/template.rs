@@ -1285,5 +1285,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-failed", ""),
         ("funti-run-too-long", ""),
         ("funti-journal-admin-run", ""),
+        ("funti-run-presets", ""),
+        ("funti-run-preset-restart", ""),
+        ("funti-run-preset-shutdown", ""),
+        ("funti-run-preset-cancel", ""),
+        ("funti-run-preset-gpupdate", ""),
+        ("funti-run-preset-temp", ""),
+        ("funti-run-preset-ip", ""),
+        ("funti-run-preset-sessions", ""),
     ].iter().cloned().collect();
 }
