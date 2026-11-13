@@ -76,6 +76,7 @@ class _Answers {
   final autostartDone = Rxn<Map<String, dynamic>>();
   final info = Rxn<Map<String, dynamic>>();
   final journal = Rxn<List<dynamic>>();
+  final eventlog = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -93,6 +94,8 @@ void funtiAdminForget(String key) => _answers.remove(key);
 Rxn<FuntiAdminStatus> funtiAdminStatusOf(String key) => _ofKey(key).status;
 Rxn<Map<String, dynamic>> funtiAdminInfoOf(String key) => _ofKey(key).info;
 Rxn<List<dynamic>> funtiAdminJournalOf(String key) => _ofKey(key).journal;
+Rxn<Map<String, dynamic>> funtiAdminEventLogOf(String key) =>
+    _ofKey(key).eventlog;
 
 /// The "funti_admin" session event.
 void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
@@ -147,6 +150,9 @@ void funtiAdminOnAnswer(String key, Map<String, dynamic> answer) {
     case 'journal':
       final events = answer['events'];
       if (events is List) a.journal.value = events;
+      break;
+    case 'eventlog':
+      a.eventlog.value = answer;
       break;
   }
 }

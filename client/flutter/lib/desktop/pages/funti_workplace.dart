@@ -18,6 +18,7 @@ import '../../funti/journal_rules.dart';
 import '../../funti/workplace_rules.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
+import '../widgets/funti_eventlog.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_journal.dart';
 
@@ -80,7 +81,7 @@ class _Host extends FuntiHost {
   _Host(String id, String name, this.platform) : super(id, name);
 }
 
-enum _Section { overview, processes, services, autostart, journal }
+enum _Section { overview, processes, services, autostart, eventlog, journal }
 
 class FuntiWorkplaceView extends StatefulWidget {
   const FuntiWorkplaceView({Key? key}) : super(key: key);
@@ -620,6 +621,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _Section.processes,
       if (_windows(h)) _Section.services,
       if (_windows(h)) _Section.autostart,
+      if (_windows(h)) _Section.eventlog,
       _Section.journal,
     ];
     Widget body;
@@ -644,6 +646,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               padding: const EdgeInsets.all(12),
               child: FuntiAutostartPanel(key: ValueKey('a${h.id}'), link: link));
           break;
+        case _Section.eventlog:
+          body = Padding(
+              padding: const EdgeInsets.all(12),
+              child: FuntiEventLogPanel(key: ValueKey('e${h.id}'), link: link));
+          break;
         case _Section.journal:
           body = _journal(t, h);
           break;
@@ -657,6 +664,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.rowStroke))),
         child: Row(children: [
+          // The sections scroll when the window is narrow; the screen
+          // button stays at the right.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
           for (final s in sections)
             Padding(
               padding: const EdgeInsets.only(right: 2),
@@ -676,7 +689,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                         color: s == section ? t.text : t.muted)),
               ),
             ),
-          const Spacer(),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 8),
           ElevatedButton.icon(
               onPressed: () => connect(context, h.id),
               icon: const Icon(Icons.desktop_windows_outlined, size: 16),

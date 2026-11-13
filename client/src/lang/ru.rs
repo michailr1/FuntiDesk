@@ -1264,6 +1264,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", "Видеокарта"),
         ("funti-workplace-disks", "Диски"),
         ("funti-workplace-days", "д"),
+        ("funti-workplace-eventlog", "Журналы Windows"),
+        ("funti-eventlog-System", "Система"),
+        ("funti-eventlog-Application", "Приложение"),
+        ("funti-eventlog-Security", "Безопасность"),
+        ("funti-eventlog-level-all", "Все события"),
+        ("funti-eventlog-level-warning", "Предупреждения и ошибки"),
+        ("funti-eventlog-level-error", "Ошибки"),
+        ("funti-eventlog-filter", "Источник, код или текст"),
+        ("funti-eventlog-empty", "Событий нет"),
+        ("funti-eventlog-no-text", "Текста нет"),
+        ("funti-eventlog-shown", "Показано {} из {n}"),
+        ("funti-admin-eventlog-failed", "Не удалось прочитать журнал Windows"),
         ("funti-about-telegram", "Новости FuntiDesk в Telegram"),
     ].iter().cloned().collect();
 }

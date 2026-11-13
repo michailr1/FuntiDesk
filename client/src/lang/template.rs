@@ -1263,6 +1263,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", ""),
         ("funti-workplace-disks", ""),
         ("funti-workplace-days", ""),
+        ("funti-workplace-eventlog", ""),
+        ("funti-eventlog-System", ""),
+        ("funti-eventlog-Application", ""),
+        ("funti-eventlog-Security", ""),
+        ("funti-eventlog-level-all", ""),
+        ("funti-eventlog-level-warning", ""),
+        ("funti-eventlog-level-error", ""),
+        ("funti-eventlog-filter", ""),
+        ("funti-eventlog-empty", ""),
+        ("funti-eventlog-no-text", ""),
+        ("funti-eventlog-shown", ""),
+        ("funti-admin-eventlog-failed", ""),
         ("funti-about-telegram", ""),
     ].iter().cloned().collect();
 }

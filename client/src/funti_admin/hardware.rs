@@ -42,6 +42,8 @@ fn gpus() -> Vec<String> {
         .flatten()
         .filter(|k| k.chars().all(|c| c.is_ascii_digit()))
         .filter_map(|k| class.open_subkey_with_flags(&k, KEY_READ).ok()?.get_value::<String, _>("DriverDesc").ok())
+        // The adapter of Remote Desktop sessions, not a video card.
+        .filter(|name| name != "Microsoft Remote Display Adapter")
         .collect()
 }
 
