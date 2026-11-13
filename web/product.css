@@ -1,0 +1,32 @@
+/* Product presentation; application screenshots retain their original colours. */
+header{height:auto;min-height:80px;padding-block:16px;gap:18px;flex-wrap:wrap}
+header nav{gap:18px;font-size:12px;margin-left:auto}header .brand{flex-shrink:0}
+header .theme-picker{margin-left:0}.hero .title-space{height:330px;min-height:300px}
+.hero-bottom{padding-top:10px}.hero-bottom h2{font-size:clamp(34px,4vw,58px);line-height:1.1}
+.hero-bottom p{font-size:16px;line-height:1.8;max-width:660px}.hero-caption{max-width:205px}
+section:not(.hero){padding-top:86px;padding-bottom:86px;border-bottom:1px solid var(--stroke)}
+.section-label{font-size:10px;letter-spacing:1.8px;margin-bottom:24px;color:var(--blue)}
+.section-heading{gap:36px}.section-heading h2,h2{font-size:clamp(30px,3.7vw,48px);line-height:1.16;letter-spacing:-1.5px}
+.section-heading>p{font-size:15px;line-height:1.8;max-width:380px}.section-heading h2{flex-shrink:0}
+.product-shot{margin:30px 0 0;border:1px solid var(--stroke);border-radius:16px;background:var(--surface);overflow:hidden;box-shadow:0 22px 65px #1022490a}
+.product-shot>a{display:block;overflow:hidden;background:#f4f1ec}.product-shot img{display:block;width:100%;height:auto}
+.product-shot a:focus-visible{outline-offset:-4px}.product-shot figcaption{font-size:12px;line-height:1.7;color:var(--muted);padding:16px 22px;border-top:1px solid var(--stroke)}
+.use-cases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:35px;margin-top:36px}
+.use-cases article{min-width:0;border-top:1px solid var(--stroke);padding-top:22px}.use-cases article>span{font:10px 'Segoe UI',sans-serif;letter-spacing:1px;color:var(--blue)}
+.use-cases h3{font-size:20px;font-weight:600;margin:12px 0}.use-cases p{font-size:14px;line-height:1.85;margin:0;color:var(--muted)}
+.product-split{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:60px}.product-split>div>p{font-size:15px;line-height:1.85}.product-split .product-shot{margin-top:0}
+.product-list{padding-left:20px;color:var(--muted);font-size:14px;line-height:1.85}.product-list li{margin-bottom:12px;padding-left:4px}
+.product-note{font-size:12px!important;line-height:1.8!important;color:var(--muted);margin-top:25px;max-width:950px}.product-note a,.faq a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}
+.screenshot-detail{margin-top:30px;border:1px solid var(--stroke);border-radius:10px;padding:16px 20px}.screenshot-detail summary{cursor:pointer;color:var(--blue);font-size:14px}.screenshot-detail .product-shot{box-shadow:none;margin-top:18px}
+.start-steps{list-style:none;counter-reset:steps;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:35px;padding:0;margin:35px 0 40px}
+.start-steps li{counter-increment:steps;border-top:1px solid var(--stroke);padding-top:20px}.start-steps li:before{content:'0' counter(steps);color:var(--blue);font-size:28px}.start-steps h3{font-size:19px;margin:12px 0}.start-steps p{font-size:14px;line-height:1.85;color:var(--muted)}
+.browser-entry{gap:30px}.browser-entry p{max-width:680px;line-height:1.8}.browser-entry .primary{flex-shrink:0}
+.distribution-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.distribution-card{display:flex;flex-direction:column;padding:26px;min-width:0;border-radius:12px}.distribution-card h3{font-size:24px}.distribution-card h3 small{display:block;font-size:11px;font-weight:400;margin-top:8px;color:var(--muted)}
+.distribution-card>p{font-size:14px;line-height:1.8;min-height:125px}.distribution-card .primary,.distribution-card .secondary{font-size:13px;padding:12px 14px}.distribution-links{gap:12px;line-height:1.7}.distribution-card .product-note{min-height:0;margin-top:22px}
+.install-command{margin-top:30px;padding:28px;border:1px solid var(--stroke);border-radius:12px;background:var(--surface)}.install-command h3{font-size:21px}.install-command p{max-width:850px;font-size:14px;line-height:1.8}.install-command pre{max-width:100%;overflow-x:auto;padding:18px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text);line-height:1.7}.install-command .text-action{font-size:13px}
+.trust-section>.text-action{display:inline-block;margin-top:28px}.faq details{padding:23px 0}.faq summary{font-size:16px;line-height:1.6}.faq details p{font-size:14px;line-height:1.9}
+.channel-entry{display:flex;justify-content:space-between;align-items:center;gap:30px}.channel-entry .section-label{margin-bottom:18px}.channel-entry h2{margin-bottom:15px}.channel-entry p{font-size:15px}.channel-entry .primary{flex-shrink:0}
+footer{flex-wrap:wrap;gap:22px}footer>span{font-size:11px}footer>a:not(.brand){font-size:12px}
+@media(max-width:1150px){header nav{order:5;width:100%;justify-content:center;margin:0}header .theme-picker{margin-left:auto}.product-split{gap:30px}.distribution-grid{grid-template-columns:1fr 1fr}.distribution-card>p{min-height:90px}}
+@media(max-width:760px){header{padding-block:12px}header nav{justify-content:flex-start;gap:20px;width:auto;margin-right:auto}header .theme-picker{margin-left:auto}.hero .title-space{height:280px;min-height:260px}.hero-bottom p{font-size:14px}.hero-bottom p br{display:none}.hero-bottom .actions{align-items:stretch;gap:12px}.hero-bottom .primary,.hero-bottom .secondary{font-size:12px}section:not(.hero){padding-block:55px}.section-label{font-size:9px;letter-spacing:1.3px}.section-heading>p{font-size:14px;margin-top:20px;max-width:none}.section-heading h2{flex-shrink:1}.product-split{grid-template-columns:1fr;gap:26px}.use-cases,.start-steps{grid-template-columns:1fr;gap:25px}.use-cases h3{font-size:19px}.use-cases p,.start-steps p{max-width:560px}.product-shot{border-radius:10px;margin-top:22px}.product-shot figcaption{font-size:11px;padding:12px 15px}.distribution-grid{grid-template-columns:1fr}.distribution-card>p{min-height:0}.browser-entry{padding:22px}.install-command{padding:20px}.install-command pre{font-size:11px}.channel-entry{align-items:flex-start;flex-direction:column}.faq summary{font-size:14px}.faq details p{font-size:13px}footer{gap:18px}.product-note{font-size:12px!important}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
