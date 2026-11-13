@@ -21,6 +21,7 @@ cat > "$work/src/lib.rs" <<RS
 #[path = "$root/client/src/funti_admin/rules.rs"] pub mod admin_rules;
 #[path = "$root/client/src/funti_admin/autostart_rules.rs"] pub mod autostart_rules;
 #[path = "$root/client/src/funti_logs/select.rs"] pub mod logs_select;
+#[path = "$root/client/src/funti_admin/history_rules.rs"] pub mod history_rules;
 #[path = "$root/client/src/funti_admin/eventlog_rules.rs"] pub mod eventlog_rules;
 #[path = "$root/client/src/funti_admin/screen_rules.rs"] pub mod screen_rules;
 #[path = "$root/client/src/funti_admin/attention_rules.rs"] pub mod attention_rules;

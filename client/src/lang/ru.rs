@@ -1369,5 +1369,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-logs-saved", "Журнал сохранён"),
         ("funti-logs-failed", "Не удалось собрать журнал"),
         ("funti-journal-admin-logs", "Журнал программы передан администратору"),
+        ("funti-history-title", "История нагрузки"),
+        ("funti-history-days-1", "Сутки"),
+        ("funti-history-days-7", "Неделя"),
+        ("funti-history-off", "Выключен: {} ч {m} мин"),
+        ("funti-history-empty", "История пока пустая: она пишется раз в 5 минут, начиная с этой версии"),
+        ("funti-history-off-host", "На том компьютере история выключена"),
+        ("funti-history-allow", "Записывать историю нагрузки (7 дней) для рабочего места тех, кто может управлять этим компьютером"),
     ].iter().cloned().collect();
 }

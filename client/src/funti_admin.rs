@@ -9,6 +9,8 @@ mod autostart_rules;
 mod eventlog_rules;
 mod hardware;
 mod programs_rules;
+mod history;
+mod history_rules;
 mod rules;
 mod run_rules;
 mod screen_rules;
@@ -51,6 +53,8 @@ pub enum Request {
     Hardware,
     /// The program's log of this computer as an archive.
     Logs,
+    /// The load of the last day or week (ADR-025).
+    History(i64),
 }
 
 impl Request {
@@ -62,7 +66,8 @@ impl Request {
             | Request::Programs
             | Request::Uninstall(_)
             | Request::Hardware
-            | Request::Logs => true,
+            | Request::Logs
+            | Request::History(_) => true,
         }
     }
 
@@ -96,6 +101,7 @@ pub fn parse(request: &str) -> Request {
         "hardware" => Request::Hardware,
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
         "logs" => Request::Logs,
+        "history" => Request::History(history_rules::parse_days(&value)),
         _ => Request::Core(rules::parse_request(request)),
     }
 }
@@ -112,6 +118,31 @@ fn logs() -> (String, Option<(&'static str, String)>) {
             (rules::error_json("logs", "funti-logs-failed").to_string(), None)
         }
     }
+}
+
+pub use history::start as start_history;
+
+/// Processor, memory and system disk in percent, for the history.
+fn load() -> (u8, u8, u8) {
+    let mut system = SYSTEM.lock().unwrap();
+    system.refresh_cpu_usage();
+    system.refresh_memory();
+    let cpu = system.global_cpu_info().cpu_usage().round().clamp(0.0, 100.0) as u8;
+    let memory = if system.total_memory() > 0 {
+        (100 * system.used_memory() / system.total_memory()) as u8
+    } else {
+        0
+    };
+    drop(system);
+    let wanted = system_disk();
+    let disk = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    (cpu, memory, disk)
 }
 
 fn handle_eventlog(request: &Option<eventlog_rules::Request>) -> String {
@@ -325,6 +356,10 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
         Request::Hardware => return (hardware_answer(), None),
         Request::Logs => return logs(),
+        Request::History(days) => {
+            let uptime = SYSTEM.lock().unwrap().uptime();
+            return (history::answer(*days, uptime), None);
+        }
     };
     match request {
         rules::Request::Status => (status(), None),

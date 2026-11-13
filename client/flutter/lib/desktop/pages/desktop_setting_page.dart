@@ -1142,6 +1142,10 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                     _OptionCheckBox(context, 'funti-screen-preview-allow',
                         'funti-disable-screen-preview',
                         reverse: true, enabled: !locked),
+                    // FUNTIDESK (ADR-025): the load history of this computer.
+                    _OptionCheckBox(context, 'funti-history-allow',
+                        'funti-disable-history',
+                        reverse: true, enabled: !locked),
                     OutlinedButton(
                             onPressed: showFuntiJournalDialog,
                             child: Text(translate('funti-journal-show')))
