@@ -7,8 +7,11 @@
 mod autostart_rules;
 mod hardware;
 mod rules;
+mod run_rules;
 #[cfg(windows)]
 mod autostart;
+#[cfg(windows)]
+mod run;
 #[cfg(windows)]
 mod services;
 
@@ -17,6 +20,8 @@ mod services;
 pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
+    /// A command or script (ADR-024, stage 7); Err: why it cannot run.
+    Run(Result<run_rules::Request, &'static str>),
 }
 
 impl Request {
@@ -24,8 +29,13 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) => true,
+            Request::Autostart(_) | Request::Run(_) => true,
         }
+    }
+
+    /// Long: answered later, so the connection keeps working meanwhile.
+    pub fn is_long(&self) -> bool {
+        matches!(self, Request::Run(_))
     }
 }
 
@@ -42,12 +52,29 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    let autostart = serde_json::from_str::<serde_json::Value>(request)
-        .ok()
-        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
-    match autostart {
-        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
-        None => Request::Core(rules::parse_request(request)),
+    let value = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    match value["op"].as_str().unwrap_or("") {
+        op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
+        "run" => Request::Run(run_rules::parse_request(&value)),
+        _ => Request::Core(rules::parse_request(request)),
+    }
+}
+
+fn handle_run(request: &Result<run_rules::Request, &'static str>) -> (String, Option<(&'static str, String)>) {
+    let r = match request {
+        Ok(r) => r,
+        Err(error) => return (rules::error_json("run", error).to_string(), None),
+    };
+    #[cfg(windows)]
+    {
+        let (answer, target) = run::run(r);
+        (answer, Some(("run", target)))
+    }
+    #[cfg(not(windows))]
+    {
+        let mut answer = rules::error_json("run", "funti-admin-windows-only");
+        answer["id"] = r.id.clone().into();
+        (answer.to_string(), None)
     }
 }
 
@@ -163,6 +190,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     let request = match request {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
+        Request::Run(r) => return handle_run(r),
     };
     match request {
         rules::Request::Status => (status(), None),

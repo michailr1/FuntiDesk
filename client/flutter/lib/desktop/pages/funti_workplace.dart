@@ -19,6 +19,7 @@ import '../../funti/workplace_rules.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/funti_family.dart';
+import '../widgets/funti_run.dart';
 import '../widgets/funti_journal.dart';
 
 const _kModeOption = 'funti-workplace';
@@ -99,6 +100,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String? _active;
   String _group = 'all';
   bool _bell = false;
+  // "Command": a command on several computers (ADR-024, stage 7).
+  bool _command = false;
+  final _runs = FuntiRunBoard();
   Timer? _fast, _slow, _reload;
 
   int get _now => DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -206,7 +210,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic>) {
+        if (answer is Map<String, dynamic> && answer['op'] == 'run') {
+          _runs.onAnswer(host.id, answer);
+        } else if (answer is Map<String, dynamic>) {
           funtiAdminOnAnswer(_key(host.id), answer);
           final status = FuntiAdminStatus.parse(answer);
           if (status != null) {
@@ -226,6 +232,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
 
   void _openHost(String id, [_Section section = _Section.overview]) {
     setState(() {
+      _command = false;
       if (!_open.contains(id)) _open.add(id);
       _active = id;
       _section[id] = section;
@@ -687,24 +694,64 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     ]);
   }
 
+  /// The computers a command can go to: the ready Windows ones.
+  List<FuntiRunHost> _runHosts() => [
+        for (final h in funtiHostsSorted(_hosts.values, '', false).cast<_Host>())
+          FuntiRunHost(
+              h.id,
+              h.name,
+              !h.ready
+                  ? (h.note.isEmpty ? 'funti-workplace-connecting' : h.note)
+                  : (_osOf(h).isNotEmpty && !_windows(h)
+                      ? 'funti-admin-windows-only'
+                      : '')),
+      ];
+
+  Widget _commandButton(FuntiTokens t) => TextButton.icon(
+        style: TextButton.styleFrom(
+            backgroundColor: _command ? t.surface2 : null,
+            visualDensity: VisualDensity.compact),
+        onPressed: () => setState(() => _command = !_command),
+        icon: Icon(Icons.terminal, size: 16, color: _command ? t.text : t.muted),
+        label: Text(translate('funti-run-title'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: _command ? FontWeight.w600 : FontWeight.w400,
+                color: _command ? t.text : t.muted)),
+      );
+
   Widget _main(FuntiTokens t) {
-    if (_open.isEmpty || _active == null) {
-      return Center(
+    final active = _active == null ? null : _hosts[_active];
+    Widget body;
+    if (_command) {
+      body = FuntiRunPanel(
+          hosts: _runHosts(),
+          board: _runs,
+          send: (id, request) => bind.mainFuntiServiceRequest(
+              id: id, request: jsonEncode(request)));
+    } else if (_open.isEmpty || active == null) {
+      body = Center(
           child: Text(translate('funti-workplace-pick'),
               textAlign: TextAlign.center, style: TextStyle(color: t.muted)));
+    } else {
+      body = _hostPane(t, active);
     }
-    final active = _hosts[_active]!;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
             color: t.chrome, border: Border(bottom: BorderSide(color: t.stroke))),
-        child: ListView(scrollDirection: Axis.horizontal, children: [
+        child: Row(children: [
+          Expanded(
+            child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final id in _open)
             if (_hosts[id] != null)
               InkWell(
-                onTap: () => setState(() => _active = id),
+                onTap: () => setState(() {
+                  _active = id;
+                  _command = false;
+                }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
@@ -734,9 +781,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                   ]),
                 ),
               ),
+            ]),
+          ),
+          _commandButton(t),
         ]),
       ),
-      Expanded(child: _hostPane(t, active)),
+      Expanded(child: body),
     ]);
   }
 
