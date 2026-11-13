@@ -351,10 +351,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     final note = h.note;
     final os = _osOf(h);
     return InkWell(
-      onTap: () => setState(() {
-        if (_open.contains(h.id)) _active = h.id;
-      }),
-      onDoubleTap: () => _openHost(h.id),
+      // One click opens the overview; an opened host keeps its section.
+      onTap: () => _open.contains(h.id)
+          ? setState(() => _active = h.id)
+          : _openHost(h.id),
       child: Container(
         color: selected ? t.surface2 : null,
         padding: const EdgeInsets.fromLTRB(12, 7, 2, 7),

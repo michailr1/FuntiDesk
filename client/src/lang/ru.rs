@@ -1225,7 +1225,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-search", "Поиск по названию или ID"),
         ("funti-workplace-problems-first", "Сначала компьютеры с проблемами"),
         ("funti-workplace-empty", "Здесь появятся компьютеры из избранного, семьи и недавних."),
-        ("funti-workplace-pick", "Выберите компьютер в списке: двойной щелчок открывает обзор, «⋯» — остальные разделы."),
+        ("funti-workplace-pick", "Выберите компьютер в списке: щелчок открывает обзор, «⋯» — остальные разделы."),
         ("funti-workplace-screen", "Открыть экран"),
         ("funti-workplace-files", "Файлы"),
         ("funti-workplace-terminal", "Терминал"),

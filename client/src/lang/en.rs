@@ -683,7 +683,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-search", "Search by name or ID"),
         ("funti-workplace-problems-first", "Computers with problems first"),
         ("funti-workplace-empty", "Computers from favorites, family and recent ones appear here."),
-        ("funti-workplace-pick", "Pick a computer in the list: a double click opens its overview, \"⋯\" the other sections."),
+        ("funti-workplace-pick", "Pick a computer in the list: a click opens its overview, \"⋯\" the other sections."),
         ("funti-workplace-screen", "Open the screen"),
         ("funti-workplace-files", "Files"),
         ("funti-workplace-terminal", "Terminal"),
