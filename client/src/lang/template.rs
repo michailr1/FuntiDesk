@@ -757,6 +757,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-status-connecting", ""),
         ("funti-status-offline", ""),
         ("funti-status-stopped", ""),
+        ("funti-status-start", ""),
+        ("funti-otp-stopped-tip", ""),
         ("ID for connection", ""),
         ("Copy ID", ""),
         ("Copy password", ""),

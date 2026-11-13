@@ -600,8 +600,12 @@ class _ThisComputerCardState extends State<_ThisComputerCard> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(translate('funti-otp-rotates-tip'),
-              style: TextStyle(fontSize: 12, color: t.muted)),
+          // While incoming connections are off there is no password to show.
+          Obx(() => Text(
+              translate(_svcStopped.value
+                  ? 'funti-otp-stopped-tip'
+                  : 'funti-otp-rotates-tip'),
+              style: TextStyle(fontSize: 12, color: t.muted))),
         ] else
           Text(translate('funti-otp-off-tip'),
               style: TextStyle(fontSize: 14, color: t.muted)),
@@ -1665,7 +1669,7 @@ class _StatusBarState extends State<_StatusBar> {
               const SizedBox(width: 12),
               InkWell(
                 onTap: () => start_service(true),
-                child: Text(translate('Start service'),
+                child: Text(translate('funti-status-start'),
                     style: style.copyWith(
                         color: t.link, decoration: TextDecoration.underline)),
               ),
