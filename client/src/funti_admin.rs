@@ -4,11 +4,14 @@
 //! The requests arrive in `server/connection.rs` (`funti_admin_request`),
 //! which checks who asks and writes ended processes to the journal.
 
+mod attention_rules;
 mod autostart_rules;
 mod eventlog_rules;
 mod hardware;
 mod rules;
 mod screen_rules;
+#[cfg(windows)]
+mod attention;
 #[cfg(windows)]
 mod autostart;
 #[cfg(windows)]
@@ -27,6 +30,8 @@ pub enum Request {
     EventLog(Option<eventlog_rules::Request>),
     /// A picture of the screen this wide (ADR-024, stage 3a).
     Screen(u32),
+    /// What needs attention: antivirus, updates, restart (ADR-024, stage 4).
+    Attention,
 }
 
 impl Request {
@@ -34,7 +39,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention => true,
         }
     }
 }
@@ -57,6 +62,7 @@ pub fn parse(request: &str) -> Request {
         op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
         "eventlog" => Request::EventLog(eventlog_rules::parse_request(&value)),
         "screen" => Request::Screen(screen_rules::parse_width(&value)),
+        "attention" => Request::Attention,
         _ => Request::Core(rules::parse_request(request)),
     }
 }
@@ -87,6 +93,22 @@ fn handle_screen(width: u32) -> (String, Option<(&'static str, String)>) {
         let _ = width;
         (rules::error_json("screen", "funti-admin-windows-only").to_string(), None)
     }
+}
+
+fn attention() -> String {
+    let mut facts = attention_rules::Facts::default();
+    facts.uptime_days = SYSTEM.lock().unwrap().uptime() / 86400;
+    let wanted = system_disk();
+    facts.disk_percent = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    #[cfg(windows)]
+    attention::facts(&mut facts);
+    attention_rules::answer_json(&facts).to_string()
 }
 
 fn handle_autostart(request: &autostart_rules::Request) -> (String, Option<(&'static str, String)>) {
@@ -203,6 +225,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Autostart(a) => return handle_autostart(a),
         Request::EventLog(e) => return (handle_eventlog(e), None),
         Request::Screen(width) => return handle_screen(*width),
+        Request::Attention => return (attention(), None),
     };
     match request {
         rules::Request::Status => (status(), None),

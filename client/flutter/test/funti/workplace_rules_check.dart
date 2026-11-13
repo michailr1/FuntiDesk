@@ -66,6 +66,20 @@ void main() {
   check('closed by us', t.onClosed(b, 'closed', 520).length, 0);
   check('never connected', t.onClosed(c, funtiServiceOffline, 530).length, 0);
 
+  final g = FuntiHost('777', 'Касса')..onState('ready', '');
+  check('calm', g.problem, false);
+  g.attention = funtiAttentionItems({
+    'op': 'attention',
+    'items': [
+      {'kind': 'restart', 'level': 'warning', 'detail': ''},
+      'мусор',
+    ]
+  });
+  check('attention', [g.attention.length, g.problem], [1, true]);
+  g.onState('closed', funtiServiceOffline);
+  check('attention gone', [g.attention.length, g.problem], [0, false]);
+  check('no items', funtiAttentionItems({'op': 'attention'}).length, 0);
+
   if (failed > 0) throw 'workplace_rules: $failed check(s) failed';
   print('workplace_rules: ok');
 }

@@ -747,5 +747,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-admin-screen-failed", "Could not get a picture of the screen"),
         ("funti-journal-admin-screen", "Screen viewed from the workplace"),
         ("funti-screen-preview-allow", "Show the screen in the workplace of those who may control this computer"),
+        ("funti-attention-title", "Needs attention"),
+        ("funti-attention-none", "All is well: antivirus on, updates installed, no restart needed"),
+        ("funti-attention-antivirus-off", "Antivirus is off: {}"),
+        ("funti-attention-antivirus-old", "Antivirus definitions are out of date: {}"),
+        ("funti-attention-updates", "Windows updates not installed for {} days"),
+        ("funti-attention-restart", "A restart is pending to finish installing updates"),
+        ("funti-attention-uptime", "Not restarted for {} days"),
+        ("funti-attention-disk", "System disk is {}% full"),
     ].iter().cloned().collect();
 }
