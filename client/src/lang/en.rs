@@ -722,5 +722,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", "Video"),
         ("funti-workplace-disks", "Disks"),
         ("funti-workplace-days", "d"),
+        ("funti-workplace-screens", "Screens"),
+        ("funti-workplace-layout", "Layout"),
+        ("funti-workplace-layout-1", "One screen"),
+        ("funti-workplace-layout-2", "Two side by side"),
+        ("funti-workplace-layout-4", "2 × 2"),
+        ("funti-workplace-layout-9", "3 × 3"),
+        ("funti-workplace-thumbs", "Pictures in the list"),
+        ("funti-workplace-screens-empty", "Open computers in the list on the left; their screens appear here."),
+        ("funti-admin-screen-off", "Screen pictures are turned off on that computer"),
+        ("funti-admin-screen-failed", "Could not get a picture of the screen"),
+        ("funti-journal-admin-screen", "Screen viewed from the workplace"),
+        ("funti-screen-preview-allow", "Show the screen in the workplace of those who may control this computer"),
     ].iter().cloned().collect();
 }

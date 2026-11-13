@@ -385,6 +385,8 @@ pub struct Connection {
     // FUNTIDESK (ADR-024): a service connection — administration requests
     // only; set together with `file_transfer`.
     funti_service: bool,
+    // FUNTIDESK (ADR-024): pictures of the screen are journaled once per connection.
+    funti_screen_journaled: bool,
     terminal: bool,
     port_forward_socket: Option<Framed<TcpStream, BytesCodec>>,
     port_forward_mux: Option<super::port_forward_mux::PortForwardMux>,
@@ -606,6 +608,7 @@ impl Connection {
             file_transfer: None,
             view_camera: false,
             funti_service: false,
+            funti_screen_journaled: false,
             terminal: false,
             port_forward_socket: None,
             port_forward_mux: None,
@@ -4367,6 +4370,14 @@ impl Connection {
                             })
                             .await
                             .unwrap_or_default();
+                            let ended = match ended {
+                                Some(("screen", _)) if self.funti_screen_journaled => None,
+                                Some(("screen", t)) => {
+                                    self.funti_screen_journaled = true;
+                                    Some(("screen", t))
+                                }
+                                other => other,
+                            };
                             if let Some((action, target)) = ended {
                                 crate::funti_journal::admin_event(
                                     self.inner.id(),

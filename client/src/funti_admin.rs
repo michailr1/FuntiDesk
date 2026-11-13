@@ -7,8 +7,11 @@
 mod autostart_rules;
 mod hardware;
 mod rules;
+mod screen_rules;
 #[cfg(windows)]
 mod autostart;
+#[cfg(windows)]
+mod screen;
 #[cfg(windows)]
 mod services;
 
@@ -17,6 +20,8 @@ mod services;
 pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
+    /// A picture of the screen this wide (ADR-024, stage 3a).
+    Screen(u32),
 }
 
 impl Request {
@@ -24,7 +29,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) => true,
+            Request::Autostart(_) | Request::Screen(_) => true,
         }
     }
 }
@@ -42,12 +47,29 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    let autostart = serde_json::from_str::<serde_json::Value>(request)
-        .ok()
-        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
-    match autostart {
-        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
-        None => Request::Core(rules::parse_request(request)),
+    let value = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    match value["op"].as_str().unwrap_or("") {
+        op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
+        "screen" => Request::Screen(screen_rules::parse_width(&value)),
+        _ => Request::Core(rules::parse_request(request)),
+    }
+}
+
+/// The picture, unless the owner of this computer turned pictures off.
+fn handle_screen(width: u32) -> (String, Option<(&'static str, String)>) {
+    let option = hbb_common::config::Config::get_option(screen_rules::OPTION_DISABLE);
+    if !screen_rules::allowed(&option) {
+        return (rules::error_json("screen", "funti-admin-screen-off").to_string(), None);
+    }
+    #[cfg(windows)]
+    match screen::picture(width) {
+        Ok(answer) => (answer, Some(("screen", String::new()))),
+        Err(error) => (rules::error_json("screen", error).to_string(), None),
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = width;
+        (rules::error_json("screen", "funti-admin-windows-only").to_string(), None)
     }
 }
 
@@ -163,6 +185,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     let request = match request {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
+        Request::Screen(width) => return handle_screen(*width),
     };
     match request {
         rules::Request::Status => (status(), None),
