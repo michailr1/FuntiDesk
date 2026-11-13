@@ -47,8 +47,26 @@ bool funtiPeerCanAdmin(FFI ffi) =>
     !ffi.ffiModel.viewOnly &&
     ffi.ffiModel.keyboard;
 
-/// What the other computer answered, per session.
+/// Where administration requests go: a session (ADR-023) or a service
+/// connection of the workplace (ADR-024). Answers are kept per [key].
+class FuntiAdminLink {
+  final String key;
+  final void Function(String request) _send;
+  FuntiAdminLink(this.key, this._send);
+
+  factory FuntiAdminLink.session(FFI ffi) => FuntiAdminLink(
+      ffi.sessionId.toString(),
+      (r) => bind.sessionFuntiAdmin(sessionId: ffi.sessionId, request: r));
+
+  factory FuntiAdminLink.service(String id) => FuntiAdminLink(
+      'svc:$id', (r) => bind.mainFuntiServiceRequest(id: id, request: r));
+
+  void ask(Map<String, dynamic> request) => _send(jsonEncode(request));
+}
+
+/// What the other computer answered, per session or host.
 class _Answers {
+  FuntiAdminLink? link;
   final status = Rxn<FuntiAdminStatus>();
   final processes = Rxn<List<FuntiAdminProcess>>();
   final killed = Rxn<Map<String, dynamic>>();
@@ -56,15 +74,25 @@ class _Answers {
   final serviceDone = Rxn<Map<String, dynamic>>();
   final autostart = Rxn<List<FuntiAdminAutostart>>();
   final autostartDone = Rxn<Map<String, dynamic>>();
+  final info = Rxn<Map<String, dynamic>>();
+  final journal = Rxn<List<dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
 
-_Answers _of(FFI ffi) =>
-    _answers.putIfAbsent(ffi.sessionId.toString(), () => _Answers());
+_Answers _ofKey(String key) => _answers.putIfAbsent(key, () => _Answers());
+
+_Answers _of(FFI ffi) => _ofKey(ffi.sessionId.toString());
 
 void _ask(FFI ffi, Map<String, dynamic> request) => bind.sessionFuntiAdmin(
     sessionId: ffi.sessionId, request: jsonEncode(request));
+
+/// Forget what a host or session answered (it is gone).
+void funtiAdminForget(String key) => _answers.remove(key);
+
+Rxn<FuntiAdminStatus> funtiAdminStatusOf(String key) => _ofKey(key).status;
+Rxn<Map<String, dynamic>> funtiAdminInfoOf(String key) => _ofKey(key).info;
+Rxn<List<dynamic>> funtiAdminJournalOf(String key) => _ofKey(key).journal;
 
 /// The "funti_admin" session event.
 void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
@@ -77,6 +105,13 @@ void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
   }
   if (answer is! Map<String, dynamic>) return;
   final a = _of(ffi);
+  a.link ??= FuntiAdminLink.session(ffi);
+  funtiAdminOnAnswer(ffi.sessionId.toString(), answer);
+}
+
+/// An answer of the other computer, for session or host [key].
+void funtiAdminOnAnswer(String key, Map<String, dynamic> answer) {
+  final a = _ofKey(key);
   switch (answer['op']) {
     case 'status':
       a.status.value = FuntiAdminStatus.parse(answer);
@@ -92,7 +127,7 @@ void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
       break;
     case 'service':
       a.serviceDone.value = answer;
-      _ask(ffi, {'op': 'services'});
+      a.link?.ask({'op': 'services'});
       break;
     case 'autostart':
       if (answer['error'] != null) {
@@ -104,7 +139,14 @@ void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
       break;
     case 'autostart_set':
       a.autostartDone.value = answer;
-      _ask(ffi, {'op': 'autostart'});
+      a.link?.ask({'op': 'autostart'});
+      break;
+    case 'info':
+      if (answer['error'] == null) a.info.value = answer;
+      break;
+    case 'journal':
+      final events = answer['events'];
+      if (events is List) a.journal.value = events;
       break;
   }
 }
@@ -188,25 +230,56 @@ class _FuntiAdminBarState extends State<FuntiAdminBar> {
   }
 }
 
-/// "Processes…" in the session menu: the list refreshes every three
-/// seconds; "End" asks once more in the same row.
-void showFuntiAdminProcesses(FFI ffi) {
-  final a = _of(ffi);
-  a.processes.value = null;
-  a.killed.value = null;
-  _ask(ffi, {'op': 'processes'});
-  final timer = Timer.periodic(
-      const Duration(seconds: 3), (_) => _ask(ffi, {'op': 'processes'}));
-  final search = TextEditingController();
-  var byMemory = false;
-  int? confirm;
-  ffi.dialogManager.show((setState, close, context) {
-    final t = FuntiTokens.of(context);
-    void done() {
-      timer.cancel();
-      close();
-    }
+Widget _waiting(FuntiTokens t) => Center(
+    child: Text(translate('funti-admin-waiting'),
+        style: TextStyle(color: t.muted)));
 
+Widget _searchField(TextEditingController c, VoidCallback onChanged) =>
+    TextField(
+        controller: c,
+        onChanged: (_) => onChanged(),
+        decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: translate('funti-admin-search')));
+
+/// Processes of the other computer; refreshes every three seconds. "End"
+/// asks once more in the same row.
+class FuntiProcessesPanel extends StatefulWidget {
+  final FuntiAdminLink link;
+  const FuntiProcessesPanel({Key? key, required this.link}) : super(key: key);
+
+  @override
+  State<FuntiProcessesPanel> createState() => _FuntiProcessesPanelState();
+}
+
+class _FuntiProcessesPanelState extends State<FuntiProcessesPanel> {
+  final _search = TextEditingController();
+  bool _byMemory = false;
+  int? _confirm;
+  Timer? _timer;
+  late _Answers _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _a = _ofKey(widget.link.key)..link = widget.link;
+    _a.processes.value = null;
+    _a.killed.value = null;
+    widget.link.ask({'op': 'processes'});
+    _timer = Timer.periodic(const Duration(seconds: 3),
+        (_) => widget.link.ask({'op': 'processes'}));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
     Widget row(FuntiAdminProcess p) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(children: [
@@ -235,12 +308,12 @@ void showFuntiAdminProcesses(FFI ffi) {
               width: 150,
               child: p.protected
                   ? const SizedBox(height: 30)
-                  : confirm == p.pid
+                  : _confirm == p.pid
                       ? Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                           TextButton(
                               onPressed: () {
-                                _ask(ffi, {'op': 'kill', 'pid': p.pid});
-                                setState(() => confirm = null);
+                                widget.link.ask({'op': 'kill', 'pid': p.pid});
+                                setState(() => _confirm = null);
                               },
                               child: Text(translate('funti-admin-end-yes'),
                                   style: TextStyle(
@@ -248,109 +321,102 @@ void showFuntiAdminProcesses(FFI ffi) {
                                           .colorScheme
                                           .error))),
                           TextButton(
-                              onPressed: () => setState(() => confirm = null),
+                              onPressed: () => setState(() => _confirm = null),
                               child: Text(translate('Cancel'))),
                         ])
                       : Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
                               onPressed: () =>
-                                  setState(() => confirm = p.pid),
+                                  setState(() => _confirm = p.pid),
                               child: Text(translate('funti-admin-end')))),
             ),
           ]),
         );
-
-    return CustomAlertDialog(
-      title: Text(translate('funti-admin-processes')),
-      contentBoxConstraints: const BoxConstraints(maxWidth: 720),
-      content: SizedBox(
-        width: 720,
-        height: 460,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-                child: TextField(
-                    controller: search,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                        isDense: true,
-                        prefixIcon: const Icon(Icons.search, size: 18),
-                        hintText: translate('funti-admin-search')))),
-            const SizedBox(width: 12),
-            TextButton(
-                onPressed: () => setState(() => byMemory = !byMemory),
-                child: Text(translate(byMemory
-                    ? 'funti-admin-sort-memory'
-                    : 'funti-admin-sort-cpu'))),
-          ]),
-          const SizedBox(height: 6),
-          Obx(() {
-            final k = a.killed.value;
-            if (k == null) return const Offstage();
-            final error = k['error'];
-            return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                    error is String
-                        ? translate(error)
-                        : translate('funti-admin-ended')
-                            .replaceAll('{}', '${k['name']}'),
-                    style: TextStyle(fontSize: 13, color: t.text)));
-          }),
-          Expanded(child: Obx(() {
-            final list = a.processes.value;
-            if (list == null) {
-              return Center(
-                  child: Text(translate('funti-admin-waiting'),
-                      style: TextStyle(color: t.muted)));
-            }
-            final shown = funtiAdminSorted(list, search.text, byMemory);
-            return ListView.builder(
-                itemCount: shown.length,
-                itemExtent: 34,
-                itemBuilder: (context, i) => row(shown[i]));
-          })),
-        ]),
-      ),
-      actions: [dialogButton('Close', onPressed: done)],
-      onCancel: done,
-    );
-  });
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: _searchField(_search, () => setState(() {}))),
+        const SizedBox(width: 12),
+        TextButton(
+            onPressed: () => setState(() => _byMemory = !_byMemory),
+            child: Text(translate(_byMemory
+                ? 'funti-admin-sort-memory'
+                : 'funti-admin-sort-cpu'))),
+      ]),
+      const SizedBox(height: 6),
+      Obx(() {
+        final k = _a.killed.value;
+        if (k == null) return const Offstage();
+        final error = k['error'];
+        return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+                error is String
+                    ? translate(error)
+                    : translate('funti-admin-ended')
+                        .replaceAll('{}', '${k['name']}'),
+                style: TextStyle(fontSize: 13, color: t.text)));
+      }),
+      Expanded(child: Obx(() {
+        final list = _a.processes.value;
+        if (list == null) return _waiting(t);
+        final shown = funtiAdminSorted(list, _search.text, _byMemory);
+        return ListView.builder(
+            itemCount: shown.length,
+            itemExtent: 34,
+            itemBuilder: (context, i) => row(shown[i]));
+      })),
+    ]);
+  }
 }
 
-/// "Services…" in the session menu (Windows): the list with the state and
-/// start type; start, stop and restart ask once more in the same row.
-/// Services Windows cannot do without, and FuntiDesk's own, are only shown.
-void showFuntiAdminServices(FFI ffi) {
-  final a = _of(ffi);
-  a.services.value = null;
-  a.serviceDone.value = null;
-  _ask(ffi, {'op': 'services'});
-  final search = TextEditingController();
-  String? confirm; // "<name>/<action>"
-  final busy = <String>{};
-  ffi.dialogManager.show((setState, close, context) {
+/// Windows services: the list with the state and start type; start, stop
+/// and restart ask once more in the same row. Services Windows cannot do
+/// without, and FuntiDesk's own, are only shown.
+class FuntiServicesPanel extends StatefulWidget {
+  final FuntiAdminLink link;
+  const FuntiServicesPanel({Key? key, required this.link}) : super(key: key);
+
+  @override
+  State<FuntiServicesPanel> createState() => _FuntiServicesPanelState();
+}
+
+class _FuntiServicesPanelState extends State<FuntiServicesPanel> {
+  final _search = TextEditingController();
+  String? _confirm; // "<name>/<action>"
+  final _busy = <String>{};
+  late _Answers _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _a = _ofKey(widget.link.key)..link = widget.link;
+    _a.services.value = null;
+    _a.serviceDone.value = null;
+    widget.link.ask({'op': 'services'});
+  }
+
+  void _act(FuntiAdminService s, String action) {
+    widget.link.ask({'op': 'service', 'name': s.name, 'action': action});
+    setState(() {
+      _confirm = null;
+      _busy.add(s.name);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
-
-    void act(FuntiAdminService s, String action) {
-      _ask(ffi, {'op': 'service', 'name': s.name, 'action': action});
-      setState(() {
-        confirm = null;
-        busy.add(s.name);
-      });
-    }
-
     Widget button(FuntiAdminService s, String action) {
       final key = '${s.name}/$action';
-      if (confirm == key) {
+      if (_confirm == key) {
         return TextButton(
-            onPressed: () => act(s, action),
+            onPressed: () => _act(s, action),
             child: Text(translate('funti-admin-service-$action-yes'),
                 style: TextStyle(color: Theme.of(context).colorScheme.error)));
       }
       return TextButton(
-          onPressed: () => setState(() => confirm = key),
+          onPressed: () => setState(() => _confirm = key),
           child: Text(translate('funti-admin-service-$action')));
     }
 
@@ -375,13 +441,12 @@ void showFuntiAdminServices(FFI ffi) {
                 width: 110,
                 child: Text(translate('funti-admin-state-${s.state}'),
                     style: TextStyle(
-                        fontSize: 12,
-                        color: s.running ? t.text : t.muted))),
+                        fontSize: 12, color: s.running ? t.text : t.muted))),
             SizedBox(
               width: 230,
               child: s.protected
                   ? const SizedBox()
-                  : busy.contains(s.name)
+                  : _busy.contains(s.name)
                       ? Text(translate('funti-admin-service-busy'),
                           textAlign: TextAlign.right,
                           style: TextStyle(fontSize: 12, color: t.muted))
@@ -393,69 +458,63 @@ void showFuntiAdminServices(FFI ffi) {
             ),
           ]),
         );
-
-    return CustomAlertDialog(
-      title: Text(translate('funti-admin-services')),
-      contentBoxConstraints: const BoxConstraints(maxWidth: 760),
-      content: SizedBox(
-        width: 760,
-        height: 480,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(
-              controller: search,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  hintText: translate('funti-admin-search'))),
-          const SizedBox(height: 6),
-          Obx(() {
-            final done = a.serviceDone.value;
-            if (done == null) return const Offstage();
-            // The answer ends the wait for that service.
-            final name = done['name'];
-            if (name is String) busy.remove(name);
-            final error = done['error'];
-            if (error is String) busy.clear();
-            return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                    error is String
-                        ? translate(error)
-                        : translate('funti-admin-service-done-${done['action']}')
-                            .replaceAll('{}', '$name'),
-                    style: TextStyle(fontSize: 13, color: t.text)));
-          }),
-          Expanded(child: Obx(() {
-            final list = a.services.value;
-            if (list == null) {
-              return Center(
-                  child: Text(translate('funti-admin-waiting'),
-                      style: TextStyle(color: t.muted)));
-            }
-            final shown = funtiAdminServicesShown(list, search.text);
-            return ListView.builder(
-                itemCount: shown.length,
-                itemExtent: 44,
-                itemBuilder: (context, i) => row(shown[i]));
-          })),
-        ]),
-      ),
-      actions: [dialogButton('Close', onPressed: close)],
-      onCancel: close,
-    );
-  });
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _searchField(_search, () => setState(() {})),
+      const SizedBox(height: 6),
+      Obx(() {
+        final done = _a.serviceDone.value;
+        if (done == null) return const Offstage();
+        // The answer ends the wait for that service.
+        final name = done['name'];
+        if (name is String) _busy.remove(name);
+        final error = done['error'];
+        if (error is String) _busy.clear();
+        return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+                error is String
+                    ? translate(error)
+                    : translate('funti-admin-service-done-${done['action']}')
+                        .replaceAll('{}', '$name'),
+                style: TextStyle(fontSize: 13, color: t.text)));
+      }),
+      Expanded(child: Obx(() {
+        final list = _a.services.value;
+        if (list == null) return _waiting(t);
+        final shown = funtiAdminServicesShown(list, _search.text);
+        return ListView.builder(
+            itemCount: shown.length,
+            itemExtent: 44,
+            itemBuilder: (context, i) => row(shown[i]));
+      })),
+    ]);
+  }
 }
 
-/// "Autostart…" in the session menu (Windows): programs that start with
-/// Windows, for every user and for the signed-in one. "Turn off" works as in
-/// Task Manager — nothing is deleted, and "Turn on" brings it back.
-void showFuntiAdminAutostart(FFI ffi) {
-  final a = _of(ffi);
-  a.autostart.value = null;
-  a.autostartDone.value = null;
-  _ask(ffi, {'op': 'autostart'});
-  ffi.dialogManager.show((setState, close, context) {
+/// Programs that start with Windows, for every user and for the signed-in
+/// one. "Turn off" works as in Task Manager — nothing is deleted.
+class FuntiAutostartPanel extends StatefulWidget {
+  final FuntiAdminLink link;
+  const FuntiAutostartPanel({Key? key, required this.link}) : super(key: key);
+
+  @override
+  State<FuntiAutostartPanel> createState() => _FuntiAutostartPanelState();
+}
+
+class _FuntiAutostartPanelState extends State<FuntiAutostartPanel> {
+  late _Answers _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _a = _ofKey(widget.link.key)..link = widget.link;
+    _a.autostart.value = null;
+    _a.autostartDone.value = null;
+    widget.link.ask({'op': 'autostart'});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
     Widget row(FuntiAdminAutostart e) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -489,7 +548,7 @@ void showFuntiAdminAutostart(FFI ffi) {
                   : Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                          onPressed: () => _ask(ffi, {
+                          onPressed: () => widget.link.ask({
                                 'op': 'autostart_set',
                                 'source': e.source,
                                 'name': e.name,
@@ -501,53 +560,60 @@ void showFuntiAdminAutostart(FFI ffi) {
             ),
           ]),
         );
-
-    return CustomAlertDialog(
-      title: Text(translate('funti-admin-autostart')),
-      contentBoxConstraints: const BoxConstraints(maxWidth: 720),
-      content: SizedBox(
-        width: 720,
-        height: 420,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(translate('funti-admin-autostart-note'),
-              style: TextStyle(fontSize: 12, color: t.muted)),
-          const SizedBox(height: 6),
-          Obx(() {
-            final done = a.autostartDone.value;
-            if (done == null) return const Offstage();
-            final error = done['error'];
-            return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                    error is String
-                        ? translate(error)
-                        : translate(done['enabled'] == true
-                                ? 'funti-admin-autostart-done-on'
-                                : 'funti-admin-autostart-done-off')
-                            .replaceAll('{}', '${done['name']}'),
-                    style: TextStyle(fontSize: 13, color: t.text)));
-          }),
-          Expanded(child: Obx(() {
-            final list = a.autostart.value;
-            if (list == null) {
-              return Center(
-                  child: Text(translate('funti-admin-waiting'),
-                      style: TextStyle(color: t.muted)));
-            }
-            if (list.isEmpty) {
-              return Center(
-                  child: Text(translate('funti-admin-autostart-empty'),
-                      style: TextStyle(color: t.muted)));
-            }
-            return ListView.builder(
-                itemCount: list.length,
-                itemExtent: 44,
-                itemBuilder: (context, i) => row(list[i]));
-          })),
-        ]),
-      ),
-      actions: [dialogButton('Close', onPressed: close)],
-      onCancel: close,
-    );
-  });
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(translate('funti-admin-autostart-note'),
+          style: TextStyle(fontSize: 12, color: t.muted)),
+      const SizedBox(height: 6),
+      Obx(() {
+        final done = _a.autostartDone.value;
+        if (done == null) return const Offstage();
+        final error = done['error'];
+        return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+                error is String
+                    ? translate(error)
+                    : translate(done['enabled'] == true
+                            ? 'funti-admin-autostart-done-on'
+                            : 'funti-admin-autostart-done-off')
+                        .replaceAll('{}', '${done['name']}'),
+                style: TextStyle(fontSize: 13, color: t.text)));
+      }),
+      Expanded(child: Obx(() {
+        final list = _a.autostart.value;
+        if (list == null) return _waiting(t);
+        if (list.isEmpty) {
+          return Center(
+              child: Text(translate('funti-admin-autostart-empty'),
+                  style: TextStyle(color: t.muted)));
+        }
+        return ListView.builder(
+            itemCount: list.length,
+            itemExtent: 44,
+            itemBuilder: (context, i) => row(list[i]));
+      })),
+    ]);
+  }
 }
+
+void _showPanel(FFI ffi, String title, double width, double height, Widget panel) {
+  ffi.dialogManager.show((setState, close, context) => CustomAlertDialog(
+        title: Text(translate(title)),
+        contentBoxConstraints: BoxConstraints(maxWidth: width),
+        content: SizedBox(width: width, height: height, child: panel),
+        actions: [dialogButton('Close', onPressed: close)],
+        onCancel: close,
+      ));
+}
+
+/// "Processes…" in the session menu.
+void showFuntiAdminProcesses(FFI ffi) => _showPanel(ffi, 'funti-admin-processes',
+    720, 460, FuntiProcessesPanel(link: FuntiAdminLink.session(ffi)));
+
+/// "Services…" in the session menu (Windows).
+void showFuntiAdminServices(FFI ffi) => _showPanel(ffi, 'funti-admin-services',
+    760, 480, FuntiServicesPanel(link: FuntiAdminLink.session(ffi)));
+
+/// "Autostart…" in the session menu (Windows).
+void showFuntiAdminAutostart(FFI ffi) => _showPanel(ffi, 'funti-admin-autostart',
+    720, 420, FuntiAutostartPanel(link: FuntiAdminLink.session(ffi)));
