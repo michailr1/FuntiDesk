@@ -382,6 +382,9 @@ pub struct Connection {
     file_timer: crate::RustDeskInterval,
     file_transfer: Option<(String, bool)>,
     view_camera: bool,
+    // FUNTIDESK (ADR-024): a service connection — administration requests
+    // only; set together with `file_transfer`.
+    funti_service: bool,
     terminal: bool,
     port_forward_socket: Option<Framed<TcpStream, BytesCodec>>,
     port_forward_mux: Option<super::port_forward_mux::PortForwardMux>,
@@ -602,6 +605,7 @@ impl Connection {
             file_timer: crate::rustdesk_interval(time::interval(SEC30)),
             file_transfer: None,
             view_camera: false,
+            funti_service: false,
             terminal: false,
             port_forward_socket: None,
             port_forward_mux: None,
@@ -1965,7 +1969,10 @@ impl Connection {
         // Releases the budget `check_id_whitelist` charges against this address: only a peer
         // that got this far proved more than a self-reported id.
         self.clear_id_whitelist_failures();
-        let (conn_type, auth_conn_type) = if self.file_transfer.is_some() {
+        let (conn_type, auth_conn_type) = if self.funti_service {
+            // FUNTIDESK (ADR-024): its own kind in the journal.
+            (5, AuthConnType::FileTransfer)
+        } else if self.file_transfer.is_some() {
             (1, AuthConnType::FileTransfer)
         } else if self.is_port_forward() {
             (2, AuthConnType::PortForward)
@@ -2076,6 +2083,12 @@ impl Connection {
         }
         #[cfg(windows)]
         crate::funti_update::add_peer_info(&mut platform_additions);
+        // FUNTIDESK (ADR-024): tells the asking side that this is a service
+        // connection and not a file transfer opened by an older version.
+        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        if self.funti_service {
+            platform_additions.insert("funti_service".into(), json!(true));
+        }
 
         #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         if !platform_additions.is_empty() {
@@ -2426,6 +2439,11 @@ impl Connection {
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
+        // FUNTIDESK (ADR-024): a service connection shows nothing on this
+        // computer and is never offered for "Accept"; it is in the journal.
+        if self.funti_service {
+            return;
+        }
         // FUNTIDESK: see the login handler; no-op if the manager is already started.
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if password::approve_mode() == ApproveMode::Password {
@@ -2597,6 +2615,13 @@ impl Connection {
         }
         if self.file_transfer.is_some() && !rights.files {
             self.send_login_error("No permission of file transfer").await;
+            sleep(1.).await;
+            return Some(false);
+        }
+        if self.funti_service && !(rights.control && !rights.confirm) {
+            // ADR-024: only a member who may control this computer without
+            // being accepted here.
+            self.send_login_error(family::LOGIN_MSG_SERVICE_REFUSED).await;
             sleep(1.).await;
             return Some(false);
         }
@@ -2974,6 +2999,7 @@ impl Connection {
     }
 
     fn reset_session_scope_for_login(&mut self) {
+        self.funti_service = false;
         self.file_transfer = None;
         self.view_camera = false;
         self.terminal = false;
@@ -3003,6 +3029,8 @@ impl Connection {
                 push(b"file_transfer");
                 push(dir.as_bytes());
                 push(&[*show_hidden as u8]);
+                // FUNTIDESK (ADR-024): a service connection is a scope of its own.
+                push(&[lr.funti_service as u8]);
             }
             Some(login_request::Union::ViewCamera(vc)) => {
                 let ViewCamera { special_fields: _ } = vc;
@@ -3161,6 +3189,8 @@ impl Connection {
                         return false;
                     }
                     self.file_transfer = Some((ft.dir, ft.show_hidden));
+                    // FUNTIDESK (ADR-024)
+                    self.funti_service = lr.funti_service;
                 }
                 Some(login_request::Union::ViewCamera(_vc)) => {
                     if !Self::permission(keys::OPTION_ENABLE_CAMERA, &self.control_permissions) {
@@ -3467,6 +3497,20 @@ impl Connection {
             }
         } else if self.authorized {
             if self.port_forward_socket.is_some() {
+                return true;
+            }
+            // FUNTIDESK (ADR-024): nothing but administration requests on a
+            // service connection.
+            if self.funti_service
+                && !matches!(
+                    &msg.union,
+                    Some(message::Union::Misc(m))
+                        if matches!(
+                            m.union,
+                            Some(misc::Union::FuntiAdminRequest(_)) | Some(misc::Union::CloseReason(_))
+                        )
+                )
+            {
                 return true;
             }
             match msg.union {
@@ -4309,8 +4353,11 @@ impl Connection {
                         // whoever may control this computer. Anyone else
                         // gets no answer.
                         let request = crate::funti_admin::parse(&request);
-                        if self.is_remote()
-                            && (!request.needs_control() || self.peer_keyboard_enabled())
+                        // A service connection (ADR-024) is open only to whoever
+                        // could control this computer unattended.
+                        if self.funti_service
+                            || (self.is_remote()
+                                && (!request.needs_control() || self.peer_keyboard_enabled()))
                         {
                             let (answer, ended) = tokio::task::spawn_blocking(move || {
                                 crate::funti_admin::handle(&request)

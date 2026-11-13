@@ -2856,6 +2856,9 @@ pub struct LoginConfigHandler {
     // FUNTIDESK (ADR-006): family login signature for this connection's
     // challenge, sent instead of a password; empty when not a family member.
     pub funti_family_proof: Vec<u8>,
+    // FUNTIDESK (ADR-024): this file transfer login asks for a service
+    // connection (administration requests only).
+    pub funti_service: bool,
     pub save_ab_password_to_recent: bool, // true: connected with ab password
     pub other_server: Option<(String, String, String)>,
     pub custom_fps: Arc<Mutex<Option<usize>>>,
@@ -3852,6 +3855,7 @@ impl LoginConfigHandler {
             hwid,
             avatar,
             funti_family_proof: self.funti_family_proof.clone().into(),
+            funti_service: self.funti_service && self.conn_type == ConnType::FILE_TRANSFER,
             ..Default::default()
         };
         if self.skips_saved_password() {

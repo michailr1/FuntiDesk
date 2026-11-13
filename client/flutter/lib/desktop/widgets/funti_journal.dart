@@ -58,6 +58,8 @@ const _typeIcons = [
   Icons.swap_horiz,
   Icons.videocam_outlined,
   Icons.terminal,
+  // ADR-024: a service connection of the administrator's workplace.
+  Icons.monitor_heart_outlined,
 ];
 
 Widget _row(BuildContext context, FuntiJournalRow r) {

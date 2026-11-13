@@ -35,6 +35,8 @@ pub const LOGIN_MSG_PAIR_FAILED: &str = "funti-family-pair-failed";
 pub const LOGIN_MSG_HELP_DELIVERED: &str = "funti-help-delivered";
 pub const LOGIN_MSG_HELP_REFUSED: &str = "funti-help-refused";
 pub const LOGIN_MSG_UNPAIRED: &str = "funti-family-unpaired";
+/// ADR-024: a service connection is not open to this family member.
+pub const LOGIN_MSG_SERVICE_REFUSED: &str = "funti-service-refused";
 
 // ADR-008 (owner decision 2026-10-11): a code lives 5 minutes.
 const PAIR_CODE_TTL: Duration = Duration::from_secs(300);
