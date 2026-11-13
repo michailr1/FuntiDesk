@@ -79,6 +79,7 @@ class _Answers {
   final eventlog = Rxn<Map<String, dynamic>>();
   final programs = Rxn<List<Map<String, dynamic>>>();
   final uninstalled = Rxn<Map<String, dynamic>>();
+  final hardware = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -102,6 +103,8 @@ Rxn<List<Map<String, dynamic>>> funtiAdminProgramsOf(String key) =>
     _ofKey(key).programs;
 Rxn<Map<String, dynamic>> funtiAdminUninstalledOf(String key) =>
     _ofKey(key).uninstalled;
+Rxn<Map<String, dynamic>> funtiAdminHardwareOf(String key) =>
+    _ofKey(key).hardware;
 
 /// The "funti_admin" session event.
 void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
@@ -166,6 +169,9 @@ void funtiAdminOnAnswer(String key, Map<String, dynamic> answer) {
     case 'uninstall':
       a.uninstalled.value = answer;
       a.link?.ask({'op': 'programs'});
+      break;
+    case 'hardware':
+      if (answer['error'] == null) a.hardware.value = answer;
       break;
     case 'journal':
       final events = answer['events'];

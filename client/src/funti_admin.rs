@@ -12,6 +12,7 @@ mod programs_rules;
 mod rules;
 mod run_rules;
 mod screen_rules;
+mod storage_rules;
 #[cfg(windows)]
 mod attention;
 #[cfg(windows)]
@@ -26,6 +27,8 @@ mod run;
 mod screen;
 #[cfg(windows)]
 mod services;
+#[cfg(windows)]
+mod storage;
 
 /// A request of the other side: the bar, processes, services (`rules`),
 /// what starts with Windows (`autostart_rules`) or a Windows event log
@@ -44,6 +47,8 @@ pub enum Request {
     Programs,
     /// Remove a program by its id from the list.
     Uninstall(String),
+    /// Drives, their health, serial number (ADR-024, stage 5).
+    Hardware,
 }
 
 impl Request {
@@ -53,7 +58,8 @@ impl Request {
             Request::Core(r) => r.needs_control(),
             Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_)
             | Request::Programs
-            | Request::Uninstall(_) => true,
+            | Request::Uninstall(_)
+            | Request::Hardware => true,
         }
     }
 
@@ -84,6 +90,7 @@ pub fn parse(request: &str) -> Request {
         "attention" => Request::Attention,
         "run" => Request::Run(run_rules::parse_request(&value)),
         "programs" => Request::Programs,
+        "hardware" => Request::Hardware,
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
         _ => Request::Core(rules::parse_request(request)),
     }
@@ -156,6 +163,13 @@ fn handle_programs(request: &Request) -> (String, Option<(&'static str, String)>
         let op = if matches!(request, Request::Uninstall(_)) { "uninstall" } else { "programs" };
         (rules::error_json(op, "funti-admin-windows-only").to_string(), None)
     }
+}
+
+fn hardware_answer() -> String {
+    #[cfg(windows)]
+    return storage::hardware();
+    #[cfg(not(windows))]
+    storage_rules::answer_json("", &[]).to_string()
 }
 
 fn attention() -> String {
@@ -291,6 +305,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Attention => return (attention(), None),
         Request::Run(r) => return handle_run(r),
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
+        Request::Hardware => return (hardware_answer(), None),
     };
     match request {
         rules::Request::Status => (status(), None),
