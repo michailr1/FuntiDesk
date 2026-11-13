@@ -22,6 +22,8 @@ pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
     EventLog(Option<eventlog_rules::Request>),
+    /// The program's log of this computer as an archive.
+    Logs,
 }
 
 impl Request {
@@ -29,7 +31,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::Logs => true,
         }
     }
 }
@@ -51,7 +53,22 @@ pub fn parse(request: &str) -> Request {
     match value["op"].as_str().unwrap_or("") {
         op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
         "eventlog" => Request::EventLog(eventlog_rules::parse_request(&value)),
+        "logs" => Request::Logs,
         _ => Request::Core(rules::parse_request(request)),
+    }
+}
+
+fn logs() -> (String, Option<(&'static str, String)>) {
+    use hbb_common::base64::{engine::general_purpose::STANDARD, Engine};
+    match crate::funti_logs::archive() {
+        Ok(zip) => (
+            serde_json::json!({"op": "logs", "zip": STANDARD.encode(&zip), "size": zip.len()}).to_string(),
+            Some(("logs", String::new())),
+        ),
+        Err(e) => {
+            log::info!("FuntiDesk logs: {}", e);
+            (rules::error_json("logs", "funti-logs-failed").to_string(), None)
+        }
     }
 }
 
@@ -178,6 +195,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
         Request::EventLog(e) => return (handle_eventlog(e), None),
+        Request::Logs => return logs(),
     };
     match request {
         rules::Request::Status => (status(), None),
