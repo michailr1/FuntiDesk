@@ -6,6 +6,7 @@
 // password settings, recent and favourite peers. Colours come only from
 // FuntiTokens. Upstream models are reused unchanged.
 
+import 'package:flutter_hbb/desktop/pages/funti_workplace.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -113,9 +114,27 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
     }
   }
 
+  // FUNTIDESK (ADR-024): the administrator's workplace replaces the cards.
+  bool _workplace = funtiWorkplaceOn();
+
+  void _setWorkplace(bool on) {
+    setFuntiWorkplace(on);
+    setState(() => _workplace = on);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
+    if (_workplace) {
+      return Container(
+        color: t.bg,
+        child: Column(children: [
+          Expanded(
+              child: FuntiWorkplaceView(onLeave: () => _setWorkplace(false))),
+          const _StatusBar(),
+        ]),
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureTop());
     return Container(
       color: t.bg,
@@ -149,6 +168,19 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
                             // FUNTIDESK: a visible way into the settings
                             // (owner's note 2026-10-11): the menu icon in
                             // the title bar was not found.
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _setWorkplace(true),
+                                icon: Icon(Icons.dashboard_outlined,
+                                    size: 18, color: t.link),
+                                label: Text(translate('funti-workplace'),
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: t.link)),
+                              ),
+                            ),
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
