@@ -5,7 +5,9 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -14,6 +16,7 @@ import '../../common/formatter/id_formatter.dart';
 import '../../common/funti_theme.dart';
 import '../../common/widgets/funti_admin.dart';
 import '../../funti/admin_rules.dart';
+import '../../funti/inventory_rules.dart';
 import '../../funti/journal_rules.dart';
 import '../../funti/workplace_rules.dart';
 import '../../models/peer_model.dart';
@@ -99,6 +102,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String? _active;
   String _group = 'all';
   bool _bell = false;
+  // "Inventory": all computers in one table (ADR-024, stage 5).
+  bool _inventory = false;
   Timer? _fast, _slow, _reload;
 
   int get _now => DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -197,6 +202,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (state == 'ready') {
         _ask(host.id, 'status');
         _ask(host.id, 'info');
+        _ask(host.id, 'hardware');
       }
       if (state == 'closed') {
         alerts.addAll(_tracker.onClosed(host, reason, _now));
@@ -226,6 +232,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
 
   void _openHost(String id, [_Section section = _Section.overview]) {
     setState(() {
+      _inventory = false;
       if (!_open.contains(id)) _open.add(id);
       _active = id;
       _section[id] = section;
@@ -526,6 +533,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           ['funti-workplace-uptime', number('uptime') > 0 ? _uptime(number('uptime')) : ''],
           ['funti-workplace-model', [str('maker'), str('model')].where((x) => x.isNotEmpty).join(' ')],
           ['funti-workplace-board', str('board')],
+          ['funti-inventory-serial', '${funtiAdminHardwareOf(_key(h.id)).value?['serial'] ?? ''}'],
           [
             'funti-workplace-cpu',
             str('cpu').isEmpty
@@ -584,9 +592,171 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                         style: TextStyle(fontSize: 13, color: t.text))),
               ]),
             ),
+        _drivesBlock(t, h),
       ]);
     });
   }
+
+  /// Drives with their health from SMART (Windows Storage).
+  Widget _drivesBlock(FuntiTokens t, _Host h) {
+    final drives = funtiAdminHardwareOf(_key(h.id)).value?['drives'];
+    if (drives is! List || drives.isEmpty) return const SizedBox.shrink();
+    final error = Theme.of(context).colorScheme.error;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(translate('funti-drives-title'),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+        const SizedBox(height: 6),
+        for (final d in drives.whereType<Map>())
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(
+                  d['level'] == 'error'
+                      ? Icons.error_outline
+                      : d['level'] == 'warning'
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                  size: 16,
+                  color: d['level'] == 'error'
+                      ? error
+                      : d['level'] == 'warning'
+                          ? Colors.amber
+                          : t.ok),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SelectableText(
+                    [
+                      '${d['name'] ?? ''}',
+                      [d['media'], d['bus']].where((x) => x is String && x.isNotEmpty).join(' '),
+                      if (d['size'] is num && (d['size'] as num) > 0)
+                        readableFileSize((d['size'] as num).toDouble()),
+                      if ('${d['health'] ?? ''}'.isNotEmpty)
+                        translate('funti-drives-health-${d['health']}'),
+                      if (d['temperature'] is num) '${d['temperature']} °C',
+                      if (d['wear'] is num)
+                        translate('funti-drives-wear').replaceAll('{}', '${d['wear']}'),
+                      if (d['hours'] is num)
+                        translate('funti-drives-hours').replaceAll('{}', '${d['hours']}'),
+                      if (d['readErrors'] is num && (d['readErrors'] as num) > 0)
+                        translate('funti-drives-errors').replaceAll('{}', '${d['readErrors']}'),
+                    ].where((x) => x.isNotEmpty).join(' · '),
+                    style: TextStyle(fontSize: 13, color: t.text)),
+              ),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  List<FuntiInventoryRow> _inventoryRows() => [
+        for (final h in funtiHostsSorted(_hosts.values, '', false).cast<_Host>())
+          FuntiInventoryRow(
+              h.name,
+              formatID(h.id),
+              translate(h.ready ? 'funti-inventory-yes' : 'funti-inventory-no'),
+              funtiAdminInfoOf(_key(h.id)).value,
+              funtiAdminHardwareOf(_key(h.id)).value),
+      ];
+
+  void _refreshInventory() {
+    for (final h in _hosts.values) {
+      _ask(h.id, 'info');
+      _ask(h.id, 'hardware');
+    }
+  }
+
+  Future<void> _saveInventory() async {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final path = await FilePicker.platform.saveFile(
+        fileName: 'funtidesk-inventory-${now.year}-${two(now.month)}-${two(now.day)}.csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv']);
+    if (path == null) return;
+    final header = [for (final c in funtiInventoryColumns) translate('funti-inventory-$c')];
+    await File(path).writeAsString(funtiInventoryCsv(header, _inventoryRows()));
+    showToast(translate('funti-inventory-saved'));
+  }
+
+  Widget _inventoryView(FuntiTokens t) {
+    return Obx(() {
+      // Rebuild when answers arrive.
+      for (final h in _hosts.values) {
+        funtiAdminInfoOf(_key(h.id)).value;
+        funtiAdminHardwareOf(_key(h.id)).value;
+      }
+      final rows = _inventoryRows();
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+              child: Text(translate('funti-inventory-note'),
+                  style: TextStyle(fontSize: 12, color: t.muted)),
+            ),
+            IconButton(
+                tooltip: translate('Refresh'),
+                onPressed: _refreshInventory,
+                icon: const Icon(Icons.refresh, size: 18)),
+            const SizedBox(width: 6),
+            ElevatedButton.icon(
+                onPressed: rows.isEmpty ? null : _saveInventory,
+                icon: const Icon(Icons.download, size: 16),
+                label: Text(translate('funti-inventory-csv'))),
+          ]),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SingleChildScrollView(
+                child: DataTable(
+                  headingRowHeight: 34,
+                  dataRowMinHeight: 30,
+                  dataRowMaxHeight: 56,
+                  columnSpacing: 18,
+                  columns: [
+                    for (final c in funtiInventoryColumns)
+                      DataColumn(
+                          label: Text(translate('funti-inventory-$c'),
+                              style: TextStyle(fontWeight: FontWeight.w600, color: t.text))),
+                  ],
+                  rows: [
+                    for (final r in rows)
+                      DataRow(cells: [
+                        for (final v in funtiInventoryValues(r))
+                          DataCell(ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 260),
+                            child: SelectableText(v,
+                                maxLines: 2, style: TextStyle(fontSize: 12, color: t.text)),
+                          )),
+                      ]),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ]),
+      );
+    });
+  }
+
+  Widget _inventoryButton(FuntiTokens t) => TextButton.icon(
+        style: TextButton.styleFrom(
+            backgroundColor: _inventory ? t.surface2 : null,
+            visualDensity: VisualDensity.compact),
+        onPressed: () {
+          setState(() => _inventory = !_inventory);
+          if (_inventory) _refreshInventory();
+        },
+        icon: Icon(Icons.table_chart_outlined, size: 16, color: _inventory ? t.text : t.muted),
+        label: Text(translate('funti-inventory-title'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: _inventory ? FontWeight.w600 : FontWeight.w400,
+                color: _inventory ? t.text : t.muted)),
+      );
 
   Widget _journal(FuntiTokens t, _Host h) {
     return Obx(() {
@@ -667,7 +837,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                 onPressed: () {
                   setState(() => _section[h.id] = s);
                   if (s == _Section.journal) _ask(h.id, 'journal');
-                  if (s == _Section.overview) _ask(h.id, 'info');
+                  if (s == _Section.overview) {
+                    _ask(h.id, 'info');
+                    _ask(h.id, 'hardware');
+                  }
                 },
                 child: Text(translate('funti-workplace-${s.name}'),
                     style: TextStyle(
@@ -688,23 +861,33 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   }
 
   Widget _main(FuntiTokens t) {
-    if (_open.isEmpty || _active == null) {
-      return Center(
+    final active = _active == null ? null : _hosts[_active];
+    Widget body;
+    if (_inventory) {
+      body = _inventoryView(t);
+    } else if (_open.isEmpty || active == null) {
+      body = Center(
           child: Text(translate('funti-workplace-pick'),
               textAlign: TextAlign.center, style: TextStyle(color: t.muted)));
+    } else {
+      body = _hostPane(t, active);
     }
-    final active = _hosts[_active]!;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
             color: t.chrome, border: Border(bottom: BorderSide(color: t.stroke))),
-        child: ListView(scrollDirection: Axis.horizontal, children: [
+        child: Row(children: [
+          Expanded(
+            child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final id in _open)
             if (_hosts[id] != null)
               InkWell(
-                onTap: () => setState(() => _active = id),
+                onTap: () => setState(() {
+                  _active = id;
+                  _inventory = false;
+                }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
@@ -734,9 +917,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                   ]),
                 ),
               ),
+            ]),
+          ),
+          _inventoryButton(t),
         ]),
       ),
-      Expanded(child: _hostPane(t, active)),
+      Expanded(child: body),
     ]);
   }
 

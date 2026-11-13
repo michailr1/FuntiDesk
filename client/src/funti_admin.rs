@@ -7,8 +7,11 @@
 mod autostart_rules;
 mod hardware;
 mod rules;
+mod storage_rules;
 #[cfg(windows)]
 mod autostart;
+#[cfg(windows)]
+mod storage;
 #[cfg(windows)]
 mod services;
 
@@ -17,6 +20,8 @@ mod services;
 pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
+    /// Drives, their health, serial number (ADR-024, stage 5).
+    Hardware,
 }
 
 impl Request {
@@ -24,7 +29,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) => true,
+            Request::Autostart(_) | Request::Hardware => true,
         }
     }
 }
@@ -42,13 +47,19 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    let autostart = serde_json::from_str::<serde_json::Value>(request)
-        .ok()
-        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
-    match autostart {
-        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
-        None => Request::Core(rules::parse_request(request)),
+    let value = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    match value["op"].as_str().unwrap_or("") {
+        op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
+        "hardware" => Request::Hardware,
+        _ => Request::Core(rules::parse_request(request)),
     }
+}
+
+fn hardware_answer() -> String {
+    #[cfg(windows)]
+    return storage::hardware();
+    #[cfg(not(windows))]
+    storage_rules::answer_json("", &[]).to_string()
 }
 
 fn handle_autostart(request: &autostart_rules::Request) -> (String, Option<(&'static str, String)>) {
@@ -163,6 +174,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     let request = match request {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
+        Request::Hardware => return (hardware_answer(), None),
     };
     match request {
         rules::Request::Status => (status(), None),
