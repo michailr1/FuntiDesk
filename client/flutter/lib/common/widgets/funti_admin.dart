@@ -76,6 +76,8 @@ class _Answers {
   final autostartDone = Rxn<Map<String, dynamic>>();
   final info = Rxn<Map<String, dynamic>>();
   final journal = Rxn<List<dynamic>>();
+  final programs = Rxn<List<Map<String, dynamic>>>();
+  final uninstalled = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -93,6 +95,10 @@ void funtiAdminForget(String key) => _answers.remove(key);
 Rxn<FuntiAdminStatus> funtiAdminStatusOf(String key) => _ofKey(key).status;
 Rxn<Map<String, dynamic>> funtiAdminInfoOf(String key) => _ofKey(key).info;
 Rxn<List<dynamic>> funtiAdminJournalOf(String key) => _ofKey(key).journal;
+Rxn<List<Map<String, dynamic>>> funtiAdminProgramsOf(String key) =>
+    _ofKey(key).programs;
+Rxn<Map<String, dynamic>> funtiAdminUninstalledOf(String key) =>
+    _ofKey(key).uninstalled;
 
 /// The "funti_admin" session event.
 void funtiAdminOnEvent(FFI ffi, Map<String, dynamic> evt) {
@@ -143,6 +149,20 @@ void funtiAdminOnAnswer(String key, Map<String, dynamic> answer) {
       break;
     case 'info':
       if (answer['error'] == null) a.info.value = answer;
+      break;
+    case 'programs':
+      final list = answer['programs'];
+      a.programs.value = list is List
+          ? [
+              for (final p in list)
+                if (p is Map) Map<String, dynamic>.from(p)
+            ]
+          : const [];
+      if (answer['error'] != null) a.uninstalled.value = answer;
+      break;
+    case 'uninstall':
+      a.uninstalled.value = answer;
+      a.link?.ask({'op': 'programs'});
       break;
     case 'journal':
       final events = answer['events'];
@@ -617,3 +637,168 @@ void showFuntiAdminServices(FFI ffi) => _showPanel(ffi, 'funti-admin-services',
 /// "Autostart…" in the session menu (Windows).
 void showFuntiAdminAutostart(FFI ffi) => _showPanel(ffi, 'funti-admin-autostart',
     720, 420, FuntiAutostartPanel(link: FuntiAdminLink.session(ffi)));
+
+/// FUNTIDESK (ADR-024, stage 5): installed programs, removal by Windows
+/// Installer or the program's quiet uninstaller, after a confirmation.
+class FuntiProgramsPanel extends StatefulWidget {
+  final FuntiAdminLink link;
+  const FuntiProgramsPanel({Key? key, required this.link}) : super(key: key);
+
+  @override
+  State<FuntiProgramsPanel> createState() => _FuntiProgramsPanelState();
+}
+
+class _FuntiProgramsPanelState extends State<FuntiProgramsPanel> {
+  final _search = TextEditingController();
+  final _removing = <String>{};
+  late _Answers _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _a = _ofKey(widget.link.key)..link = widget.link;
+    _a.programs.value = null;
+    _a.uninstalled.value = null;
+    widget.link.ask({'op': 'programs'});
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  String _date(String d) => d.length == 8
+      ? '${d.substring(6, 8)}.${d.substring(4, 6)}.${d.substring(0, 4)}'
+      : d;
+
+  Future<void> _remove(Map<String, dynamic> p) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(translate('funti-programs-remove-title')
+            .replaceAll('{}', '${p['name']}')),
+        content: Text(translate('funti-programs-remove-note')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(translate('Cancel'))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(translate('funti-programs-remove'))),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    setState(() => _removing.add('${p['id']}'));
+    _a.uninstalled.value = null;
+    widget.link.ask({'op': 'uninstall', 'id': p['id']});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    final error = Theme.of(context).colorScheme.error;
+    return Obx(() {
+      final list = _a.programs.value;
+      final done = _a.uninstalled.value;
+      if (done != null) _removing.remove('${done['id']}');
+      final filter = _search.text.trim().toLowerCase();
+      final shown = (list ?? const <Map<String, dynamic>>[])
+          .where((p) =>
+              filter.isEmpty ||
+              '${p['name']} ${p['publisher']}'.toLowerCase().contains(filter))
+          .toList();
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          SizedBox(
+            width: 260,
+            child: TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: translate('funti-programs-search')),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+              tooltip: translate('Refresh'),
+              onPressed: () => widget.link.ask({'op': 'programs'}),
+              icon: const Icon(Icons.refresh, size: 18)),
+          const Spacer(),
+          if (list != null)
+            Text(translate('funti-programs-count').replaceAll('{}', '${list.length}'),
+                style: TextStyle(fontSize: 12, color: t.muted)),
+        ]),
+        if (done != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                done['error'] is String
+                    ? translate('${done['error']}')
+                    : translate('funti-programs-removed')
+                        .replaceAll('{}', '${done['name']}'),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: done['error'] is String ? error : t.ok)),
+          ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: list == null
+              ? Center(
+                  child: Text(translate('funti-admin-waiting'),
+                      style: TextStyle(color: t.muted)))
+              : ListView.separated(
+                  itemCount: shown.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: t.rowStroke),
+                  itemBuilder: (context, i) {
+                    final p = shown[i];
+                    final id = '${p['id']}';
+                    final size = (p['size'] is num) ? (p['size'] as num).toDouble() : 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${p['name']}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 13, color: t.text)),
+                                Text(
+                                    [
+                                      '${p['version'] ?? ''}',
+                                      '${p['publisher'] ?? ''}',
+                                      _date('${p['date'] ?? ''}'),
+                                      if (size > 0) readableFileSize(size),
+                                    ].where((x) => x.isNotEmpty).join(' · '),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 11, color: t.muted)),
+                              ]),
+                        ),
+                        if (_removing.contains(id))
+                          const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                        else if (p['removable'] == true)
+                          TextButton(
+                              onPressed: () => _remove(p),
+                              child: Text(translate('funti-programs-remove')))
+                        else
+                          Tooltip(
+                            message: translate(p['protected'] == true
+                                ? 'funti-admin-protected'
+                                : 'funti-programs-manual'),
+                            child: Icon(Icons.info_outline, size: 16, color: t.muted),
+                          ),
+                      ]),
+                    );
+                  }),
+        ),
+      ]);
+    });
+  }
+}

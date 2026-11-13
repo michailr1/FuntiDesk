@@ -722,5 +722,16 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", "Video"),
         ("funti-workplace-disks", "Disks"),
         ("funti-workplace-days", "d"),
+        ("funti-workplace-programs", "Programs"),
+        ("funti-programs-search", "Search by name or publisher"),
+        ("funti-programs-count", "Installed: {}"),
+        ("funti-programs-remove", "Remove"),
+        ("funti-programs-remove-title", "Remove “{}”?"),
+        ("funti-programs-remove-note", "The program is removed by its own uninstaller with no questions on that computer. It may take a few minutes; sometimes a restart finishes it."),
+        ("funti-programs-removed", "Removed: {}"),
+        ("funti-programs-manual", "This program removes only with a window on screen: remove it in a control session"),
+        ("funti-programs-failed", "Could not remove the program"),
+        ("funti-programs-timeout", "Removal did not finish in 10 minutes"),
+        ("funti-journal-admin-uninstall", "Program removed: {}"),
     ].iter().cloned().collect();
 }

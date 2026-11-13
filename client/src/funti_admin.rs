@@ -6,9 +6,12 @@
 
 mod autostart_rules;
 mod hardware;
+mod programs_rules;
 mod rules;
 #[cfg(windows)]
 mod autostart;
+#[cfg(windows)]
+mod programs;
 #[cfg(windows)]
 mod services;
 
@@ -17,6 +20,10 @@ mod services;
 pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
+    /// Installed programs (ADR-024, stage 5).
+    Programs,
+    /// Remove a program by its id from the list.
+    Uninstall(String),
 }
 
 impl Request {
@@ -24,8 +31,13 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) => true,
+            Request::Autostart(_) | Request::Programs | Request::Uninstall(_) => true,
         }
+    }
+
+    /// Long: answered later, so the connection keeps working meanwhile.
+    pub fn is_long(&self) -> bool {
+        matches!(self, Request::Uninstall(_))
     }
 }
 
@@ -42,12 +54,35 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    let autostart = serde_json::from_str::<serde_json::Value>(request)
-        .ok()
-        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
-    match autostart {
-        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
-        None => Request::Core(rules::parse_request(request)),
+    let value = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    match value["op"].as_str().unwrap_or("") {
+        op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
+        "programs" => Request::Programs,
+        "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
+        _ => Request::Core(rules::parse_request(request)),
+    }
+}
+
+fn handle_programs(request: &Request) -> (String, Option<(&'static str, String)>) {
+    #[cfg(windows)]
+    match request {
+        Request::Uninstall(id) => match programs::uninstall(id) {
+            Ok(name) => (
+                serde_json::json!({"op": "uninstall", "id": id, "name": name}).to_string(),
+                Some(("uninstall", name)),
+            ),
+            Err(error) => {
+                let mut answer = rules::error_json("uninstall", error);
+                answer["id"] = id.clone().into();
+                (answer.to_string(), None)
+            }
+        },
+        _ => (programs::list(), None),
+    }
+    #[cfg(not(windows))]
+    {
+        let op = if matches!(request, Request::Uninstall(_)) { "uninstall" } else { "programs" };
+        (rules::error_json(op, "funti-admin-windows-only").to_string(), None)
     }
 }
 
@@ -163,6 +198,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     let request = match request {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
+        Request::Programs | Request::Uninstall(_) => return handle_programs(request),
     };
     match request {
         rules::Request::Status => (status(), None),

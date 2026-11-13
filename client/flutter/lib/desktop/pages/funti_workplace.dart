@@ -80,7 +80,7 @@ class _Host extends FuntiHost {
   _Host(String id, String name, this.platform) : super(id, name);
 }
 
-enum _Section { overview, processes, services, autostart, journal }
+enum _Section { overview, processes, services, autostart, programs, journal }
 
 class FuntiWorkplaceView extends StatefulWidget {
   const FuntiWorkplaceView({Key? key}) : super(key: key);
@@ -620,6 +620,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _Section.processes,
       if (_windows(h)) _Section.services,
       if (_windows(h)) _Section.autostart,
+      if (_windows(h)) _Section.programs,
       _Section.journal,
     ];
     Widget body;
@@ -643,6 +644,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           body = Padding(
               padding: const EdgeInsets.all(12),
               child: FuntiAutostartPanel(key: ValueKey('a${h.id}'), link: link));
+          break;
+        case _Section.programs:
+          body = Padding(
+              padding: const EdgeInsets.all(12),
+              child: FuntiProgramsPanel(key: ValueKey('g${h.id}'), link: link));
           break;
         case _Section.journal:
           body = _journal(t, h);
