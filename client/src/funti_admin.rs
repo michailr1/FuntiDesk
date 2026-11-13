@@ -4,9 +4,12 @@
 //! The requests arrive in `server/connection.rs` (`funti_admin_request`),
 //! which checks who asks and writes ended processes to the journal.
 
+mod attention_rules;
 mod autostart_rules;
 mod hardware;
 mod rules;
+#[cfg(windows)]
+mod attention;
 #[cfg(windows)]
 mod autostart;
 #[cfg(windows)]
@@ -17,6 +20,8 @@ mod services;
 pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
+    /// What needs attention: antivirus, updates, restart (ADR-024, stage 4).
+    Attention,
 }
 
 impl Request {
@@ -24,7 +29,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) => true,
+            Request::Autostart(_) | Request::Attention => true,
         }
     }
 }
@@ -42,13 +47,28 @@ lazy_static::lazy_static! {
 }
 
 pub fn parse(request: &str) -> Request {
-    let autostart = serde_json::from_str::<serde_json::Value>(request)
-        .ok()
-        .filter(|v| v["op"].as_str().map_or(false, |op| op.starts_with("autostart")));
-    match autostart {
-        Some(v) => Request::Autostart(autostart_rules::parse_request(&v)),
-        None => Request::Core(rules::parse_request(request)),
+    let value = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    match value["op"].as_str().unwrap_or("") {
+        op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
+        "attention" => Request::Attention,
+        _ => Request::Core(rules::parse_request(request)),
     }
+}
+
+fn attention() -> String {
+    let mut facts = attention_rules::Facts::default();
+    facts.uptime_days = SYSTEM.lock().unwrap().uptime() / 86400;
+    let wanted = system_disk();
+    facts.disk_percent = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    #[cfg(windows)]
+    attention::facts(&mut facts);
+    attention_rules::answer_json(&facts).to_string()
 }
 
 fn handle_autostart(request: &autostart_rules::Request) -> (String, Option<(&'static str, String)>) {
@@ -163,6 +183,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     let request = match request {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
+        Request::Attention => return (attention(), None),
     };
     match request {
         rules::Request::Status => (status(), None),

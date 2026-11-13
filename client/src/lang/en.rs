@@ -722,5 +722,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", "Video"),
         ("funti-workplace-disks", "Disks"),
         ("funti-workplace-days", "d"),
+        ("funti-attention-title", "Needs attention"),
+        ("funti-attention-none", "All is well: antivirus on, updates installed, no restart needed"),
+        ("funti-attention-antivirus-off", "Antivirus is off: {}"),
+        ("funti-attention-antivirus-old", "Antivirus definitions are out of date: {}"),
+        ("funti-attention-updates", "Windows updates not installed for {} days"),
+        ("funti-attention-restart", "A restart is pending to finish installing updates"),
+        ("funti-attention-uptime", "Not restarted for {} days"),
+        ("funti-attention-disk", "System disk is {}% full"),
     ].iter().cloned().collect();
 }

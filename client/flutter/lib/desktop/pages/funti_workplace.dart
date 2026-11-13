@@ -99,6 +99,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String? _active;
   String _group = 'all';
   bool _bell = false;
+  int _slowTicks = 0;
   Timer? _fast, _slow, _reload;
 
   int get _now => DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -118,9 +119,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (id != null) _ask(id, 'status');
     });
     _slow = Timer.periodic(const Duration(seconds: 30), (_) {
+      // What needs attention changes slowly: every 10 minutes.
+      final attention = ++_slowTicks % 20 == 0;
       for (final h in _hosts.values) {
         if (h.id != _active) _ask(h.id, 'status');
         if (h.retry) _connect(h);
+        if (attention) _ask(h.id, 'attention');
       }
     });
     _reload = Timer.periodic(const Duration(seconds: 10), (_) => _syncHosts());
@@ -197,6 +201,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (state == 'ready') {
         _ask(host.id, 'status');
         _ask(host.id, 'info');
+        _ask(host.id, 'attention');
       }
       if (state == 'closed') {
         alerts.addAll(_tracker.onClosed(host, reason, _now));
@@ -208,6 +213,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
         final answer = jsonDecode(result);
         if (answer is Map<String, dynamic>) {
           funtiAdminOnAnswer(_key(host.id), answer);
+          if (answer['op'] == 'attention') {
+            host.attention = funtiAttentionItems(answer);
+          }
           final status = FuntiAdminStatus.parse(answer);
           if (status != null) {
             host.status = status;
@@ -562,6 +570,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                     hot: s.disk > funtiAdminHot)),
           ]),
         const SizedBox(height: 14),
+        _attentionBlock(t, h),
         if (vm.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -586,6 +595,52 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             ),
       ]);
     });
+  }
+
+  /// "Needs attention": each item with its reason, or "all is well".
+  Widget _attentionBlock(FuntiTokens t, _Host h) {
+    final error = Theme.of(context).colorScheme.error;
+    final items = h.attention;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: items.isEmpty ? t.rowStroke : error.withOpacity(0.5))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(translate('funti-attention-title'),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+        const SizedBox(height: 6),
+        if (items.isEmpty)
+          Row(children: [
+            Icon(Icons.check_circle_outline, size: 16, color: t.ok),
+            const SizedBox(width: 6),
+            Text(translate('funti-attention-none'),
+                style: TextStyle(fontSize: 13, color: t.muted)),
+          ])
+        else
+          for (final i in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Icon(
+                    i['level'] == 'error'
+                        ? Icons.error_outline
+                        : Icons.warning_amber_rounded,
+                    size: 16,
+                    color: i['level'] == 'error' ? error : Colors.amber),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                      translate('funti-attention-${i['kind']}')
+                          .replaceAll('{}', '${i['detail'] ?? ''}'),
+                      style: TextStyle(fontSize: 13, color: t.text)),
+                ),
+              ]),
+            ),
+      ]),
+    );
   }
 
   Widget _journal(FuntiTokens t, _Host h) {
@@ -667,7 +722,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                 onPressed: () {
                   setState(() => _section[h.id] = s);
                   if (s == _Section.journal) _ask(h.id, 'journal');
-                  if (s == _Section.overview) _ask(h.id, 'info');
+                  if (s == _Section.overview) {
+                    _ask(h.id, 'info');
+                    _ask(h.id, 'attention');
+                  }
                 },
                 child: Text(translate('funti-workplace-${s.name}'),
                     style: TextStyle(

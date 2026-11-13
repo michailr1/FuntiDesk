@@ -1263,5 +1263,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", ""),
         ("funti-workplace-disks", ""),
         ("funti-workplace-days", ""),
+        ("funti-attention-title", ""),
+        ("funti-attention-none", ""),
+        ("funti-attention-antivirus-off", ""),
+        ("funti-attention-antivirus-old", ""),
+        ("funti-attention-updates", ""),
+        ("funti-attention-restart", ""),
+        ("funti-attention-uptime", ""),
+        ("funti-attention-disk", ""),
     ].iter().cloned().collect();
 }
