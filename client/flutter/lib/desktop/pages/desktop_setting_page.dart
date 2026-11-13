@@ -1137,6 +1137,10 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   // FUNTIDESK (ADR-020): journal of incoming connections.
                   _Card(title: 'funti-journal-title', children: [
                     _funtiNote('funti-journal-note'),
+                    // FUNTIDESK (ADR-025): the load history of this computer.
+                    _OptionCheckBox(context, 'funti-history-allow',
+                        'funti-disable-history',
+                        reverse: true, enabled: !locked),
                     OutlinedButton(
                             onPressed: showFuntiJournalDialog,
                             child: Text(translate('funti-journal-show')))

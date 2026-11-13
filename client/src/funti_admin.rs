@@ -7,6 +7,8 @@
 mod autostart_rules;
 mod eventlog_rules;
 mod hardware;
+mod history;
+mod history_rules;
 mod rules;
 #[cfg(windows)]
 mod autostart;
@@ -22,6 +24,8 @@ pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
     EventLog(Option<eventlog_rules::Request>),
+    /// The load of the last day or week (ADR-025).
+    History(i64),
 }
 
 impl Request {
@@ -29,7 +33,7 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::History(_) => true,
         }
     }
 }
@@ -51,8 +55,34 @@ pub fn parse(request: &str) -> Request {
     match value["op"].as_str().unwrap_or("") {
         op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
         "eventlog" => Request::EventLog(eventlog_rules::parse_request(&value)),
+        "history" => Request::History(history_rules::parse_days(&value)),
         _ => Request::Core(rules::parse_request(request)),
     }
+}
+
+pub use history::start as start_history;
+
+/// Processor, memory and system disk in percent, for the history.
+fn load() -> (u8, u8, u8) {
+    let mut system = SYSTEM.lock().unwrap();
+    system.refresh_cpu_usage();
+    system.refresh_memory();
+    let cpu = system.global_cpu_info().cpu_usage().round().clamp(0.0, 100.0) as u8;
+    let memory = if system.total_memory() > 0 {
+        (100 * system.used_memory() / system.total_memory()) as u8
+    } else {
+        0
+    };
+    drop(system);
+    let wanted = system_disk();
+    let disk = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    (cpu, memory, disk)
 }
 
 fn handle_eventlog(request: &Option<eventlog_rules::Request>) -> String {
@@ -178,6 +208,10 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
         Request::EventLog(e) => return (handle_eventlog(e), None),
+        Request::History(days) => {
+            let uptime = SYSTEM.lock().unwrap().uptime();
+            return (history::answer(*days, uptime), None);
+        }
     };
     match request {
         rules::Request::Status => (status(), None),

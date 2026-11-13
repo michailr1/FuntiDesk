@@ -677,6 +677,8 @@ pub async fn start_server(is_server: bool, no_server: bool) {
             }
         }
         crate::common::set_server_running(true);
+        // FUNTIDESK (ADR-025): the load history of this computer.
+        crate::funti_admin::start_history();
         if !cfg!(windows) || crate::is_server() {
             std::thread::spawn(move || {
                 if let Err(err) = crate::ipc::start("") {
