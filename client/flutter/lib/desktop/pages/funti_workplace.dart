@@ -18,6 +18,7 @@ import '../../funti/journal_rules.dart';
 import '../../funti/workplace_rules.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
+import '../widgets/funti_eventlog.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_journal.dart';
 
@@ -80,7 +81,7 @@ class _Host extends FuntiHost {
   _Host(String id, String name, this.platform) : super(id, name);
 }
 
-enum _Section { overview, processes, services, autostart, journal }
+enum _Section { overview, processes, services, autostart, eventlog, journal }
 
 class FuntiWorkplaceView extends StatefulWidget {
   const FuntiWorkplaceView({Key? key}) : super(key: key);
@@ -620,6 +621,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _Section.processes,
       if (_windows(h)) _Section.services,
       if (_windows(h)) _Section.autostart,
+      if (_windows(h)) _Section.eventlog,
       _Section.journal,
     ];
     Widget body;
@@ -643,6 +645,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           body = Padding(
               padding: const EdgeInsets.all(12),
               child: FuntiAutostartPanel(key: ValueKey('a${h.id}'), link: link));
+          break;
+        case _Section.eventlog:
+          body = Padding(
+              padding: const EdgeInsets.all(12),
+              child: FuntiEventLogPanel(key: ValueKey('e${h.id}'), link: link));
           break;
         case _Section.journal:
           body = _journal(t, h);

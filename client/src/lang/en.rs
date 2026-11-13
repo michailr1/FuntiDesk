@@ -722,5 +722,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", "Video"),
         ("funti-workplace-disks", "Disks"),
         ("funti-workplace-days", "d"),
+        ("funti-workplace-eventlog", "Windows logs"),
+        ("funti-eventlog-System", "System"),
+        ("funti-eventlog-Application", "Application"),
+        ("funti-eventlog-Security", "Security"),
+        ("funti-eventlog-level-all", "All events"),
+        ("funti-eventlog-level-warning", "Warnings and errors"),
+        ("funti-eventlog-level-error", "Errors"),
+        ("funti-eventlog-filter", "Source, ID or text"),
+        ("funti-eventlog-empty", "No events"),
+        ("funti-eventlog-no-text", "No text"),
+        ("funti-eventlog-shown", "Shown {} of {n}"),
+        ("funti-admin-eventlog-failed", "Could not read the Windows log"),
     ].iter().cloned().collect();
 }
