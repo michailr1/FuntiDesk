@@ -664,6 +664,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.rowStroke))),
         child: Row(children: [
+          // The sections scroll when the window is narrow; the screen
+          // button stays at the right.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
           for (final s in sections)
             Padding(
               padding: const EdgeInsets.only(right: 2),
@@ -683,7 +689,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                         color: s == section ? t.text : t.muted)),
               ),
             ),
-          const Spacer(),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 8),
           ElevatedButton.icon(
               onPressed: () => connect(context, h.id),
               icon: const Icon(Icons.desktop_windows_outlined, size: 16),

@@ -58,10 +58,12 @@ class _FuntiEventLogPanelState extends State<FuntiEventLogPanel> {
   Widget _icon(BuildContext context, FuntiTokens t, FuntiEvent e) {
     final error = Theme.of(context).colorScheme.error;
     if (e.failure) return Icon(Icons.lock_outline, size: 16, color: error);
-    if (e.level == 1) return Icon(Icons.dangerous_outlined, size: 16, color: error);
+    if (e.level == 1)
+      return Icon(Icons.dangerous_outlined, size: 16, color: error);
     if (e.level == 2) return Icon(Icons.error_outline, size: 16, color: error);
     if (e.warning) {
-      return const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber);
+      return const Icon(Icons.warning_amber_rounded,
+          size: 16, color: Colors.amber);
     }
     return Icon(Icons.info_outline, size: 16, color: t.muted);
   }
@@ -69,7 +71,8 @@ class _FuntiEventLogPanelState extends State<FuntiEventLogPanel> {
   Widget _row(BuildContext context, FuntiTokens t, int i, FuntiEvent e) {
     final open = _expanded.contains(i);
     return InkWell(
-      onTap: () => setState(() => open ? _expanded.remove(i) : _expanded.add(i)),
+      onTap: () =>
+          setState(() => open ? _expanded.remove(i) : _expanded.add(i)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -81,12 +84,13 @@ class _FuntiEventLogPanelState extends State<FuntiEventLogPanel> {
                 child: Text(_time(e.time),
                     style: TextStyle(fontSize: 12, color: t.muted))),
             SizedBox(
-                width: 200,
+                width: 210,
                 child: Text(e.source,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: t.text))),
+            const SizedBox(width: 10),
             SizedBox(
-                width: 56,
+                width: 52,
                 child: Text('${e.id}',
                     style: TextStyle(fontSize: 12, color: t.muted))),
             Expanded(
@@ -179,23 +183,25 @@ class _FuntiEventLogPanelState extends State<FuntiEventLogPanel> {
               child: Text(translate('funti-eventlog-empty'),
                   style: TextStyle(color: t.muted)));
         }
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(
-            child: ListView.separated(
-                itemCount: shown.length,
-                separatorBuilder: (_, __) =>
-                    Divider(height: 1, color: t.rowStroke),
-                itemBuilder: (context, i) => _row(context, t, i, shown[i])),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-                translate('funti-eventlog-shown')
-                    .replaceAll('{}', '${shown.length}')
-                    .replaceAll('{n}', '${all.length}'),
-                style: TextStyle(fontSize: 12, color: t.muted)),
-          ),
-        ]);
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ListView.separated(
+                    itemCount: shown.length,
+                    separatorBuilder: (_, __) =>
+                        Divider(height: 1, color: t.rowStroke),
+                    itemBuilder: (context, i) => _row(context, t, i, shown[i])),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                    translate('funti-eventlog-shown')
+                        .replaceAll('{}', '${shown.length}')
+                        .replaceAll('{n}', '${all.length}'),
+                    style: TextStyle(fontSize: 12, color: t.muted)),
+              ),
+            ]);
       })),
     ]);
   }
