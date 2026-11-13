@@ -1263,5 +1263,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-gpu", ""),
         ("funti-workplace-disks", ""),
         ("funti-workplace-days", ""),
+        ("funti-about-telegram", ""),
     ].iter().cloned().collect();
 }
