@@ -15,6 +15,10 @@ pub enum Request {
     Kill(u32),
     /// Windows services (stage 2).
     Services,
+    /// ADR-024: what the computer is (system, hardware, virtual or not).
+    Info,
+    /// ADR-024: this computer's connection journal (ADR-020).
+    Journal,
     Service(String, ServiceAction),
     Bad,
 }
@@ -49,6 +53,8 @@ impl Request {
             Request::Processes => "processes",
             Request::Kill(_) => "kill",
             Request::Services => "services",
+            Request::Info => "info",
+            Request::Journal => "journal",
             Request::Service(..) => "service",
             Request::Bad => "",
         }
@@ -67,6 +73,8 @@ pub fn parse_request(text: &str) -> Request {
             None => Request::Bad,
         },
         Some("services") => Request::Services,
+        Some("info") => Request::Info,
+        Some("journal") => Request::Journal,
         Some("service") => {
             let action = match v["action"].as_str() {
                 Some("start") => ServiceAction::Start,
@@ -215,6 +223,83 @@ pub fn status_json(cpu: f32, mem_used: u64, mem_total: u64, disk_used: u64, disk
     })
 }
 
+/// The virtualization platform when the firmware says the computer is a
+/// virtual machine: by the system maker and model as Windows (SMBIOS) or
+/// Linux (/sys/class/dmi) report them.
+pub fn virtual_machine(maker: &str, model: &str) -> Option<&'static str> {
+    let both = format!("{} {}", maker, model).to_lowercase();
+    let known: &[(&str, &str)] = &[
+        ("vmware", "VMware"),
+        ("virtualbox", "VirtualBox"),
+        ("innotek", "VirtualBox"),
+        ("qemu", "QEMU/KVM"),
+        ("kvm", "QEMU/KVM"),
+        ("xen", "Xen"),
+        ("parallels", "Parallels"),
+        ("bochs", "QEMU/KVM"),
+        ("proxmox", "Proxmox"),
+        ("amazon ec2", "Amazon EC2"),
+        ("google compute engine", "Google Cloud"),
+    ];
+    if both.contains("microsoft") && both.contains("virtual machine") {
+        return Some("Hyper-V");
+    }
+    known.iter().find(|(needle, _)| both.contains(needle)).map(|(_, name)| *name)
+}
+
+#[derive(Default)]
+pub struct HostInfo {
+    pub os: String,
+    pub hostname: String,
+    pub user: String,
+    pub uptime: u64,
+    pub maker: String,
+    pub model: String,
+    pub board: String,
+    pub cpu: String,
+    pub cores: usize,
+    pub threads: usize,
+    pub memory: u64,
+    pub gpus: Vec<String>,
+    /// (name or mount point, size in bytes, "SSD"/"HDD"/"")
+    pub disks: Vec<(String, u64, String)>,
+}
+
+fn clean(s: &str) -> String {
+    let s = text(s.trim());
+    // Firmware placeholders say nothing.
+    match s.to_lowercase().as_str() {
+        "" | "to be filled by o.e.m." | "default string" | "system product name" | "system manufacturer"
+        | "not applicable" | "none" | "0" => String::new(),
+        _ => s,
+    }
+}
+
+pub fn info_json(i: &HostInfo) -> Value {
+    let maker = clean(&i.maker);
+    let model = clean(&i.model);
+    let vm = virtual_machine(&maker, &model);
+    let mut gpus: Vec<String> = i.gpus.iter().map(|g| clean(g)).filter(|g| !g.is_empty()).collect();
+    gpus.dedup();
+    json!({
+        "op": "info",
+        "os": text(&i.os),
+        "hostname": text(&i.hostname),
+        "user": text(&i.user),
+        "uptime": i.uptime,
+        "maker": maker,
+        "model": model,
+        "board": clean(&i.board),
+        "vm": vm.unwrap_or_default(),
+        "cpu": clean(&i.cpu),
+        "cores": i.cores,
+        "threads": i.threads,
+        "memory": i.memory,
+        "gpus": gpus,
+        "disks": i.disks.iter().take(16).map(|(n, size, kind)| json!({"name": text(n), "size": size, "kind": kind})).collect::<Vec<_>>(),
+    })
+}
+
 pub fn error_json(op: &str, error: &str) -> Value {
     json!({"op": op, "error": error})
 }
@@ -306,6 +391,49 @@ mod tests {
         assert_eq!(rows[0]["display"], "WinDefend");
         assert_eq!(rows[0]["protected"], true);
         assert_eq!(rows[1]["protected"], false);
+    }
+
+    #[test]
+    fn virtual_machines() {
+        assert_eq!(virtual_machine("Microsoft Corporation", "Virtual Machine"), Some("Hyper-V"));
+        assert_eq!(virtual_machine("VMware, Inc.", "VMware20,1"), Some("VMware"));
+        assert_eq!(virtual_machine("innotek GmbH", "VirtualBox"), Some("VirtualBox"));
+        assert_eq!(virtual_machine("QEMU", "Standard PC (Q35 + ICH9, 2009)"), Some("QEMU/KVM"));
+        assert_eq!(virtual_machine("Xen", "HVM domU"), Some("Xen"));
+        assert_eq!(virtual_machine("Microsoft Corporation", "Surface Laptop 5"), None);
+        assert_eq!(virtual_machine("LENOVO", "11MY0034RU"), None);
+        assert_eq!(virtual_machine("", ""), None);
+    }
+
+    #[test]
+    fn host_info() {
+        let mut i = HostInfo {
+            os: "Windows 11 Pro 24H2".into(),
+            maker: "Microsoft Corporation".into(),
+            model: "Virtual Machine".into(),
+            board: "To be filled by O.E.M.".into(),
+            cpu: " Intel(R) Xeon(R) E-2336 CPU @ 2.90GHz ".into(),
+            cores: 4,
+            threads: 4,
+            memory: 12 << 30,
+            gpus: vec!["Microsoft Hyper-V Video".into(), "Microsoft Hyper-V Video".into(), "".into()],
+            disks: vec![("C:\\".into(), 200 << 30, "SSD".into())],
+            ..Default::default()
+        };
+        let v = info_json(&i);
+        assert_eq!(v["vm"], "Hyper-V");
+        assert_eq!(v["board"], "");
+        assert_eq!(v["cpu"], "Intel(R) Xeon(R) E-2336 CPU @ 2.90GHz");
+        assert_eq!(v["gpus"].as_array().unwrap().len(), 1);
+        assert_eq!(v["disks"][0]["kind"], "SSD");
+        i.maker = "ASUS".into();
+        i.model = "System Product Name".into();
+        let v = info_json(&i);
+        assert_eq!(v["vm"], "");
+        assert_eq!(v["model"], "");
+        assert!(matches!(parse_request("{\"op\":\"info\"}"), Request::Info));
+        assert!(matches!(parse_request("{\"op\":\"journal\"}"), Request::Journal));
+        assert!(Request::Info.needs_control() && Request::Journal.needs_control());
     }
 
     #[test]
