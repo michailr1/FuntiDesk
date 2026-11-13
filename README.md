@@ -6,7 +6,7 @@
 
 Новости и анонсы — в Telegram-канале [t.me/funtidesk](https://t.me/funtidesk).
 
-![Главный экран FuntiDesk](docs/images/main-screen.png)
+![Главный экран FuntiDesk](docs/images/main-screen-redacted.png)
 
 ## Чем FuntiDesk отличается
 

@@ -97,9 +97,9 @@
       "content_type": "image/png"
     },
     {
-      "file": "images/main-screen.png",
-      "bytes": 232477,
-      "sha256": "a8a2d7c82d9b118ed206dc022bdd6fe8ec56a8962139d96488266a2878626a16",
+      "file": "images/main-screen-redacted.png",
+      "bytes": 223603,
+      "sha256": "7f0ca519526fb7de6a1d54954c120d15073ecfa0a87e91105cfb246959db0bc7",
       "content_type": "image/png"
     },
     {
@@ -116,8 +116,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 24495,
-      "sha256": "735a561e00e2ee356c41dd5f6439439603f76e210330f5a996f19d984f170750",
+      "bytes": 24513,
+      "sha256": "030a2b7dfd822bfcbec5dc71b7560dcf541c52a29b316c5cee4d8cfa18ed3a77",
       "content_type": "text/html"
     },
     {
