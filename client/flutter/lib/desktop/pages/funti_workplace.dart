@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -78,8 +79,17 @@ class FuntiViewTabs extends StatelessWidget {
 class _Host extends FuntiHost {
   String platform;
   bool favorite = false, family = false;
+
+  /// The last picture of its screen (JPEG) and why there is none.
+  Uint8List? picture;
+  String pictureError = '';
   _Host(String id, String name, this.platform) : super(id, name);
 }
+
+/// Screens at once on the right: one, two side by side, 2×2, 3×3.
+const _layouts = [1, 2, 4, 9];
+const _kOptionLayout = 'funti-workplace-layout';
+const _kOptionNoThumbs = 'funti-workplace-no-thumbs';
 
 enum _Section { overview, processes, services, autostart, eventlog, journal }
 
@@ -100,7 +110,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String? _active;
   String _group = 'all';
   bool _bell = false;
-  Timer? _fast, _slow, _reload;
+  bool _screens = false;
+  int _layout = int.tryParse(bind.mainGetLocalOption(key: _kOptionLayout)) ?? 4;
+  // Pictures in the list are on unless turned off (owner's decision).
+  bool _thumbs = bind.mainGetLocalOption(key: _kOptionNoThumbs) != 'Y';
+  Timer? _fast, _slow, _reload, _pictures;
 
   int get _now => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
@@ -122,9 +136,17 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       for (final h in _hosts.values) {
         if (h.id != _active) _ask(h.id, 'status');
         if (h.retry) _connect(h);
+        if (_thumbs && !_screens) _askPicture(h.id, 320);
       }
     });
     _reload = Timer.periodic(const Duration(seconds: 10), (_) => _syncHosts());
+    // The screens on the right, every 3 seconds while they are shown.
+    _pictures = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!_screens) return;
+      for (final h in _shownScreens()) {
+        _askPicture(h.id, _tileWidth());
+      }
+    });
   }
 
   @override
@@ -132,6 +154,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     _fast?.cancel();
     _slow?.cancel();
     _reload?.cancel();
+    _pictures?.cancel();
     gFFI.recentPeersModel.removeListener(_syncHosts);
     gFFI.favoritePeersModel.removeListener(_syncHosts);
     platformFFI.unregisterEventHandler(_kEvent, _kHandler);
@@ -187,6 +210,34 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     }
   }
 
+  void _askPicture(String id, int width) {
+    if (_hosts[id]?.ready ?? false) {
+      bind.mainFuntiServiceRequest(
+          id: id, request: jsonEncode({'op': 'screen', 'width': width}));
+    }
+  }
+
+  /// The width asked for a tile: about what it shows.
+  int _tileWidth() => _layout == 1 ? 1280 : (_layout == 9 ? 480 : 800);
+
+  /// The hosts on the right in the screens view: the opened ones, or, if
+  /// none is opened, the ones that answer.
+  List<_Host> _shownScreens() {
+    final opened = [
+      for (final id in _open)
+        if (_hosts[id] != null) _hosts[id]!
+    ];
+    final list = opened.isNotEmpty
+        ? opened
+        : funtiHostsSorted(_hosts.values.where((h) => h.ready), '', true)
+            .cast<_Host>()
+            .toList();
+    if (_layout == 1 && _active != null && _hosts[_active] != null) {
+      return [_hosts[_active]!];
+    }
+    return list.take(_layout).toList();
+  }
+
   Future<void> _onEvent(Map<String, dynamic> evt) async {
     final host = _hosts[evt['id']];
     if (host == null || !mounted) return;
@@ -198,6 +249,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (state == 'ready') {
         _ask(host.id, 'status');
         _ask(host.id, 'info');
+        if (_thumbs) _askPicture(host.id, 320);
       }
       if (state == 'closed') {
         alerts.addAll(_tracker.onClosed(host, reason, _now));
@@ -207,7 +259,15 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic>) {
+        if (answer is Map<String, dynamic> && answer['op'] == 'screen') {
+          final jpeg = answer['jpeg'];
+          if (jpeg is String) {
+            host.picture = base64Decode(jpeg);
+            host.pictureError = '';
+          } else {
+            host.pictureError = '${answer['error'] ?? ''}';
+          }
+        } else if (answer is Map<String, dynamic>) {
           funtiAdminOnAnswer(_key(host.id), answer);
           final status = FuntiAdminStatus.parse(answer);
           if (status != null) {
@@ -409,6 +469,18 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                   ],
                 ]),
           ),
+          if (_thumbs && h.picture != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.memory(h.picture!,
+                    width: 96,
+                    height: 54,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true),
+              ),
+            ),
           _hostMenu(h),
         ]),
       ),
@@ -703,24 +775,185 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     ]);
   }
 
-  Widget _main(FuntiTokens t) {
-    if (_open.isEmpty || _active == null) {
+  void _setLayout(int layout) {
+    setState(() {
+      _layout = layout;
+      _screens = true;
+    });
+    bind.mainSetLocalOption(key: _kOptionLayout, value: '$layout');
+  }
+
+  void _setThumbs(bool on) {
+    setState(() => _thumbs = on);
+    bind.mainSetLocalOption(key: _kOptionNoThumbs, value: on ? '' : 'Y');
+  }
+
+  /// "Screens" and its layouts, at the right of the host tabs.
+  Widget _screensButton(FuntiTokens t) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      TextButton.icon(
+        style: TextButton.styleFrom(
+            backgroundColor: _screens ? t.surface2 : null,
+            visualDensity: VisualDensity.compact),
+        onPressed: () {
+          setState(() => _screens = !_screens);
+          if (_screens) {
+            for (final h in _shownScreens()) {
+              _askPicture(h.id, _tileWidth());
+            }
+          }
+        },
+        icon: Icon(Icons.grid_view, size: 16, color: _screens ? t.text : t.muted),
+        label: Text(translate('funti-workplace-screens'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: _screens ? FontWeight.w600 : FontWeight.w400,
+                color: _screens ? t.text : t.muted)),
+      ),
+      PopupMenuButton<String>(
+        tooltip: translate('funti-workplace-layout'),
+        icon: Icon(Icons.arrow_drop_down, color: t.muted),
+        onSelected: (v) {
+          if (v == 'thumbs') {
+            _setThumbs(!_thumbs);
+          } else {
+            _setLayout(int.parse(v));
+          }
+        },
+        itemBuilder: (_) => [
+          for (final l in _layouts)
+            CheckedPopupMenuItem(
+                value: '$l',
+                checked: _layout == l,
+                child: Text(translate('funti-workplace-layout-$l'))),
+          const PopupMenuDivider(),
+          CheckedPopupMenuItem(
+              value: 'thumbs',
+              checked: _thumbs,
+              child: Text(translate('funti-workplace-thumbs'))),
+        ],
+      ),
+    ]);
+  }
+
+  Widget _screenTile(FuntiTokens t, _Host h) {
+    final picture = h.picture;
+    Widget body;
+    if (!h.ready) {
+      body = Text(translate(h.note.isEmpty ? 'funti-admin-waiting' : h.note),
+          textAlign: TextAlign.center, style: TextStyle(color: t.muted));
+    } else if (picture != null) {
+      body = Image.memory(picture, fit: BoxFit.contain, gaplessPlayback: true);
+    } else {
+      body = Text(
+          translate(h.pictureError.isEmpty ? 'funti-admin-waiting' : h.pictureError),
+          textAlign: TextAlign.center,
+          style: TextStyle(color: t.muted));
+    }
+    return Container(
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: h.id == _active ? t.accent : t.rowStroke,
+              width: h.id == _active ? 2 : 1)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+          child: Row(children: [
+            Icon(Icons.circle, size: 8, color: h.ready ? t.ok : t.off),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text(h.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600, color: t.text))),
+            IconButton(
+                tooltip: translate('funti-workplace-overview'),
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+                onPressed: () {
+                  setState(() => _screens = false);
+                  _openHost(h.id);
+                },
+                icon: Icon(Icons.info_outline, color: t.muted)),
+            IconButton(
+                tooltip: translate('funti-workplace-screen'),
+                visualDensity: VisualDensity.compact,
+                iconSize: 16,
+                onPressed: () => connect(context, h.id),
+                icon: Icon(Icons.open_in_new, color: t.muted)),
+          ]),
+        ),
+        Expanded(
+          child: Tooltip(
+            message: translate('funti-workplace-screen'),
+            child: InkWell(
+              onTap: () => connect(context, h.id),
+              child: Center(child: body),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _screensView(FuntiTokens t) {
+    final hosts = _shownScreens();
+    if (hosts.isEmpty) {
       return Center(
-          child: Text(translate('funti-workplace-pick'),
+          child: Text(translate('funti-workplace-screens-empty'),
               textAlign: TextAlign.center, style: TextStyle(color: t.muted)));
     }
-    final active = _hosts[_active]!;
+    final columns = _layout == 1 ? 1 : (_layout == 9 ? 3 : 2);
+    final rows = _layout <= 2 ? 1 : (_layout == 4 ? 2 : 3);
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Column(children: [
+        for (var r = 0; r < rows; r++)
+          Expanded(
+            child: Row(children: [
+              for (var c = 0; c < columns; c++)
+                Expanded(
+                  child: r * columns + c < hosts.length
+                      ? _screenTile(t, hosts[r * columns + c])
+                      : const SizedBox.shrink(),
+                ),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  Widget _main(FuntiTokens t) {
+    final active = _active == null ? null : _hosts[_active];
+    Widget body;
+    if (_screens) {
+      body = _screensView(t);
+    } else if (_open.isEmpty || active == null) {
+      body = Center(
+          child: Text(translate('funti-workplace-pick'),
+              textAlign: TextAlign.center, style: TextStyle(color: t.muted)));
+    } else {
+      body = _hostPane(t, active);
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
             color: t.chrome, border: Border(bottom: BorderSide(color: t.stroke))),
-        child: ListView(scrollDirection: Axis.horizontal, children: [
+        child: Row(children: [
+          Expanded(
+            child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final id in _open)
             if (_hosts[id] != null)
               InkWell(
-                onTap: () => setState(() => _active = id),
+                onTap: () => setState(() {
+                  _active = id;
+                  if (_layout != 1) _screens = false;
+                }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
@@ -750,9 +983,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                   ]),
                 ),
               ),
+            ]),
+          ),
+          _screensButton(t),
         ]),
       ),
-      Expanded(child: _hostPane(t, active)),
+      Expanded(child: body),
     ]);
   }
 

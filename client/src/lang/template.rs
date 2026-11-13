@@ -1276,5 +1276,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-eventlog-shown", ""),
         ("funti-admin-eventlog-failed", ""),
         ("funti-about-telegram", ""),
+        ("funti-workplace-screens", ""),
+        ("funti-workplace-layout", ""),
+        ("funti-workplace-layout-1", ""),
+        ("funti-workplace-layout-2", ""),
+        ("funti-workplace-layout-4", ""),
+        ("funti-workplace-layout-9", ""),
+        ("funti-workplace-thumbs", ""),
+        ("funti-workplace-screens-empty", ""),
+        ("funti-admin-screen-off", ""),
+        ("funti-admin-screen-failed", ""),
+        ("funti-journal-admin-screen", ""),
+        ("funti-screen-preview-allow", ""),
     ].iter().cloned().collect();
 }

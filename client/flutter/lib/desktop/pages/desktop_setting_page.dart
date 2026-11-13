@@ -1137,6 +1137,11 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   // FUNTIDESK (ADR-020): journal of incoming connections.
                   _Card(title: 'funti-journal-title', children: [
                     _funtiNote('funti-journal-note'),
+                    // FUNTIDESK (ADR-024): pictures of the screen for the
+                    // workplace of whoever may control this computer.
+                    _OptionCheckBox(context, 'funti-screen-preview-allow',
+                        'funti-disable-screen-preview',
+                        reverse: true, enabled: !locked),
                     OutlinedButton(
                             onPressed: showFuntiJournalDialog,
                             child: Text(translate('funti-journal-show')))
