@@ -20,6 +20,7 @@ cat > "$work/src/lib.rs" <<RS
 #[path = "$root/client/src/funti_wake/devices.rs"] pub mod wake_devices;
 #[path = "$root/client/src/funti_admin/rules.rs"] pub mod admin_rules;
 #[path = "$root/client/src/funti_admin/autostart_rules.rs"] pub mod autostart_rules;
+#[path = "$root/client/src/funti_admin/history_rules.rs"] pub mod history_rules;
 #[path = "$root/client/src/funti_admin/eventlog_rules.rs"] pub mod eventlog_rules;
 RS
 cargo test --manifest-path "$work/Cargo.toml"

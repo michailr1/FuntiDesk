@@ -14,12 +14,14 @@ import '../../common/formatter/id_formatter.dart';
 import '../../common/funti_theme.dart';
 import '../../common/widgets/funti_admin.dart';
 import '../../funti/admin_rules.dart';
+import '../../funti/history_rules.dart';
 import '../../funti/journal_rules.dart';
 import '../../funti/workplace_rules.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/funti_eventlog.dart';
 import '../widgets/funti_family.dart';
+import '../widgets/funti_history.dart';
 import '../widgets/funti_journal.dart';
 
 const _kModeOption = 'funti-workplace';
@@ -78,6 +80,11 @@ class FuntiViewTabs extends StatelessWidget {
 class _Host extends FuntiHost {
   String platform;
   bool favorite = false, family = false;
+
+  /// The load history (ADR-025), and over how many days.
+  FuntiHistory? history;
+  String historyError = '';
+  int historyDays = 1;
   _Host(String id, String name, this.platform) : super(id, name);
 }
 
@@ -181,6 +188,13 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     bind.mainFuntiServiceOpen(id: h.id);
   }
 
+  void _askHistory(_Host h) {
+    if (h.ready) {
+      bind.mainFuntiServiceRequest(
+          id: h.id, request: jsonEncode({'op': 'history', 'days': h.historyDays}));
+    }
+  }
+
   void _ask(String id, String op) {
     if (_hosts[id]?.ready ?? false) {
       bind.mainFuntiServiceRequest(id: id, request: jsonEncode({'op': op}));
@@ -198,6 +212,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (state == 'ready') {
         _ask(host.id, 'status');
         _ask(host.id, 'info');
+        if (host.id == _active) _askHistory(host);
       }
       if (state == 'closed') {
         alerts.addAll(_tracker.onClosed(host, reason, _now));
@@ -207,7 +222,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic>) {
+        if (answer is Map<String, dynamic> && answer['op'] == 'history') {
+          host.history = funtiHistory(answer);
+          host.historyError = '${answer['error'] ?? ''}';
+        } else if (answer is Map<String, dynamic>) {
           funtiAdminOnAnswer(_key(host.id), answer);
           final status = FuntiAdminStatus.parse(answer);
           if (status != null) {
@@ -233,6 +251,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _bell = false;
     });
     _ask(id, 'status');
+    final h = _hosts[id];
+    if (h != null && h.history == null) _askHistory(h);
   }
 
   void _closeHost(String id) {
@@ -585,8 +605,47 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                         style: TextStyle(fontSize: 13, color: t.text))),
               ]),
             ),
+        _historyBlock(t, h),
       ]);
     });
+  }
+
+  Widget _historyBlock(FuntiTokens t, _Host h) {
+    final history = h.history;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(translate('funti-history-title'),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+          const Spacer(),
+          for (final d in [1, 7])
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: ChoiceChip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text(translate('funti-history-days-$d')),
+                  selected: h.historyDays == d,
+                  onSelected: (_) {
+                    setState(() {
+                      h.historyDays = d;
+                      h.history = null;
+                    });
+                    _askHistory(h);
+                  }),
+            ),
+        ]),
+        const SizedBox(height: 8),
+        if (h.historyError.isNotEmpty)
+          Text(translate(h.historyError), style: TextStyle(color: t.muted))
+        else if (history == null)
+          Text(translate('funti-admin-waiting'), style: TextStyle(color: t.muted))
+        else if (history.points.isEmpty)
+          Text(translate('funti-history-empty'), style: TextStyle(color: t.muted))
+        else
+          FuntiHistoryChart(history: history),
+      ]),
+    );
   }
 
   Widget _journal(FuntiTokens t, _Host h) {
@@ -680,7 +739,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                 onPressed: () {
                   setState(() => _section[h.id] = s);
                   if (s == _Section.journal) _ask(h.id, 'journal');
-                  if (s == _Section.overview) _ask(h.id, 'info');
+                  if (s == _Section.overview) {
+                    _ask(h.id, 'info');
+                    _askHistory(h);
+                  }
                 },
                 child: Text(translate('funti-workplace-${s.name}'),
                     style: TextStyle(
