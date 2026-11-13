@@ -1276,5 +1276,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-eventlog-no-text", "Текста нет"),
         ("funti-eventlog-shown", "Показано {} из {n}"),
         ("funti-admin-eventlog-failed", "Не удалось прочитать журнал Windows"),
+        ("funti-about-telegram", "Новости FuntiDesk в Telegram"),
     ].iter().cloned().collect();
 }

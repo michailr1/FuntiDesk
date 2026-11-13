@@ -85,9 +85,39 @@
       "content_type": "text/javascript"
     },
     {
+      "file": "images/family-add.png",
+      "bytes": 85293,
+      "sha256": "4adee5c784e9fe2d0aef8dc58febbcc045fc101732a92a2ae1275e5b19287f88",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/file-transfer.png",
+      "bytes": 327254,
+      "sha256": "f813d2fc276421c60ac031bc72a1695841d847e3f508c60cb064b1e2ebac61a1",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/main-screen-redacted.png",
+      "bytes": 223603,
+      "sha256": "7f0ca519526fb7de6a1d54954c120d15073ecfa0a87e91105cfb246959db0bc7",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/session-processes.png",
+      "bytes": 194662,
+      "sha256": "e22f4917028d6ec5b5ab433b9007b08485fcb44ddcda25954fea0a1e1df2e5ee",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace.png",
+      "bytes": 140127,
+      "sha256": "83bb03cd49f86b470363a17d29da6cb0273ee404e615e32b4c9a7b2b946a1a23",
+      "content_type": "image/png"
+    },
+    {
       "file": "index.html",
-      "bytes": 13844,
-      "sha256": "cd2694b1f1a39cb308f34b825b63349804cc6b9c4099f1fe40778a1cd3a0e45b",
+      "bytes": 24513,
+      "sha256": "030a2b7dfd822bfcbec5dc71b7560dcf541c52a29b316c5cee4d8cfa18ed3a77",
       "content_type": "text/html"
     },
     {
@@ -119,6 +149,12 @@
       "bytes": 34733,
       "sha256": "1b5d92c45694025ce9d40e931d0a7fe22bcfa70505c32f65d1bce53a193a9c6b",
       "content_type": "text/javascript"
+    },
+    {
+      "file": "product.css",
+      "bytes": 6151,
+      "sha256": "eebaea75cb7c4de133e4b89d5e9312a1bd82633cdb3a70c62a975ff34c1f6d7e",
+      "content_type": "text/css"
     },
     {
       "file": "prototype.css",

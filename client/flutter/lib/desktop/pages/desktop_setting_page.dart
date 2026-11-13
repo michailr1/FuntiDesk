@@ -2952,6 +2952,13 @@ class _AboutState extends State<_About> {
               SelectionArea(
                   child: Text('${translate('ID')}: $myId')
                       .marginSymmetric(vertical: 4.0)),
+              // FUNTIDESK: the news channel of the project.
+              InkWell(
+                  onTap: () => launchUrlString('https://t.me/funtidesk'),
+                  child: Text(
+                    translate('funti-about-telegram'),
+                    style: linkStyle,
+                  ).marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
                     launchUrlString('https://github.com/michailr1/FuntiDesk');
