@@ -24,5 +24,6 @@ cat > "$work/src/lib.rs" <<RS
 #[path = "$root/client/src/funti_admin/screen_rules.rs"] pub mod screen_rules;
 #[path = "$root/client/src/funti_admin/attention_rules.rs"] pub mod attention_rules;
 #[path = "$root/client/src/funti_admin/run_rules.rs"] pub mod run_rules;
+#[path = "$root/client/src/funti_admin/programs_rules.rs"] pub mod programs_rules;
 RS
 cargo test --manifest-path "$work/Cargo.toml"

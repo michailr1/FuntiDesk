@@ -13,7 +13,7 @@ const PROFILES: &str = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Profile
 
 /// The signed-in user's hive (HKEY_USERS\<SID>) and profile folder. This
 /// process runs as the service account, so HKEY_CURRENT_USER is not theirs.
-fn signed_in_user() -> Option<(RegKey, PathBuf)> {
+pub(super) fn signed_in_user() -> Option<(RegKey, PathBuf)> {
     let home = crate::platform::get_active_user_home()?;
     let drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_owned());
     let profiles = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(PROFILES, KEY_READ).ok()?;

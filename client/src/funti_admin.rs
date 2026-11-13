@@ -8,6 +8,7 @@ mod attention_rules;
 mod autostart_rules;
 mod eventlog_rules;
 mod hardware;
+mod programs_rules;
 mod rules;
 mod run_rules;
 mod screen_rules;
@@ -17,6 +18,8 @@ mod attention;
 mod autostart;
 #[cfg(windows)]
 mod eventlog;
+#[cfg(windows)]
+mod programs;
 #[cfg(windows)]
 mod run;
 #[cfg(windows)]
@@ -37,6 +40,10 @@ pub enum Request {
     Attention,
     /// A command or script (ADR-024, stage 7); Err: why it cannot run.
     Run(Result<run_rules::Request, &'static str>),
+    /// Installed programs (ADR-024, stage 5).
+    Programs,
+    /// Remove a program by its id from the list.
+    Uninstall(String),
 }
 
 impl Request {
@@ -44,13 +51,15 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_) => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_)
+            | Request::Programs
+            | Request::Uninstall(_) => true,
         }
     }
 
     /// Long: answered later, so the connection keeps working meanwhile.
     pub fn is_long(&self) -> bool {
-        matches!(self, Request::Run(_))
+        matches!(self, Request::Run(_) | Request::Uninstall(_))
     }
 }
 
@@ -74,6 +83,8 @@ pub fn parse(request: &str) -> Request {
         "screen" => Request::Screen(screen_rules::parse_width(&value)),
         "attention" => Request::Attention,
         "run" => Request::Run(run_rules::parse_request(&value)),
+        "programs" => Request::Programs,
+        "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
         _ => Request::Core(rules::parse_request(request)),
     }
 }
@@ -121,6 +132,29 @@ fn handle_run(request: &Result<run_rules::Request, &'static str>) -> (String, Op
         let mut answer = rules::error_json("run", "funti-admin-windows-only");
         answer["id"] = r.id.clone().into();
         (answer.to_string(), None)
+    }
+}
+
+fn handle_programs(request: &Request) -> (String, Option<(&'static str, String)>) {
+    #[cfg(windows)]
+    match request {
+        Request::Uninstall(id) => match programs::uninstall(id) {
+            Ok(name) => (
+                serde_json::json!({"op": "uninstall", "id": id, "name": name}).to_string(),
+                Some(("uninstall", name)),
+            ),
+            Err(error) => {
+                let mut answer = rules::error_json("uninstall", error);
+                answer["id"] = id.clone().into();
+                (answer.to_string(), None)
+            }
+        },
+        _ => (programs::list(), None),
+    }
+    #[cfg(not(windows))]
+    {
+        let op = if matches!(request, Request::Uninstall(_)) { "uninstall" } else { "programs" };
+        (rules::error_json(op, "funti-admin-windows-only").to_string(), None)
     }
 }
 
@@ -256,6 +290,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Screen(width) => return handle_screen(*width),
         Request::Attention => return (attention(), None),
         Request::Run(r) => return handle_run(r),
+        Request::Programs | Request::Uninstall(_) => return handle_programs(request),
     };
     match request {
         rules::Request::Status => (status(), None),
