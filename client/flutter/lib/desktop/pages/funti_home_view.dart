@@ -125,12 +125,14 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
   @override
   Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
+    final tabs = FuntiViewTabs(
+        workplace: _workplace, onChanged: (on) => _setWorkplace(on));
     if (_workplace) {
       return Container(
         color: t.bg,
         child: Column(children: [
-          Expanded(
-              child: FuntiWorkplaceView(onLeave: () => _setWorkplace(false))),
+          tabs,
+          const Expanded(child: FuntiWorkplaceView()),
           const _StatusBar(),
         ]),
       );
@@ -140,6 +142,7 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
       color: t.bg,
       child: Column(
         children: [
+          tabs,
           Expanded(
             child: LayoutBuilder(builder: (context, c) {
               const padding = EdgeInsets.fromLTRB(28, 20, 28, 20);
@@ -168,19 +171,6 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
                             // FUNTIDESK: a visible way into the settings
                             // (owner's note 2026-10-11): the menu icon in
                             // the title bar was not found.
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () => _setWorkplace(true),
-                                icon: Icon(Icons.dashboard_outlined,
-                                    size: 18, color: t.link),
-                                label: Text(translate('funti-workplace'),
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: t.link)),
-                              ),
-                            ),
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
