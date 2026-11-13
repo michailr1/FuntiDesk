@@ -2949,6 +2949,25 @@ class _AboutState extends State<_About> {
                       .marginSymmetric(vertical: 4.0)),
               // FUNTIDESK (ADR-007): update from the FuntiDesk release.
               if (isWindows) const _FuntiUpdate(),
+              // FUNTIDESK: the program's log as one archive, for whoever helps.
+              if (!isWeb)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    String two(int n) => n.toString().padLeft(2, '0');
+                    final path = await FilePicker.platform.saveFile(
+                        fileName:
+                            'funtidesk-log-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}.zip',
+                        type: FileType.custom,
+                        allowedExtensions: ['zip']);
+                    if (path == null) return;
+                    final error = await bind.mainFuntiSaveLogs(path: path);
+                    showToast(translate(
+                        error.isEmpty ? 'funti-logs-saved' : 'funti-logs-failed'));
+                  },
+                  icon: const Icon(Icons.description_outlined, size: 16),
+                  label: Text(translate('funti-logs-save')),
+                ).marginSymmetric(vertical: 6),
               if (!isWeb)
                 SelectionArea(
                     child: Text('${translate('Fingerprint')}: $fingerprint',

@@ -274,7 +274,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic> && answer['op'] == 'run') {
+        if (answer is Map<String, dynamic> && answer['op'] == 'logs') {
+          _saveLogs(host, answer);
+        } else if (answer is Map<String, dynamic> && answer['op'] == 'run') {
           _runs.onAnswer(host.id, answer);
         } else if (answer is Map<String, dynamic> && answer['op'] == 'screen') {
           final jpeg = answer['jpeg'];
@@ -303,6 +305,26 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _alerts.insertAll(0, alerts);
       if (_alerts.length > 100) _alerts.removeRange(100, _alerts.length);
     });
+  }
+
+  /// The archive of that computer's program log, saved where the
+  /// administrator chooses.
+  Future<void> _saveLogs(_Host host, Map<String, dynamic> answer) async {
+    final zip = answer['zip'];
+    if (zip is! String) {
+      showToast(translate('${answer['error'] ?? 'funti-logs-failed'}'));
+      return;
+    }
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final path = await FilePicker.platform.saveFile(
+        fileName:
+            'funtidesk-log-${host.id}-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}.zip',
+        type: FileType.custom,
+        allowedExtensions: ['zip']);
+    if (path == null) return;
+    await File(path).writeAsBytes(base64Decode(zip));
+    showToast(translate('funti-logs-saved'));
   }
 
   void _openHost(String id, [_Section section = _Section.overview]) {
@@ -408,6 +430,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             case 'terminal':
               connect(context, h.id, isTerminal: true);
               break;
+            case 'logs':
+              _ask(h.id, 'logs');
+              showToast(translate('funti-logs-asked'));
+              break;
             default:
               _openHost(h.id, _Section.values.byName(v));
           }
@@ -425,6 +451,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           PopupMenuItem(
               value: 'terminal',
               child: Text(translate('funti-workplace-terminal'))),
+          const PopupMenuDivider(),
+          PopupMenuItem(value: 'logs', child: Text(translate('funti-logs-remote'))),
         ],
       );
 

@@ -49,6 +49,8 @@ pub enum Request {
     Uninstall(String),
     /// Drives, their health, serial number (ADR-024, stage 5).
     Hardware,
+    /// The program's log of this computer as an archive.
+    Logs,
 }
 
 impl Request {
@@ -59,7 +61,8 @@ impl Request {
             Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_)
             | Request::Programs
             | Request::Uninstall(_)
-            | Request::Hardware => true,
+            | Request::Hardware
+            | Request::Logs => true,
         }
     }
 
@@ -92,7 +95,22 @@ pub fn parse(request: &str) -> Request {
         "programs" => Request::Programs,
         "hardware" => Request::Hardware,
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
+        "logs" => Request::Logs,
         _ => Request::Core(rules::parse_request(request)),
+    }
+}
+
+fn logs() -> (String, Option<(&'static str, String)>) {
+    use hbb_common::base64::{engine::general_purpose::STANDARD, Engine};
+    match crate::funti_logs::archive() {
+        Ok(zip) => (
+            serde_json::json!({"op": "logs", "zip": STANDARD.encode(&zip), "size": zip.len()}).to_string(),
+            Some(("logs", String::new())),
+        ),
+        Err(e) => {
+            log::info!("FuntiDesk logs: {}", e);
+            (rules::error_json("logs", "funti-logs-failed").to_string(), None)
+        }
     }
 }
 
@@ -306,6 +324,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Run(r) => return handle_run(r),
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
         Request::Hardware => return (hardware_answer(), None),
+        Request::Logs => return logs(),
     };
     match request {
         rules::Request::Status => (status(), None),

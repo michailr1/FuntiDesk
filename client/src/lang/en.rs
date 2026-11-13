@@ -821,5 +821,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-inventory-gpu", "Video"),
         ("funti-inventory-user", "User"),
         ("funti-inventory-vm", "Virtual machine"),
+        ("funti-logs-save", "Save the program log…"),
+        ("funti-logs-remote", "Download the program log"),
+        ("funti-logs-asked", "Collecting the log on that computer…"),
+        ("funti-logs-saved", "Log saved"),
+        ("funti-logs-failed", "Could not collect the log"),
+        ("funti-journal-admin-logs", "Program log sent to the administrator"),
     ].iter().cloned().collect();
 }
