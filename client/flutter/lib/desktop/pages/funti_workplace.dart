@@ -21,6 +21,7 @@ import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/funti_eventlog.dart';
 import '../widgets/funti_family.dart';
+import '../widgets/funti_run.dart';
 import '../widgets/funti_journal.dart';
 
 const _kModeOption = 'funti-workplace';
@@ -111,6 +112,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String _group = 'all';
   bool _bell = false;
   bool _screens = false;
+  // "Command": a command on several computers (ADR-024, stage 7).
+  bool _command = false;
+  final _runs = FuntiRunBoard();
   int _layout = int.tryParse(bind.mainGetLocalOption(key: _kOptionLayout)) ?? 4;
   // Pictures in the list are on unless turned off (owner's decision).
   bool _thumbs = bind.mainGetLocalOption(key: _kOptionNoThumbs) != 'Y';
@@ -264,7 +268,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic> && answer['op'] == 'screen') {
+        if (answer is Map<String, dynamic> && answer['op'] == 'run') {
+          _runs.onAnswer(host.id, answer);
+        } else if (answer is Map<String, dynamic> && answer['op'] == 'screen') {
           final jpeg = answer['jpeg'];
           if (jpeg is String) {
             host.picture = base64Decode(jpeg);
@@ -295,6 +301,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
 
   void _openHost(String id, [_Section section = _Section.overview]) {
     setState(() {
+      _command = false;
       if (!_open.contains(id)) _open.add(id);
       _active = id;
       _section[id] = section;
@@ -854,7 +861,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             backgroundColor: _screens ? t.surface2 : null,
             visualDensity: VisualDensity.compact),
         onPressed: () {
-          setState(() => _screens = !_screens);
+          setState(() {
+            _screens = !_screens;
+            if (_screens) _command = false;
+          });
           if (_screens) {
             for (final h in _shownScreens()) {
               _askPicture(h.id, _tileWidth());
@@ -984,10 +994,45 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     );
   }
 
+  /// The computers a command can go to: the ready Windows ones.
+  List<FuntiRunHost> _runHosts() => [
+        for (final h in funtiHostsSorted(_hosts.values, '', false).cast<_Host>())
+          FuntiRunHost(
+              h.id,
+              h.name,
+              !h.ready
+                  ? (h.note.isEmpty ? 'funti-workplace-connecting' : h.note)
+                  : (_osOf(h).isNotEmpty && !_windows(h)
+                      ? 'funti-admin-windows-only'
+                      : '')),
+      ];
+
+  Widget _commandButton(FuntiTokens t) => TextButton.icon(
+        style: TextButton.styleFrom(
+            backgroundColor: _command ? t.surface2 : null,
+            visualDensity: VisualDensity.compact),
+        onPressed: () => setState(() {
+          _command = !_command;
+          if (_command) _screens = false;
+        }),
+        icon: Icon(Icons.terminal, size: 16, color: _command ? t.text : t.muted),
+        label: Text(translate('funti-run-title'),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: _command ? FontWeight.w600 : FontWeight.w400,
+                color: _command ? t.text : t.muted)),
+      );
+
   Widget _main(FuntiTokens t) {
     final active = _active == null ? null : _hosts[_active];
     Widget body;
-    if (_screens) {
+    if (_command) {
+      body = FuntiRunPanel(
+          hosts: _runHosts(),
+          board: _runs,
+          send: (id, request) => bind.mainFuntiServiceRequest(
+              id: id, request: jsonEncode(request)));
+    } else if (_screens) {
       body = _screensView(t);
     } else if (_open.isEmpty || active == null) {
       body = Center(
@@ -1010,6 +1055,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               InkWell(
                 onTap: () => setState(() {
                   _active = id;
+                  _command = false;
                   if (_layout != 1) _screens = false;
                 }),
                 child: Container(
@@ -1043,6 +1089,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               ),
             ]),
           ),
+          _commandButton(t),
           _screensButton(t),
         ]),
       ),

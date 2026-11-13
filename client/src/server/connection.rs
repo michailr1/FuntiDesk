@@ -4361,10 +4361,31 @@ impl Connection {
                         }
                         // A service connection (ADR-024) is open only to whoever
                         // could control this computer unattended.
-                        if self.funti_service
+                        let allowed = self.funti_service
                             || (self.is_remote()
-                                && (!request.needs_control() || self.peer_keyboard_enabled()))
-                        {
+                                && (!request.needs_control() || self.peer_keyboard_enabled()));
+                        if allowed && request.is_long() {
+                            // FUNTIDESK (ADR-024): a command may run for
+                            // minutes; the answer comes later, the
+                            // connection keeps working meanwhile.
+                            let mut inner = self.inner.clone();
+                            let (conn, peer, ip) = (self.inner.id(), self.lr.my_id.clone(), self.ip.clone());
+                            tokio::spawn(async move {
+                                let (answer, ended) = tokio::task::spawn_blocking(move || {
+                                    crate::funti_admin::handle(&request)
+                                })
+                                .await
+                                .unwrap_or_default();
+                                if let Some((action, target)) = ended {
+                                    crate::funti_journal::admin_event(conn, &peer, &ip, action, &target);
+                                }
+                                let mut misc = Misc::new();
+                                misc.set_funti_admin_result(answer);
+                                let mut msg = Message::new();
+                                msg.set_misc(misc);
+                                inner.send(Arc::new(msg));
+                            });
+                        } else if allowed {
                             let (answer, ended) = tokio::task::spawn_blocking(move || {
                                 crate::funti_admin::handle(&request)
                             })

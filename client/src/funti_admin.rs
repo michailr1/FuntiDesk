@@ -9,6 +9,7 @@ mod autostart_rules;
 mod eventlog_rules;
 mod hardware;
 mod rules;
+mod run_rules;
 mod screen_rules;
 #[cfg(windows)]
 mod attention;
@@ -16,6 +17,8 @@ mod attention;
 mod autostart;
 #[cfg(windows)]
 mod eventlog;
+#[cfg(windows)]
+mod run;
 #[cfg(windows)]
 mod screen;
 #[cfg(windows)]
@@ -32,6 +35,8 @@ pub enum Request {
     Screen(u32),
     /// What needs attention: antivirus, updates, restart (ADR-024, stage 4).
     Attention,
+    /// A command or script (ADR-024, stage 7); Err: why it cannot run.
+    Run(Result<run_rules::Request, &'static str>),
 }
 
 impl Request {
@@ -39,8 +44,13 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_) => true,
         }
+    }
+
+    /// Long: answered later, so the connection keeps working meanwhile.
+    pub fn is_long(&self) -> bool {
+        matches!(self, Request::Run(_))
     }
 }
 
@@ -63,6 +73,7 @@ pub fn parse(request: &str) -> Request {
         "eventlog" => Request::EventLog(eventlog_rules::parse_request(&value)),
         "screen" => Request::Screen(screen_rules::parse_width(&value)),
         "attention" => Request::Attention,
+        "run" => Request::Run(run_rules::parse_request(&value)),
         _ => Request::Core(rules::parse_request(request)),
     }
 }
@@ -92,6 +103,24 @@ fn handle_screen(width: u32) -> (String, Option<(&'static str, String)>) {
     {
         let _ = width;
         (rules::error_json("screen", "funti-admin-windows-only").to_string(), None)
+    }
+}
+
+fn handle_run(request: &Result<run_rules::Request, &'static str>) -> (String, Option<(&'static str, String)>) {
+    let r = match request {
+        Ok(r) => r,
+        Err(error) => return (rules::error_json("run", error).to_string(), None),
+    };
+    #[cfg(windows)]
+    {
+        let (answer, target) = run::run(r);
+        (answer, Some(("run", target)))
+    }
+    #[cfg(not(windows))]
+    {
+        let mut answer = rules::error_json("run", "funti-admin-windows-only");
+        answer["id"] = r.id.clone().into();
+        (answer.to_string(), None)
     }
 }
 
@@ -226,6 +255,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::EventLog(e) => return (handle_eventlog(e), None),
         Request::Screen(width) => return handle_screen(*width),
         Request::Attention => return (attention(), None),
+        Request::Run(r) => return handle_run(r),
     };
     match request {
         rules::Request::Status => (status(), None),
