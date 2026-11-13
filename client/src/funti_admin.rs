@@ -5,6 +5,7 @@
 //! which checks who asks and writes ended processes to the journal.
 
 mod autostart_rules;
+mod hardware;
 mod rules;
 #[cfg(windows)]
 mod autostart;
@@ -166,6 +167,15 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
     match request {
         rules::Request::Status => (status(), None),
         rules::Request::Processes => (processes(), None),
+        rules::Request::Info => {
+            let info = hardware::info(&mut SYSTEM.lock().unwrap());
+            (rules::info_json(&info).to_string(), None)
+        }
+        rules::Request::Journal => {
+            let events = serde_json::from_str::<serde_json::Value>(&crate::funti_journal::read(false))
+                .unwrap_or_default();
+            (serde_json::json!({"op": "journal", "events": events}).to_string(), None)
+        }
         rules::Request::Kill(pid) => match kill(*pid) {
             Ok(name) => (
                 serde_json::json!({"op": "kill", "killed": true, "pid": pid, "name": name}).to_string(),

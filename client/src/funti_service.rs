@@ -191,13 +191,16 @@ async fn run(id: &str, mut rx: UnboundedReceiver<Command>) -> Result<String, Str
         tokio::select! {
             command = rx.recv() => match command {
                 Some(Command::Request(json)) if ready => {
+                    log::debug!("FuntiDesk service connection to {}: request {}", id, json);
                     let mut misc = Misc::new();
                     misc.set_funti_admin_request(json);
                     let mut msg = Message::new();
                     msg.set_misc(misc);
                     peer.send(&msg).await.map_err(|e| e.to_string())?;
                 }
-                Some(Command::Request(_)) => {}
+                Some(Command::Request(_)) => {
+                    log::info!("FuntiDesk service connection to {}: request before it is ready, dropped", id);
+                }
                 Some(Command::Close) | None => return Ok("closed".to_owned()),
             },
             received = timeout(SILENCE, peer.next()) => {
@@ -232,7 +235,10 @@ async fn run(id: &str, mut rx: UnboundedReceiver<Command>) -> Result<String, Str
                         iface.handle_test_delay(t, &mut peer).await;
                     }
                     Some(message::Union::Misc(misc)) => match misc.union {
-                        Some(misc::Union::FuntiAdminResult(json)) => event(id, &[("result", &json)]),
+                        Some(misc::Union::FuntiAdminResult(json)) => {
+                            log::debug!("FuntiDesk service connection to {}: answer of {} bytes", id, json.len());
+                            event(id, &[("result", &json)]);
+                        }
                         Some(misc::Union::CloseReason(reason)) => return Err(reason),
                         _ => {}
                     },

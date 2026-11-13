@@ -4353,6 +4353,9 @@ impl Connection {
                         // whoever may control this computer. Anyone else
                         // gets no answer.
                         let request = crate::funti_admin::parse(&request);
+                        if self.funti_service {
+                            log::debug!("FuntiDesk service connection {}: request", self.inner.id());
+                        }
                         // A service connection (ADR-024) is open only to whoever
                         // could control this computer unattended.
                         if self.funti_service
