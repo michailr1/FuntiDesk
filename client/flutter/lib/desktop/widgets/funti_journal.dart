@@ -62,6 +62,11 @@ const _typeIcons = [
   Icons.monitor_heart_outlined,
 ];
 
+/// One row of a connection journal (also for another computer's journal
+/// in the workplace, ADR-024).
+Widget funtiJournalRow(BuildContext context, FuntiJournalRow r) =>
+    _row(context, r);
+
 Widget _row(BuildContext context, FuntiJournalRow r) {
   final t = FuntiTokens.of(context);
   final error = Theme.of(context).colorScheme.error;

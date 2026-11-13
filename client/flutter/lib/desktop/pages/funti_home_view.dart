@@ -6,6 +6,7 @@
 // password settings, recent and favourite peers. Colours come only from
 // FuntiTokens. Upstream models are reused unchanged.
 
+import 'package:flutter_hbb/desktop/pages/funti_workplace.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -113,14 +114,35 @@ class _FuntiHomeViewState extends State<FuntiHomeView> {
     }
   }
 
+  // FUNTIDESK (ADR-024): the administrator's workplace replaces the cards.
+  bool _workplace = funtiWorkplaceOn();
+
+  void _setWorkplace(bool on) {
+    setFuntiWorkplace(on);
+    setState(() => _workplace = on);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = FuntiTokens.of(context);
+    final tabs = FuntiViewTabs(
+        workplace: _workplace, onChanged: (on) => _setWorkplace(on));
+    if (_workplace) {
+      return Container(
+        color: t.bg,
+        child: Column(children: [
+          tabs,
+          const Expanded(child: FuntiWorkplaceView()),
+          const _StatusBar(),
+        ]),
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureTop());
     return Container(
       color: t.bg,
       child: Column(
         children: [
+          tabs,
           Expanded(
             child: LayoutBuilder(builder: (context, c) {
               const padding = EdgeInsets.fromLTRB(28, 20, 28, 20);
