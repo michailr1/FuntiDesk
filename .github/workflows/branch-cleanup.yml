@@ -32,8 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$PREFIX" in
-            */) ;;
-            *) echo "prefix must end with /"; exit 1 ;;
+            ""|main|main/*) echo "refusing prefix '$PREFIX'"; exit 1 ;;
           esac
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
           branches=$(git branch -r --merged origin/main --format='%(refname:short)' \
