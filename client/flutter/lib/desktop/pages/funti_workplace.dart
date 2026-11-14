@@ -18,6 +18,7 @@ import '../../common/funti_theme.dart';
 import '../../common/widgets/funti_admin.dart';
 import '../../funti/admin_rules.dart';
 import '../../funti/inventory_rules.dart';
+import '../../funti/labels_rules.dart';
 import '../../funti/history_rules.dart';
 import '../../funti/journal_rules.dart';
 import '../../funti/workplace_rules.dart';
@@ -101,6 +102,7 @@ class _Host extends FuntiHost {
 const _layouts = [1, 2, 4, 9];
 const _kOptionLayout = 'funti-workplace-layout';
 const _kOptionNoThumbs = 'funti-workplace-no-thumbs';
+const _kOptionTags = 'funti-workplace-tags';
 
 enum _Section { overview, processes, services, autostart, programs, disk, eventlog, journal }
 
@@ -122,6 +124,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String _group = 'all';
   bool _bell = false;
   bool _screens = false;
+  // Labels and a note per computer, kept on this computer only.
+  Map<String, FuntiHostTags> _tags =
+      funtiTagsDecode(bind.mainGetLocalOption(key: _kOptionTags));
   // Wake requests (ADR-021) per computer: how many asked, answered, sent.
   final _wakes = <String, List<int>>{};
   // The tile that is a live control session (ADR-024, stage 3b): which host,
@@ -334,6 +339,75 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     });
   }
 
+  Future<void> _editTags(_Host h) async {
+    final old = _tags[h.id] ?? const FuntiHostTags();
+    final labels = TextEditingController(text: old.labels.join(', '));
+    final note = TextEditingController(text: old.note);
+    final known = funtiAllLabels(_tags);
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${translate('funti-tags-edit')}: ${h.name}'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+                controller: labels,
+                decoration: InputDecoration(
+                    labelText: translate('funti-tags-labels'),
+                    helperText: translate('funti-tags-labels-hint'))),
+            if (known.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Wrap(spacing: 4, runSpacing: 4, children: [
+                  for (final l in known)
+                    ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(l, style: const TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          final now = funtiParseLabels(labels.text);
+                          if (!now.any((x) => x.toLowerCase() == l.toLowerCase())) {
+                            labels.text = [...now, l].join(', ');
+                          }
+                        }),
+                ]),
+              ),
+            const SizedBox(height: 10),
+            TextField(
+                controller: note,
+                maxLines: 4,
+                maxLength: funtiNoteMax,
+                decoration: InputDecoration(
+                    labelText: translate('funti-tags-note'),
+                    border: const OutlineInputBorder())),
+          ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(translate('Cancel'))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(translate('OK'))),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    setState(() {
+      final tags = FuntiHostTags(funtiParseLabels(labels.text), note.text.trim());
+      if (tags.isEmpty) {
+        _tags.remove(h.id);
+      } else {
+        _tags[h.id] = tags;
+      }
+      if (_group.startsWith('label:') &&
+          !funtiAllLabels(_tags).any((l) => 'label:$l' == _group)) {
+        _group = 'all';
+      }
+    });
+    bind.mainSetLocalOption(key: _kOptionTags, value: funtiTagsEncode(_tags));
+  }
+
   /// Asks every computer that answers now to wake [target] if it has seen it
   /// in its local network.
   void _wake(_Host target) {
@@ -434,6 +508,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   }
 
   bool _inGroup(_Host h) {
+    if (_group.startsWith('label:')) {
+      return funtiHasLabel(_tags[h.id], _group.substring(6));
+    }
     switch (_group) {
       case 'family':
         return h.family;
@@ -498,6 +575,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             case 'wake':
               _wake(h);
               break;
+            case 'tags':
+              _editTags(h);
+              break;
             case 'logs':
               _ask(h.id, 'logs');
               showToast(translate('funti-logs-asked'));
@@ -520,6 +600,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               value: 'terminal',
               child: Text(translate('funti-workplace-terminal'))),
           const PopupMenuDivider(),
+          PopupMenuItem(value: 'tags', child: Text(translate('funti-tags-edit'))),
           PopupMenuItem(value: 'logs', child: Text(translate('funti-logs-remote'))),
           if (!h.ready)
             PopupMenuItem(value: 'wake', child: Text(translate('funti-wake-group'))),
@@ -560,6 +641,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                               color: t.text)),
                     ),
                     if (_isVm(h)) _tag(t, translate('funti-workplace-vm')),
+                    for (final l in _tags[h.id]?.labels ?? const <String>[])
+                      _tag(t, l),
                   ]),
                   Row(children: [
                     Icon(_osIcon(h), size: 11, color: t.muted),
@@ -608,8 +691,15 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   }
 
   Widget _sidebar(FuntiTokens t) {
+    final needle = _search.text.trim().toLowerCase();
     final shown = funtiHostsSorted(
-            _hosts.values.where(_inGroup), _search.text, true)
+            _hosts.values.where(_inGroup).where((h) =>
+                needle.isEmpty ||
+                h.name.toLowerCase().contains(needle) ||
+                h.id.contains(needle) ||
+                funtiTagsMatch(_tags[h.id], needle)),
+            '',
+            true)
         .cast<_Host>();
     Widget chip(String group) => Padding(
           padding: const EdgeInsets.only(right: 4, bottom: 4),
@@ -653,7 +743,18 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
           child: Wrap(children: [
-            for (final g in ['all', 'family', 'favorites', 'problems']) chip(g)
+            for (final g in ['all', 'family', 'favorites', 'problems']) chip(g),
+            for (final l in funtiAllLabels(_tags))
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 4),
+                child: ChoiceChip(
+                  avatar: const Icon(Icons.label_outline, size: 14),
+                  label: Text(l, style: const TextStyle(fontSize: 11)),
+                  selected: _group == 'label:$l',
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) => setState(() => _group = 'label:$l'),
+                ),
+              ),
           ]),
         ),
         Divider(height: 1, color: t.rowStroke),
@@ -756,6 +857,20 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                     hot: s.disk > funtiAdminHot)),
           ]),
         const SizedBox(height: 14),
+        if ((_tags[h.id]?.note ?? '').isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: t.surface2, borderRadius: BorderRadius.circular(8)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.sticky_note_2_outlined, size: 16, color: t.muted),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: SelectableText(_tags[h.id]!.note,
+                      style: TextStyle(fontSize: 13, color: t.text))),
+            ]),
+          ),
         _attentionBlock(t, h),
         if (vm.isNotEmpty)
           Padding(

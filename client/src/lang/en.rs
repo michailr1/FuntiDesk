@@ -861,5 +861,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-no-image-title", "No picture yet"),
         ("funti-no-image-rdp", "This often happens when that computer has a Remote Desktop (RDP) session whose window is minimized or disconnected: Windows does not draw the screen then. Restore the RDP window there or end the RDP session, and the picture appears."),
         ("funti-no-image-other", "That computer sends no picture. Check that its screen is on and a user is signed in."),
+        ("funti-tags-edit", "Labels and note"),
+        ("funti-tags-labels", "Labels"),
+        ("funti-tags-labels-hint", "Comma-separated, e.g. office, server, mum's"),
+        ("funti-tags-note", "Note (only you see it)"),
     ].iter().cloned().collect();
 }
