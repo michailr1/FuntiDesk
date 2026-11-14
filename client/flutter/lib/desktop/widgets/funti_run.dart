@@ -436,6 +436,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                   items: const [
                     DropdownMenuItem(value: 'powershell', child: Text('PowerShell')),
                     DropdownMenuItem(value: 'cmd', child: Text('cmd')),
+                    DropdownMenuItem(value: 'sh', child: Text('sh (Linux)')),
                   ],
                   onChanged: (v) => setState(() => _shell = v ?? 'powershell')),
               const SizedBox(width: 12),

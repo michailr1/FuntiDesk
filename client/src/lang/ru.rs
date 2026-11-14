@@ -1415,5 +1415,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-live-monitor", "Монитор {}"),
         ("funti-live-lock", "Заблокировать экран того компьютера"),
         ("funti-live-refresh", "Обновить картинку"),
+        ("funti-run-wrong-shell", "Эта оболочка не подходит для системы того компьютера: для Windows — PowerShell или cmd, для Linux — sh"),
+        ("funti-run-as-user-windows", "«От имени вошедшего пользователя» пока есть только для Windows"),
+        ("funti-run-unsupported", "Команды пока работают только на Windows и Linux"),
     ].iter().cloned().collect();
 }

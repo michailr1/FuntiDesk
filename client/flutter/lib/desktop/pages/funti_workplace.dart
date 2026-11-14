@@ -1174,6 +1174,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   }
 
   bool _windows(_Host h) => _osOf(h).toLowerCase().contains('windows');
+  bool _linux(_Host h) {
+    final os = _osOf(h).toLowerCase();
+    return os.contains('linux') || os.contains('ubuntu') || os.contains('debian');
+  }
 
   Widget _hostPane(FuntiTokens t, _Host h) {
     final section = _section[h.id] ?? _Section.overview;
@@ -1604,8 +1608,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               h.name,
               !h.ready
                   ? (h.note.isEmpty ? 'funti-workplace-connecting' : h.note)
-                  : (_osOf(h).isNotEmpty && !_windows(h)
-                      ? 'funti-admin-windows-only'
+                  : (_osOf(h).isNotEmpty && !_windows(h) && !_linux(h)
+                      ? 'funti-run-unsupported'
                       : '')),
       ];
 

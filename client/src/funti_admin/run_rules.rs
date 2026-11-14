@@ -17,6 +17,8 @@ const JOURNAL_SCRIPT: usize = 300;
 pub enum Shell {
     PowerShell,
     Cmd,
+    /// Linux: /bin/sh.
+    Sh,
 }
 
 impl Shell {
@@ -24,6 +26,7 @@ impl Shell {
         match self {
             Shell::PowerShell => "powershell",
             Shell::Cmd => "cmd",
+            Shell::Sh => "sh",
         }
     }
 }
@@ -46,6 +49,7 @@ pub fn parse_request(v: &Value) -> Result<Request, &'static str> {
     let shell = match v["shell"].as_str().unwrap_or("powershell") {
         "powershell" => Shell::PowerShell,
         "cmd" => Shell::Cmd,
+        "sh" => Shell::Sh,
         _ => return Err("funti-admin-bad-request"),
     };
     let script = v["script"].as_str().unwrap_or("");
@@ -62,6 +66,15 @@ pub fn parse_request(v: &Value) -> Result<Request, &'static str> {
         timeout: v["timeout"].as_u64().unwrap_or(TIMEOUT_DEFAULT).clamp(TIMEOUT_MIN, TIMEOUT_MAX),
         as_user: v["asUser"] == true,
     })
+}
+
+/// Whether this computer runs the shell: PowerShell and cmd on Windows,
+/// sh elsewhere.
+pub fn shell_here(shell: Shell, windows: bool) -> bool {
+    match shell {
+        Shell::PowerShell | Shell::Cmd => windows,
+        Shell::Sh => !windows,
+    }
 }
 
 /// The script as PowerShell's -EncodedCommand wants it: UTF-16LE, and
@@ -153,6 +166,14 @@ mod tests {
         assert!(w.ends_with("echo %errorlevel% > \"C:\\t\\code.txt\"\r\n"));
         assert_eq!(parse_code(" 3 \r\n"), Some(3));
         assert_eq!(parse_code(""), None);
+    }
+
+    #[test]
+    fn shells() {
+        let r = parse_request(&json!({"op": "run", "shell": "sh", "script": "uname -a"})).unwrap();
+        assert_eq!(r.shell, Shell::Sh);
+        assert!(shell_here(Shell::Sh, false) && !shell_here(Shell::Sh, true));
+        assert!(shell_here(Shell::Cmd, true) && !shell_here(Shell::PowerShell, false));
     }
 
     #[test]

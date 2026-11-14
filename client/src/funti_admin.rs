@@ -26,6 +26,8 @@ mod eventlog;
 mod programs;
 #[cfg(windows)]
 mod run;
+#[cfg(target_os = "linux")]
+mod run_unix;
 #[cfg(windows)]
 mod screen;
 #[cfg(windows)]
@@ -201,7 +203,12 @@ fn handle_run(request: &Result<run_rules::Request, &'static str>) -> (String, Op
         let (answer, target) = run::run(r);
         (answer, Some(("run", target)))
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let (answer, target) = run_unix::run(r);
+        (answer, Some(("run", target)))
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let mut answer = rules::error_json("run", "funti-admin-windows-only");
         answer["id"] = r.id.clone().into();
@@ -281,6 +288,11 @@ fn attention() -> String {
         .unwrap_or(0);
     #[cfg(windows)]
     attention::facts(&mut facts);
+    // Debian and Ubuntu leave this file when an update needs a restart.
+    #[cfg(target_os = "linux")]
+    {
+        facts.restart_pending = std::path::Path::new("/var/run/reboot-required").exists();
+    }
     attention_rules::answer_json(&facts).to_string()
 }
 

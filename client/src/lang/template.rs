@@ -1414,5 +1414,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-live-monitor", ""),
         ("funti-live-lock", ""),
         ("funti-live-refresh", ""),
+        ("funti-run-wrong-shell", ""),
+        ("funti-run-as-user-windows", ""),
+        ("funti-run-unsupported", ""),
     ].iter().cloned().collect();
 }

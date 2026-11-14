@@ -16,6 +16,9 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// (answer, journal target).
 pub fn run(r: &Request) -> (String, String) {
+    if !rules::shell_here(r.shell, true) {
+        return failed_with(r, "funti-run-wrong-shell");
+    }
     if r.as_user {
         return run_as_user(r);
     }
@@ -40,6 +43,7 @@ pub fn run(r: &Request) -> (String, String) {
             temp = Some(path);
             c
         }
+        Shell::Sh => return failed_with(r, "funti-run-wrong-shell"),
     };
     let child = command
         .stdin(Stdio::null())
@@ -155,6 +159,10 @@ fn run_as_user(r: &Request) -> (String, String) {
                 return failed(r);
             }
             format!("call \"{}\"", script.display())
+        }
+        Shell::Sh => {
+            std::fs::remove_dir_all(&dir).ok();
+            return failed_with(r, "funti-run-wrong-shell");
         }
     };
     let wrapper = dir.join("run.cmd");
