@@ -25,6 +25,7 @@ void main() {
   check('report', run.report((h) => h.toUpperCase()),
       '=== A — code 0\nPC-1\n\n=== B — timeout\n\n\n=== C — funti-run-failed\n');
   check('request', funtiRunRequest('r1', 'cmd', 'ver', 60)['shell'], 'cmd');
+  check('as user', [funtiRunRequest('r', 'cmd', 'x', 5).containsKey('asUser'), funtiRunRequest('r', 'cmd', 'x', 5, asUser: true)['asUser']], [false, true]);
 
   final up = FuntiRun('u1', 'update', '', ['a'], DateTime(2026));
   check('update answer', up.onAnswer('a', {'op': 'update', 'id': 'u1', 'code': 0, 'output': '1.5.3-ft.13500'}), true);

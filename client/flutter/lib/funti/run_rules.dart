@@ -60,8 +60,16 @@ class FuntiRun {
 
 /// The request to send to each host.
 Map<String, dynamic> funtiRunRequest(
-        String id, String shell, String script, int timeout) =>
-    {'op': 'run', 'id': id, 'shell': shell, 'script': script, 'timeout': timeout};
+        String id, String shell, String script, int timeout,
+        {bool asUser = false}) =>
+    {
+      'op': 'run',
+      'id': id,
+      'shell': shell,
+      'script': script,
+      'timeout': timeout,
+      if (asUser) 'asUser': true,
+    };
 
 /// The request that updates FuntiDesk on each host of a run.
 Map<String, dynamic> funtiUpdateRequest(String id) => {'op': 'update', 'id': id};

@@ -35,6 +35,9 @@ pub struct Request {
     pub shell: Shell,
     pub script: String,
     pub timeout: u64,
+    /// In the session of the signed-in user, with their drives and
+    /// settings, instead of as the system.
+    pub as_user: bool,
 }
 
 /// `{"op":"run","id":"…","shell":"powershell","script":"…","timeout":60}`;
@@ -57,6 +60,7 @@ pub fn parse_request(v: &Value) -> Result<Request, &'static str> {
         shell,
         script: script.to_owned(),
         timeout: v["timeout"].as_u64().unwrap_or(TIMEOUT_DEFAULT).clamp(TIMEOUT_MIN, TIMEOUT_MAX),
+        as_user: v["asUser"] == true,
     })
 }
 
@@ -71,6 +75,18 @@ pub fn powershell_utf16(script: &str) -> Vec<u8> {
 pub fn cmd_file(script: &str) -> String {
     let body = script.replace("\r\n", "\n").replace('\n', "\r\n");
     format!("@echo off\r\nchcp 65001 >nul\r\n{body}\r\n")
+}
+
+/// The batch file that runs the command in the user's session and leaves
+/// its output and exit code next to itself: `line` is the command,
+/// `out` and `code` the files to write.
+pub fn user_wrapper(line: &str, out: &str, code: &str) -> String {
+    format!("@echo off\r\nchcp 65001 >nul\r\n{line} > \"{out}\" 2>&1\r\necho %errorlevel% > \"{code}\"\r\n")
+}
+
+/// The exit code the wrapper wrote; None while it is not there yet.
+pub fn parse_code(text: &str) -> Option<i32> {
+    text.trim().parse().ok()
 }
 
 /// Appends `more` to `out` up to OUTPUT_MAX bytes; true if something was cut.
@@ -124,6 +140,19 @@ mod tests {
         assert_eq!(b.len() % 2, 0);
         assert!(b.ends_with(&[0x4F, 0x04, b'\'', 0])); // "я" is U+044F
         assert_eq!(cmd_file("a\nb"), "@echo off\r\nchcp 65001 >nul\r\na\r\nb\r\n");
+    }
+
+    #[test]
+    fn user_session() {
+        let r = parse_request(&json!({"op": "run", "script": "net use", "asUser": true})).unwrap();
+        assert!(r.as_user);
+        assert!(!parse_request(&json!({"op": "run", "script": "x"})).unwrap().as_user);
+        let w = user_wrapper("call \"C:\\t\\s.cmd\"", "C:\\t\\out.txt", "C:\\t\\code.txt");
+        assert!(w.starts_with("@echo off\r\nchcp 65001 >nul\r\ncall "));
+        assert!(w.contains("> \"C:\\t\\out.txt\" 2>&1\r\n"));
+        assert!(w.ends_with("echo %errorlevel% > \"C:\\t\\code.txt\"\r\n"));
+        assert_eq!(parse_code(" 3 \r\n"), Some(3));
+        assert_eq!(parse_code(""), None);
     }
 
     #[test]

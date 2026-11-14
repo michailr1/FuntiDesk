@@ -80,6 +80,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
   final _open = <String>{};
   String _shell = 'powershell';
   int _timeout = 60;
+  bool _asUser = false;
   int _shown = 0;
 
   @override
@@ -124,7 +125,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                 Text(hosts.map((h) => h.name).join(', '),
                     style: TextStyle(fontWeight: FontWeight.w600, color: t.text)),
                 const SizedBox(height: 10),
-                Text('$_shell · ${_timeoutText(_timeout)}',
+                Text('$_shell · ${_timeoutText(_timeout)} · ${translate(_asUser ? 'funti-run-as-user' : 'funti-run-as-system')}',
                     style: TextStyle(fontSize: 12, color: t.muted)),
                 const SizedBox(height: 6),
                 Container(
@@ -161,7 +162,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
     _shown = 0;
     _open.clear();
     for (final h in hosts) {
-      widget.send(h.id, funtiRunRequest(id, _shell, script, _timeout));
+      widget.send(h.id, funtiRunRequest(id, _shell, script, _timeout, asUser: _asUser));
     }
   }
 
@@ -499,8 +500,18 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                     border: const OutlineInputBorder()),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(translate('funti-run-note'),
+            Row(children: [
+              Checkbox(
+                  value: _asUser,
+                  onChanged: (v) => setState(() => _asUser = v ?? false)),
+              Text(translate('funti-run-as-user'),
+                  style: TextStyle(fontSize: 13, color: t.text)),
+              const SizedBox(width: 6),
+              Tooltip(
+                  message: translate('funti-run-as-user-hint'),
+                  child: Icon(Icons.info_outline, size: 16, color: t.muted)),
+            ]),
+            Text(translate(_asUser ? 'funti-run-note-user' : 'funti-run-note'),
                 style: TextStyle(fontSize: 11, color: t.muted)),
             const SizedBox(height: 8),
             Expanded(child: _results(t)),

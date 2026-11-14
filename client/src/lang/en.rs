@@ -865,5 +865,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-tags-labels", "Labels"),
         ("funti-tags-labels-hint", "Comma-separated, e.g. office, server, mum's"),
         ("funti-tags-note", "Note (only you see it)"),
+        ("funti-run-as-user", "As the signed-in user"),
+        ("funti-run-as-system", "as the system"),
+        ("funti-run-as-user-hint", "The command runs in the session of whoever is signed in to Windows: their network drives, printers and settings are there, but no administrator rights. If nobody is signed in, it does not run."),
+        ("funti-run-note-user", "Runs in the signed-in user's session, with no window. If it cannot be stopped at the time limit, it finishes on its own. The command and its result go to that computer's journal."),
+        ("funti-run-no-user", "Nobody is signed in to Windows on that computer"),
     ].iter().cloned().collect();
 }

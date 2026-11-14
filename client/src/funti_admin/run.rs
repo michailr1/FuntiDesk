@@ -16,6 +16,9 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// (answer, journal target).
 pub fn run(r: &Request) -> (String, String) {
+    if r.as_user {
+        return run_as_user(r);
+    }
     let mut temp = None;
     let mut command = match r.shell {
         Shell::PowerShell => {
@@ -122,4 +125,75 @@ fn wait(mut child: Child, r: &Request) -> (String, String) {
         rules::answer_json(r, code, &o.0, o.1, timed_out).to_string(),
         rules::journal_target(r, code, timed_out),
     )
+}
+
+/// In the session of the signed-in user: the command, its output and exit
+/// code go through a folder of its own in ProgramData, removed at the end.
+fn run_as_user(r: &Request) -> (String, String) {
+    let Some(session) = crate::platform::get_current_process_session_id() else {
+        return failed_with(r, "funti-run-no-user");
+    };
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let root = std::env::var("ProgramData").unwrap_or_else(|_| "C:\\ProgramData".to_owned());
+    let dir = std::path::PathBuf::from(root).join("FuntiDesk").join(format!("run-{nanos}"));
+    if std::fs::create_dir_all(&dir).is_err() {
+        return failed(r);
+    }
+    let out = dir.join("out.txt");
+    let code = dir.join("code.txt");
+    let line = match r.shell {
+        Shell::PowerShell => format!(
+            "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {}",
+            STANDARD.encode(rules::powershell_utf16(&r.script))
+        ),
+        Shell::Cmd => {
+            let script = dir.join("script.cmd");
+            if std::fs::write(&script, rules::cmd_file(&r.script)).is_err() {
+                std::fs::remove_dir_all(&dir).ok();
+                return failed(r);
+            }
+            format!("call \"{}\"", script.display())
+        }
+    };
+    let wrapper = dir.join("run.cmd");
+    let text = rules::user_wrapper(&line, &out.display().to_string(), &code.display().to_string());
+    if std::fs::write(&wrapper, text).is_err() {
+        std::fs::remove_dir_all(&dir).ok();
+        return failed(r);
+    }
+    let quoted = format!("\"{}\"", wrapper.display());
+    if let Err(e) = crate::platform::run_exe_in_session("cmd.exe", vec!["/D", "/C", &quoted], session, false) {
+        hbb_common::log::info!("FuntiDesk run as user: {}", e);
+        std::fs::remove_dir_all(&dir).ok();
+        return failed_with(r, "funti-run-no-user");
+    }
+    let deadline = Instant::now() + Duration::from_secs(r.timeout);
+    let exit = loop {
+        if let Some(c) = std::fs::read_to_string(&code).ok().and_then(|t| rules::parse_code(&t)) {
+            break Some(c);
+        }
+        if Instant::now() > deadline {
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    };
+    let mut output = Vec::new();
+    let mut cut = false;
+    if let Ok(bytes) = std::fs::read(&out) {
+        cut = rules::append_capped(&mut output, &bytes);
+    }
+    std::fs::remove_dir_all(&dir).ok();
+    let timed_out = exit.is_none();
+    (
+        rules::answer_json(r, exit, &output, cut, timed_out).to_string(),
+        rules::journal_target(r, exit, timed_out),
+    )
+}
+
+fn failed_with(r: &Request, error: &str) -> (String, String) {
+    let mut answer = super::rules::error_json("run", error);
+    answer["id"] = r.id.clone().into();
+    (answer.to_string(), rules::journal_target(r, None, false))
 }

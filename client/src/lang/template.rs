@@ -1406,5 +1406,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-tags-labels", ""),
         ("funti-tags-labels-hint", ""),
         ("funti-tags-note", ""),
+        ("funti-run-as-user", ""),
+        ("funti-run-as-system", ""),
+        ("funti-run-as-user-hint", ""),
+        ("funti-run-note-user", ""),
+        ("funti-run-no-user", ""),
     ].iter().cloned().collect();
 }
