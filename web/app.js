@@ -1,3 +1,4 @@
+const english=document.documentElement.lang==='en';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, paused=reduced;
 const canvas=$('#letters'),ctx=canvas.getContext('2d'),scene=$('.title-space');
@@ -9,8 +10,8 @@ function draw(t){if(t-last<30&&!paused){requestAnimationFrame(draw);return}last=
 if(morph>.02){ctx.lineWidth=.5;for(let i=0;i<network.length;i++){for(let j=i+1;j<network.length;j++){let a=network[i],b=network[j],d=Math.hypot(a.x-b.x,a.y-b.y);if(d<95){ctx.strokeStyle=motionColor('link',.22*(1-d/95)*morph);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}}const nodes=[[W*.17,H*.20],[W*.86,H*.25],[W*.53,H*.84],[W*.87,H*.77]];nodes.forEach((n,i)=>{ctx.strokeStyle=motionColor('accent',.45*morph);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(W*.5,H*.46);ctx.quadraticCurveTo(n[0],H*.4,n[0],n[1]);ctx.stroke();if(!paused){let p=((t*.00015+i*.3)%1),x=(1-p)*(1-p)*W*.5+2*(1-p)*p*n[0]+p*p*n[0],y=(1-p)*(1-p)*H*.46+2*(1-p)*p*H*.4+p*p*n[1];ctx.fillStyle=window.FuntiTheme.colors().accent;ctx.shadowBlur=12;ctx.shadowColor=window.FuntiTheme.colors().accent;ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;}});}
 if(!paused&&forcedMorph===null&&age>18)start=t;requestAnimationFrame(draw);}
 scene.addEventListener('pointermove',e=>{const r=scene.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top});scene.addEventListener('pointerleave',()=>{mx=-999;my=-999});let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(setup,100)});setup();document.fonts.ready.then(setup);requestAnimationFrame(draw);
-$('#morph').onclick=()=>{forcedMorph=null;start=performance.now();if(paused)toast('Анимация приостановлена. Включите её в верхнем меню.');};
-function updateMotion(){document.body.classList.toggle('no-motion',paused);$('#motion').textContent=paused?'○ На паузе':'◉ Анимация';$('#motion').setAttribute('aria-pressed',String(paused));}updateMotion();$('#motion').onclick=()=>{paused=!paused;start=performance.now();updateMotion()};
+$('#morph').onclick=()=>{forcedMorph=null;start=performance.now();if(paused)toast(english?'Animation is paused. Enable it in the top menu.':'Анимация приостановлена. Включите её в верхнем меню.');};
+function updateMotion(){document.body.classList.toggle('no-motion',paused);$('#motion').textContent=paused?(english?'○ Paused':'○ На паузе'):(english?'◉ Animation':'◉ Анимация');$('#motion').setAttribute('aria-pressed',String(paused));}updateMotion();$('#motion').onclick=()=>{paused=!paused;start=performance.now();updateMotion()};
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
 $('#hero-form').onclick=()=>{forcedMorph=0;$('#hero-form').classList.add('active');$('#hero-network').classList.remove('active');};
 $('#hero-network').onclick=()=>{forcedMorph=1;$('#hero-network').classList.add('active');$('#hero-form').classList.remove('active');};
