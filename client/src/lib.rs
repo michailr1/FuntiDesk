@@ -48,8 +48,9 @@ mod funti_clipboard_files;
 // FUNTIDESK (ADR-017): picture previews in the file transfer window.
 #[cfg(not(target_os = "ios"))]
 mod funti_thumbnail;
-// FUNTIDESK (ADR-024): service connections of the administrator's workplace.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
+// FUNTIDESK (ADR-024, ADR-026): service connections of the administrator's
+// workplace, also from an Android phone.
+#[cfg(not(target_os = "ios"))]
 mod funti_service;
 // FUNTIDESK (ADR-023): state and processes of this computer for a session.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

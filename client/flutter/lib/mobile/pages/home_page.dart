@@ -8,6 +8,7 @@ import '../../common/widgets/chat_page.dart';
 import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
 import 'connection_page.dart';
+import 'funti_workplace_mobile.dart';
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -55,6 +56,10 @@ class HomePageState extends State<HomePage> {
     if (isAndroid && !bind.isOutgoingOnly()) {
       _chatPageTabIndex = _pages.length;
       _pages.addAll([ChatPage(type: ChatPageType.mobileMain), ServerPage()]);
+    }
+    // FUNTIDESK (ADR-026): the administrator's workplace on a phone.
+    if (isAndroid && !bind.isIncomingOnly()) {
+      _pages.add(FuntiWorkplaceMobilePage());
     }
     _pages.add(SettingsPage());
   }
