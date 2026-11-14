@@ -1,6 +1,6 @@
 // FUNTIDESK: supervision of the `--server` child by the Windows service.
 //
-// Unattended access after a reboot (2026-10-22, MINIPC): the service loop
+// Unattended access after a reboot (2026-10-22, a test computer): the service loop
 // (upstream) logged neither why it launched `--server` nor the result, and
 // closed a working `--server` to launch into a session that did not exist.
 // This module logs every launch with its reason, the sessions chosen from,

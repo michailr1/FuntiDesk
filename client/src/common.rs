@@ -2486,7 +2486,7 @@ pub fn apply_funtidesk_security_policy() {
 
 // FUNTIDESK ADR-004: a stored disable-udp = "N" from before the TCP default
 // (the Advanced switch, a migrated profile) silently kept UDP signaling: the
-// device showed online but missed connection requests (MINIPC, 2026-10-22).
+// device showed online but missed connection requests (a test computer, 2026-10-22).
 // Dropped once, so TCP applies; an "N" the user sets later is kept.
 const FUNTI_OPTION_TCP_DEFAULT_APPLIED: &str = "funti-tcp-default-applied";
 
