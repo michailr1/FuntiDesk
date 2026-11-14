@@ -52,4 +52,4 @@ $zip = "C:\tmp\fd-diag-$stamp.zip"
 Compress-Archive -Path "$out\*" -DestinationPath $zip -Force
 Write-Host ''
 Write-Host "Готово: $zip"
-Write-Host 'Перешлите этот архив на компьютер minipc (например, в C:\tmp) через «Только передать файлы».'
+Write-Host 'Перешлите этот архив на компьютер помощника (например, в C:\tmp) через «Только передать файлы».'
