@@ -3,7 +3,8 @@
 #   irm https://raw.githubusercontent.com/michailr1/FuntiDesk/main/install.ps1 | iex
 #
 # Downloads the latest Windows release to %LOCALAPPDATA%\Programs\FuntiDesk,
-# checks its SHA-256, adds a Start menu shortcut and starts it. Files
+# checks its SHA-256 (and, once a release key is listed below, the owner's
+# signature of SHA256SUMS.txt, ADR-018), adds a Start menu shortcut and starts it. Files
 # downloaded by PowerShell carry no "downloaded from the Internet" mark, so
 # SmartScreen does not stop the first launch. Running it again updates
 # FuntiDesk in place; the profile (ID, settings) is kept.
@@ -11,6 +12,11 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow with the progress bar on PowerShell 5.1
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+# ADR-018: public keys that may sign a release, as "ssh-ed25519 AAAA..." lines;
+# the same keys as RELEASE_KEYS in client/src/funti_release_sig.rs. Empty until
+# the owner's first key is added: the release is then checked by SHA-256 alone.
+$releaseKeys = @()
 
 $asset = 'FuntiDesk-windows-x64.zip'
 $base = if ($env:FUNTIDESK_RELEASE) {
@@ -30,6 +36,23 @@ try {
     Write-Host 'Скачиваю FuntiDesk...'
     Invoke-WebRequest "$base/$asset" -OutFile $zip -UseBasicParsing
     Invoke-WebRequest "$base/SHA256SUMS.txt" -OutFile $sums -UseBasicParsing
+
+    if ($releaseKeys.Count -gt 0) {
+        # Fail closed: no OpenSSH or no valid signature means no installation.
+        $keygen = Get-Command ssh-keygen.exe -ErrorAction SilentlyContinue
+        if (-not $keygen) {
+            throw 'Не найден ssh-keygen (компонент Windows «Клиент OpenSSH»): подпись релиза проверить нечем. Установка отменена.'
+        }
+        $sig = Join-Path $work 'SHA256SUMS.txt.sig'
+        $allowed = Join-Path $work 'allowed_signers'
+        Invoke-WebRequest "$base/SHA256SUMS.txt.sig" -OutFile $sig -UseBasicParsing
+        $releaseKeys | ForEach-Object { "funtidesk-release $_" } | Set-Content -Encoding ascii $allowed
+        # cmd redirects the file as it is; a PowerShell pipe would re-encode it.
+        cmd /c "`"$($keygen.Source)`" -Y verify -f `"$allowed`" -I funtidesk-release -n funtidesk-release -s `"$sig`" < `"$sums`"" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Подпись релиза не подтверждена. Установка отменена.'
+        }
+    }
 
     $expected = (Get-Content $sums | Where-Object { $_ -match "\s$([regex]::Escape($asset))$" } | Select-Object -First 1) -split '\s+' | Select-Object -First 1
     $actual = (Get-FileHash $zip -Algorithm SHA256).Hash

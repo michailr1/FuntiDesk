@@ -1,0 +1,49 @@
+name: Release promote
+
+# FUNTIDESK (ADR-018): makes a Windows release the "latest" one, which
+# install.ps1 and the update button use, only when SHA256SUMS.txt carries a
+# valid signature by a key from infra/release/allowed_signers and every file
+# matches it. The signature is made by the owner on his own computer; this
+# workflow has no key and signs nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. funtidesk-windows-6f1732b3a370"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: main
+      - name: Check the signature and every file
+        run: |
+          set -euo pipefail
+          case "$TAG" in funtidesk-windows-*) ;; *) echo "not a Windows release tag: $TAG"; exit 1;; esac
+          grep -Ev '^\s*(#|$)' infra/release/allowed_signers > allowed || { echo "infra/release/allowed_signers has no keys"; exit 1; }
+          mkdir files && cd files
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
+          test -f SHA256SUMS.txt.sig || { echo "SHA256SUMS.txt.sig is not attached to $TAG"; exit 1; }
+          ssh-keygen -Y verify -f ../allowed -I funtidesk-release -n funtidesk-release -s SHA256SUMS.txt.sig < SHA256SUMS.txt
+          # The file is written on Windows: check a copy without CR; the
+          # signature above is over the file as it is.
+          tr -d '\r' < SHA256SUMS.txt > ../sums
+          sha256sum --check --strict ../sums
+          for f in *; do
+            case "$f" in SHA256SUMS.txt|SHA256SUMS.txt.sig) continue;; esac
+            grep -q "  $f\$" ../sums || { echo "$f is not listed in SHA256SUMS.txt"; exit 1; }
+          done
+      - name: Make it the latest release
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest

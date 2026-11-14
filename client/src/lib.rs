@@ -42,6 +42,9 @@ mod funti_network;
 // FUNTIDESK: one-time separation from a RustDesk on the same machine.
 #[cfg(any(windows, target_os = "linux"))]
 mod funti_separation;
+// FUNTIDESK (ADR-018): the owner's signature on a release.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod funti_release_sig;
 // FUNTIDESK: paste files from the clipboard in the file transfer window.
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 mod funti_clipboard_files;
