@@ -2272,8 +2272,16 @@ class InputModel {
       }
     }
 
-    y -= CanvasModel.topToEdge;
-    x -= CanvasModel.leftToEdge;
+    // FUNTIDESK (ADR-024): a session inside a workplace tile is not at the
+    // window's corner; its own origin replaces the window edges.
+    final funtiOrigin = parent.target?.canvasModel.funtiViewOrigin;
+    if (funtiOrigin != null) {
+      y -= funtiOrigin.dy;
+      x -= funtiOrigin.dx;
+    } else {
+      y -= CanvasModel.topToEdge;
+      x -= CanvasModel.leftToEdge;
+    }
     if (isMove) {
       final canvasModel = parent.target!.canvasModel;
 

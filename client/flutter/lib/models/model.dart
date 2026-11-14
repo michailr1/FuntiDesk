@@ -2356,7 +2356,15 @@ class CanvasModel with ChangeNotifier {
   static double get bottomToEdge =>
       isDesktop ? windowBorderWidth + kDragToResizeAreaPadding.bottom : 0;
 
+  // FUNTIDESK (ADR-024): set for a session inside a workplace tile — the
+  // tile's size and its top-left corner in the window, used instead of the
+  // whole window.
+  Size? funtiViewSize;
+  Offset? funtiViewOrigin;
+
   Size getSize() {
+    final funtiSize = funtiViewSize;
+    if (funtiSize != null) return funtiSize;
     final mediaData = MediaQueryData.fromView(ui.window);
     final size = mediaData.size;
     // If minimized, w or h may be negative here.

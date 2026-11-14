@@ -46,6 +46,8 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
     super.initState();
     initSharedStates(id);
     ffi = FFI(null);
+    // Until the first layout: the middle of nowhere rather than the window.
+    ffi.canvasModel.funtiViewOrigin = Offset.zero;
     Get.put<FFI>(ffi, tag: id);
     ffi.dialogManager.setOverlayState(_overlay);
     _zoomCursor = PeerBoolOption.find(id, kOptionZoomCursor);
@@ -87,6 +89,16 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
     setState(() {});
   }
 
+  final _box = GlobalKey();
+
+  /// Where the tile is in the window: mouse positions are counted from here.
+  void _trackOrigin() {
+    final box = _box.currentContext?.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      ffi.canvasModel.funtiViewOrigin = box.localToGlobal(Offset.zero);
+    }
+  }
+
   /// The canvas follows the size of the tile, as the screen window does.
   void _trackSize(Size size) {
     if (_size == size) return;
@@ -97,6 +109,8 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
       _sizeScheduled = false;
       final s = _size;
       if (mounted && s != null) {
+        _trackOrigin();
+        ffi.canvasModel.funtiViewSize = s;
         ffi.canvasModel.updateViewStyle();
         ffi.inputModel.updateImageWidgetSize(s);
       }
@@ -108,6 +122,8 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
         child: RawPointerMouseRegion(
           inputModel: ffi.inputModel,
           onEnter: (_) {
+            // The tile may have moved (the list resized, the tile grown).
+            _trackOrigin();
             _cursorOverImage.value = true;
             ffi.canvasModel.rearmEdgeScroll();
           },
@@ -146,7 +162,7 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
           child: MouseRegion(
             onEnter: (_) => bind.hostStopSystemKeyPropagate(stopped: false),
             onExit: (_) => bind.hostStopSystemKeyPropagate(stopped: true),
-            child: LayoutBuilder(builder: (context, constraints) {
+            child: LayoutBuilder(key: _box, builder: (context, constraints) {
               if (constraints.maxWidth.isFinite && constraints.maxHeight.isFinite) {
                 _trackSize(Size(constraints.maxWidth, constraints.maxHeight));
               }
