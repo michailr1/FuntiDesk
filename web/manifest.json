@@ -116,8 +116,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 24513,
-      "sha256": "030a2b7dfd822bfcbec5dc71b7560dcf541c52a29b316c5cee4d8cfa18ed3a77",
+      "bytes": 25718,
+      "sha256": "a2cebda5aeeab00bf535b1ca9ae013af047f9ce6978ce81b4000099a91c5997d",
       "content_type": "text/html"
     },
     {
@@ -173,6 +173,18 @@
       "bytes": 18216,
       "sha256": "c9bdbbd752d0f75c37e86c54f2b1d747065ca2b29a9768e1cd1c94a5517d0c4a",
       "content_type": "text/css"
+    },
+    {
+      "file": "support.css",
+      "bytes": 1964,
+      "sha256": "a6269a413bd01e77bed8e199018c26da11f5d21ab38569957be758e8a08c7d71",
+      "content_type": "text/css"
+    },
+    {
+      "file": "support.js",
+      "bytes": 499,
+      "sha256": "cffaa34f3605d7caceb2643931cd5d3c8a610478dc6c0b91cc4427497a38d97e",
+      "content_type": "text/javascript"
     },
     {
       "file": "theme.css",
