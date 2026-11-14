@@ -429,7 +429,13 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
+            // Wraps onto two lines in a narrow window instead of cutting
+            // the buttons off.
+            Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
               DropdownButton<String>(
                   value: _shell,
                   underline: const SizedBox.shrink(),
@@ -470,7 +476,6 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                   Icon(Icons.arrow_drop_down, color: t.muted),
                 ]),
               ),
-              const Spacer(),
               OutlinedButton.icon(
                   onPressed: count == 0 ? null : _startSend,
                   icon: const Icon(Icons.upload_file, size: 18),
@@ -480,7 +485,6 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                   onPressed: count == 0 ? null : _startUpdate,
                   icon: const Icon(Icons.system_update_alt, size: 18),
                   label: Text(translate('funti-run-update'))),
-              const SizedBox(width: 8),
               ElevatedButton.icon(
                   onPressed: count == 0 ? null : _start,
                   icon: const Icon(Icons.play_arrow, size: 18),

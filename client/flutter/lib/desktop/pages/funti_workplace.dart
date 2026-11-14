@@ -103,6 +103,7 @@ const _layouts = [1, 2, 4, 9];
 const _kOptionLayout = 'funti-workplace-layout';
 const _kOptionNoThumbs = 'funti-workplace-no-thumbs';
 const _kOptionTags = 'funti-workplace-tags';
+const _kOptionSide = 'funti-workplace-side-width';
 
 enum _Section { overview, processes, services, autostart, programs, disk, eventlog, journal }
 
@@ -124,6 +125,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String _group = 'all';
   bool _bell = false;
   bool _screens = false;
+  // The host list can be made wider or narrower by its edge, or hidden to
+  // give the whole window to the screens.
+  double _sideWidth =
+      (double.tryParse(bind.mainGetLocalOption(key: _kOptionSide)) ?? 300).clamp(220, 560);
+  bool _sideHidden = false;
   // Labels and a note per computer, kept on this computer only.
   Map<String, FuntiHostTags> _tags =
       funtiTagsDecode(bind.mainGetLocalOption(key: _kOptionTags));
@@ -712,7 +718,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           ),
         );
     return Container(
-      width: 300,
+      width: _sideWidth,
       decoration: BoxDecoration(
           color: t.surface, border: Border(right: BorderSide(color: t.stroke))),
       child: Column(children: [
@@ -1438,7 +1444,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   void _closeLive() {
     final id = _liveId;
     if (id == null) return;
-    setState(() => _liveBig = false);
+    setState(() {
+      _liveBig = false;
+      _sideHidden = false;
+    });
     Future.delayed(_kLiveGrow, () {
       if (mounted && _liveId == id && !_liveBig) setState(() => _liveId = null);
     });
@@ -1509,6 +1518,13 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                     iconSize: 18,
                     onPressed: () => _liveKey.currentState?.refresh(),
                     icon: Icon(Icons.refresh, color: t.muted)),
+                IconButton(
+                    tooltip: translate(_sideHidden ? 'funti-live-unfocus' : 'funti-live-focus'),
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: () => setState(() => _sideHidden = !_sideHidden),
+                    icon: Icon(_sideHidden ? Icons.fullscreen_exit : Icons.fullscreen,
+                        color: t.muted)),
                 IconButton(
                     tooltip: translate('funti-live-window'),
                     visualDensity: VisualDensity.compact,
@@ -1635,6 +1651,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   Widget _main(FuntiTokens t) {
     // The live session lives only in the screens view.
     if (!_screens && _liveId != null) {
+      _sideHidden = false;
       _liveId = null;
       _liveBig = false;
       _liveImage = false;
@@ -1781,7 +1798,21 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     final t = FuntiTokens.of(context);
     return Stack(children: [
       Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _sidebar(t),
+        if (!_sideHidden) ...[
+          _sidebar(t),
+          // Drag to make the list wider or narrower.
+          MouseRegion(
+            cursor: SystemMouseCursors.resizeColumn,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragUpdate: (d) => setState(() =>
+                  _sideWidth = (_sideWidth + d.delta.dx).clamp(220, 560)),
+              onHorizontalDragEnd: (_) => bind.mainSetLocalOption(
+                  key: _kOptionSide, value: _sideWidth.round().toString()),
+              child: Container(width: 6, color: Colors.transparent),
+            ),
+          ),
+        ],
         Expanded(child: _main(t)),
       ]),
       if (_bell) _alertsPopup(t),

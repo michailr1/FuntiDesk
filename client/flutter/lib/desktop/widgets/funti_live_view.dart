@@ -31,6 +31,9 @@ class FuntiLiveView extends StatefulWidget {
 class FuntiLiveViewState extends State<FuntiLiveView> {
   late final FFI ffi;
   final _focus = FocusNode(debugLabel: 'funti-live');
+  // Messages of this session (connecting, password, errors) stay inside
+  // the tile instead of covering the whole window.
+  final _overlay = OverlayKeyState();
   final _cursorOverImage = false.obs;
   late RxBool _zoomCursor, _showRemoteCursor, _keyboardEnabled, _remoteCursorMoved;
   Size? _size;
@@ -44,6 +47,7 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
     initSharedStates(id);
     ffi = FFI(null);
     Get.put<FFI>(ffi, tag: id);
+    ffi.dialogManager.setOverlayState(_overlay);
     _zoomCursor = PeerBoolOption.find(id, kOptionZoomCursor);
     _showRemoteCursor = ShowRemoteCursorState.find(id);
     _keyboardEnabled = KeyboardEnabledState.find(id);
@@ -120,6 +124,12 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
 
   @override
   Widget build(BuildContext context) {
+    return Overlay(key: _overlay.key, initialEntries: [
+      OverlayEntry(builder: (context) => _body(context)),
+    ]);
+  }
+
+  Widget _body(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: ffi.ffiModel),
