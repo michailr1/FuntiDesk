@@ -139,6 +139,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   // whether it has grown to the whole area, whether its first picture came.
   String? _liveId;
   bool _liveBig = false, _liveImage = false;
+  // No picture after a while: the still picture goes away so that the
+  // session's own message (password, error) can be seen.
+  bool _liveReveal = false;
+  Timer? _liveTimer;
   final _liveKey = GlobalKey<FuntiLiveViewState>();
   // "Inventory": all computers in one table (ADR-024, stage 5).
   bool _inventory = false;
@@ -193,6 +197,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     _slow?.cancel();
     _reload?.cancel();
     _pictures?.cancel();
+    _liveTimer?.cancel();
     gFFI.recentPeersModel.removeListener(_syncHosts);
     gFFI.favoritePeersModel.removeListener(_syncHosts);
     platformFFI.unregisterEventHandler(_kEvent, _kHandler);
@@ -1433,7 +1438,14 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() => _liveId = id);
+      setState(() {
+        _liveId = id;
+        _liveReveal = false;
+      });
+      _liveTimer?.cancel();
+      _liveTimer = Timer(const Duration(seconds: 12), () {
+        if (mounted && _liveId == id) setState(() => _liveReveal = true);
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _liveId == id) setState(() => _liveBig = true);
       });
@@ -1541,20 +1553,30 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             ),
             Expanded(
               child: Stack(fit: StackFit.expand, children: [
-                if (picture != null)
-                  Image.memory(picture, fit: BoxFit.contain, gaplessPlayback: true),
-                AnimatedOpacity(
-                  opacity: _liveImage ? 1 : 0,
-                  duration: const Duration(milliseconds: 450),
-                  curve: Curves.easeOut,
-                  child: FuntiLiveView(
-                    key: _liveKey,
-                    id: h.id,
-                    onFirstImage: () {
-                      if (mounted) setState(() => _liveImage = true);
-                    },
-                  ),
+                // The session is always drawn (a fully transparent widget is
+                // not painted, and its first picture would never come); the
+                // still picture lies on top and fades away.
+                FuntiLiveView(
+                  key: _liveKey,
+                  id: h.id,
+                  onFirstImage: () {
+                    if (mounted) setState(() => _liveImage = true);
+                  },
                 ),
+                if (picture != null)
+                  IgnorePointer(
+                    ignoring: _liveImage || _liveReveal,
+                    child: AnimatedOpacity(
+                      opacity: _liveImage || _liveReveal ? 0 : 1,
+                      duration: const Duration(milliseconds: 450),
+                      curve: Curves.easeOut,
+                      child: Container(
+                        color: t.surface,
+                        child: Image.memory(picture,
+                            fit: BoxFit.contain, gaplessPlayback: true),
+                      ),
+                    ),
+                  ),
               ]),
             ),
           ]),
