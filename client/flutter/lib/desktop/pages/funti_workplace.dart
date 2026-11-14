@@ -1471,9 +1471,40 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
                 ),
+                // Monitors of that computer, when it has more than one.
+                Builder(builder: (context) {
+                  final live = _liveKey.currentState;
+                  final n = _liveImage ? (live?.displays ?? 0) : 0;
+                  if (n < 2) return const SizedBox.shrink();
+                  return Row(mainAxisSize: MainAxisSize.min, children: [
+                    for (var i = 0; i < n; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 2),
+                        child: ChoiceChip(
+                          visualDensity: VisualDensity.compact,
+                          label: Text('${i + 1}', style: const TextStyle(fontSize: 11)),
+                          selected: live!.display == i,
+                          tooltip: translate('funti-live-monitor').replaceAll('{}', '${i + 1}'),
+                          onSelected: (_) => setState(() => live.showDisplay(i)),
+                        ),
+                      ),
+                  ]);
+                }),
                 TextButton(
                     onPressed: () => _liveKey.currentState?.ctrlAltDel(),
                     child: const Text('Ctrl+Alt+Del')),
+                IconButton(
+                    tooltip: translate('funti-live-lock'),
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: () => _liveKey.currentState?.lockScreen(),
+                    icon: Icon(Icons.lock_outline, color: t.muted)),
+                IconButton(
+                    tooltip: translate('funti-live-refresh'),
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: () => _liveKey.currentState?.refresh(),
+                    icon: Icon(Icons.refresh, color: t.muted)),
                 IconButton(
                     tooltip: translate('funti-live-window'),
                     visualDensity: VisualDensity.compact,

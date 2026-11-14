@@ -870,5 +870,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-as-user-hint", "The command runs in the session of whoever is signed in to Windows: their network drives, printers and settings are there, but no administrator rights. If nobody is signed in, it does not run."),
         ("funti-run-note-user", "Runs in the signed-in user's session, with no window. If it cannot be stopped at the time limit, it finishes on its own. The command and its result go to that computer's journal."),
         ("funti-run-no-user", "Nobody is signed in to Windows on that computer"),
+        ("funti-live-monitor", "Monitor {}"),
+        ("funti-live-lock", "Lock that computer's screen"),
+        ("funti-live-refresh", "Refresh the picture"),
     ].iter().cloned().collect();
 }

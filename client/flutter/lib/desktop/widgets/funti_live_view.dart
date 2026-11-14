@@ -72,6 +72,16 @@ class FuntiLiveViewState extends State<FuntiLiveView> {
   }
 
   void ctrlAltDel() => bind.sessionCtrlAltDel(sessionId: ffi.sessionId);
+  void lockScreen() => bind.sessionLockScreen(sessionId: ffi.sessionId);
+  void refresh() => sessionRefreshVideo(ffi.sessionId, ffi.ffiModel.pi);
+
+  /// Monitors of that computer (empty until the session is ready).
+  int get displays => ffi.ffiModel.pi.displays.length;
+  int get display => ffi.ffiModel.pi.currentDisplay;
+  void showDisplay(int i) {
+    openMonitorInTheSameTab(i, ffi, ffi.ffiModel.pi);
+    setState(() {});
+  }
 
   /// The canvas follows the size of the tile, as the screen window does.
   void _trackSize(Size size) {
