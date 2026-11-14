@@ -67,6 +67,25 @@ try{
       await page.locator('#motion').click();assert.equal(await page.locator('#motion').getAttribute('aria-pressed'),'true');
       await page.locator('#motion').click();assert.equal(await page.locator('#motion').getAttribute('aria-pressed'),'false');
       await page.locator('#hero-form').click();
+      const support=page.locator('#support-widget');
+      const supportTrigger=page.getByLabel('Поддержка FuntiDesk',{exact:true});
+      assert.equal(await support.getAttribute('open'),null);
+      await supportTrigger.click();
+      await page.getByRole('heading',{name:'Нужна помощь?'}).waitFor({state:'visible'});
+      const supportLink=page.getByRole('link',{name:'Написать в Telegram ↗'});
+      assert.equal(await supportLink.getAttribute('href'),'https://t.me/funtidesk_bot');
+      assert.equal(await supportLink.getAttribute('rel'),'noopener noreferrer');
+      const panel=await page.locator('.support-panel').boundingBox();
+      assert.ok(panel.x>=0&&panel.x+panel.width<=width&&panel.y>=0,'support panel outside viewport');
+      await page.getByRole('button',{name:'Закрыть поддержку'}).click();
+      assert.equal(await support.getAttribute('open'),null);
+      await supportTrigger.focus();await page.keyboard.press('Enter');
+      assert.notEqual(await support.getAttribute('open'),null);
+      await page.keyboard.press('Escape');
+      assert.equal(await support.getAttribute('open'),null);
+      assert.equal(await supportTrigger.evaluate(el=>el===document.activeElement),true);
+      await supportTrigger.click();await page.locator('#hero').click({position:{x:5,y:5}});
+      assert.equal(await support.getAttribute('open'),null);
       // Exercise every product image, including the collapsed process screenshot.
       await page.locator('.screenshot-detail').evaluate(el=>el.open=true);
       for(const image of await page.locator('.product-shot img').all()){
