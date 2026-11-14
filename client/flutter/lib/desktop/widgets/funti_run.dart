@@ -1,12 +1,14 @@
 // FUNTIDESK (ADR-024, stage 7): a command or script on several computers of
 // the workplace — choose the computers, confirm, see every answer.
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../common.dart';
 import '../../common/funti_theme.dart';
 import '../../funti/run_rules.dart';
+import 'funti_bulk_send.dart';
 
 /// A computer the command can go to.
 class FuntiRunHost {
@@ -28,6 +30,12 @@ class FuntiRunBoard extends ChangeNotifier {
         return;
       }
     }
+  }
+
+  /// An answer made here (file sending), not by the other computer.
+  void localAnswer(FuntiRun run, String hostId, Map<String, dynamic> a) {
+    run.results[hostId]?.onAnswer(a);
+    notifyListeners();
   }
 
   void add(FuntiRun run) {
@@ -191,6 +199,69 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
     _open.clear();
     for (final h in hosts) {
       widget.send(h.id, funtiUpdateRequest(id));
+    }
+  }
+
+  /// Files to the chosen computers, one after another.
+  Future<void> _startSend() async {
+    final hosts = widget.hosts
+        .where((h) => h.note.isEmpty && _chosen.contains(h.id))
+        .toList();
+    if (hosts.isEmpty) return;
+    final picked = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final paths = picked?.paths.whereType<String>().toList() ?? const <String>[];
+    if (paths.isEmpty || !mounted) return;
+    var folder = 'Downloads';
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text(translate('funti-send-confirm')
+              .replaceAll('{}', '${paths.length}')
+              .replaceAll('{n}', '${hosts.length}')),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(paths.map((p) => p.split(RegExp(r'[\\/]')).last).join(', '),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text(hosts.map((h) => h.name).join(', ')),
+                  const SizedBox(height: 10),
+                  for (final f in ['Downloads', 'Desktop'])
+                    RadioListTile<String>(
+                        dense: true,
+                        value: f,
+                        groupValue: folder,
+                        onChanged: (v) => setDialog(() => folder = v ?? folder),
+                        title: Text(translate('funti-send-to-$f'))),
+                  Text(translate('funti-send-note'),
+                      style: const TextStyle(fontSize: 12)),
+                ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(translate('Cancel'))),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(translate('funti-send'))),
+          ],
+        ),
+      ),
+    );
+    if (yes != true) return;
+    final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final run = FuntiRun(id, 'send', translate('funti-send'),
+        hosts.map((h) => h.id), DateTime.now());
+    widget.board.add(run);
+    _shown = 0;
+    _open.clear();
+    for (final h in hosts) {
+      final answer = await funtiBulkSendOne(h.id, paths, folder);
+      widget.board.localAnswer(run, h.id, answer);
     }
   }
 
@@ -398,6 +469,11 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                 ]),
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                  onPressed: count == 0 ? null : _startSend,
+                  icon: const Icon(Icons.upload_file, size: 18),
+                  label: Text(translate('funti-send'))),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                   onPressed: count == 0 ? null : _startUpdate,
                   icon: const Icon(Icons.system_update_alt, size: 18),

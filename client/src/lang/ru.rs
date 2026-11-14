@@ -1392,5 +1392,13 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-folders-up", "На уровень выше"),
         ("funti-folders-partial", "Подсчёт не закончился за две минуты: размеры показаны частично."),
         ("funti-folders-unreadable", "Папку не удалось прочитать"),
+        ("funti-send", "Отправить файлы"),
+        ("funti-send-confirm", "Отправить {} файл(ов) на {n} компьютер(ов)?"),
+        ("funti-send-to-Downloads", "В «Загрузки» на тех компьютерах"),
+        ("funti-send-to-Desktop", "На рабочий стол тех компьютеров"),
+        ("funti-send-note", "Файлы уходят по очереди на каждый компьютер. Если там уже есть файл с таким именем, новый получит имя с номером — ничего не перезаписывается."),
+        ("funti-send-no-folder", "На том компьютере нет такой папки"),
+        ("funti-send-failed", "Передача не удалась"),
+        ("funti-send-timeout", "Передача не закончилась за 30 минут"),
     ].iter().cloned().collect();
 }
