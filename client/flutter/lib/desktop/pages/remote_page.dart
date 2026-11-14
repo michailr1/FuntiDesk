@@ -22,6 +22,7 @@ import '../../models/shortcut_model.dart';
 import '../../common/shared_state.dart';
 import '../../utils/image.dart';
 import '../widgets/remote_toolbar.dart';
+import '../widgets/funti_no_image_hint.dart';
 import '../widgets/kb_layout_type_chooser.dart';
 import '../widgets/tabbar_widget.dart';
 import 'macos_full_screen_focus_recovery.dart';
@@ -796,6 +797,9 @@ class _RemotePageState extends State<RemotePage>
               _ffi.ffiModel.pi.isSet.isFalse ? emptyOverlay() : Offstage(),
               // FUNTIDESK (ADR-023): the other computer's state.
               Positioned(top: 4, left: 8, child: FuntiAdminBar(ffi: _ffi)),
+              // FUNTIDESK: why there may be no picture (RDP on that side).
+              Positioned.fill(
+                  child: IgnorePointer(child: FuntiNoImageHint(ffi: _ffi))),
             ],
           ),
         ],

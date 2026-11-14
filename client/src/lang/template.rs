@@ -1399,5 +1399,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-send-no-folder", ""),
         ("funti-send-failed", ""),
         ("funti-send-timeout", ""),
+        ("funti-no-image-title", ""),
+        ("funti-no-image-rdp", ""),
+        ("funti-no-image-other", ""),
     ].iter().cloned().collect();
 }

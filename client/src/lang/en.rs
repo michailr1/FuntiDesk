@@ -858,5 +858,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-send-no-folder", "That computer has no such folder"),
         ("funti-send-failed", "The transfer failed"),
         ("funti-send-timeout", "The transfer did not finish in 30 minutes"),
+        ("funti-no-image-title", "No picture yet"),
+        ("funti-no-image-rdp", "This often happens when that computer has a Remote Desktop (RDP) session whose window is minimized or disconnected: Windows does not draw the screen then. Restore the RDP window there or end the RDP session, and the picture appears."),
+        ("funti-no-image-other", "That computer sends no picture. Check that its screen is on and a user is signed in."),
     ].iter().cloned().collect();
 }

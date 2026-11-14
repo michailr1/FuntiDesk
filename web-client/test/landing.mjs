@@ -22,7 +22,7 @@ const server=createServer(async(req,res)=>{
       res.setHeader('Content-Type','text/html');res.setHeader('Cache-Control','no-store');
       return res.end('<!doctype html>'+urls.map(([,name])=>name.endsWith('.css')?`<link rel="stylesheet" href="${name}">`:`<script src="${name}"></script>`).join(''));
     }
-    const name=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1));
+    const name=decodeURIComponent(url.pathname.slice(1))+(url.pathname.endsWith('/')?'index.html':'');
     if(name.split('/').includes('..'))throw Error('invalid path');
     const ext=path.extname(name);
     res.setHeader('Content-Type',({'.html':'text/html','.css':'text/css','.js':'application/javascript','.svg':'image/svg+xml','.jpg':'image/jpeg'})[ext]||'application/octet-stream');
@@ -37,7 +37,7 @@ const base='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
 try{
   for(const width of [320,390,768,1440]){
-    const context=await browser.newContext({viewport:{width,height:900},colorScheme:'light'});
+    const context=await browser.newContext({viewport:{width,height:900},colorScheme:'light',locale:'ru-RU'});
     try{
       const page=await context.newPage();await page.goto(base+'/warm');
       const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
@@ -67,6 +67,25 @@ try{
       await page.locator('#motion').click();assert.equal(await page.locator('#motion').getAttribute('aria-pressed'),'true');
       await page.locator('#motion').click();assert.equal(await page.locator('#motion').getAttribute('aria-pressed'),'false');
       await page.locator('#hero-form').click();
+      const support=page.locator('#support-widget');
+      const supportTrigger=page.getByLabel('Поддержка FuntiDesk',{exact:true});
+      assert.equal(await support.getAttribute('open'),null);
+      await supportTrigger.click();
+      await page.getByRole('heading',{name:'Нужна помощь?'}).waitFor({state:'visible'});
+      const supportLink=page.getByRole('link',{name:'Написать в Telegram ↗'});
+      assert.equal(await supportLink.getAttribute('href'),'https://t.me/funtidesk_bot');
+      assert.equal(await supportLink.getAttribute('rel'),'noopener noreferrer');
+      const panel=await page.locator('.support-panel').boundingBox();
+      assert.ok(panel.x>=0&&panel.x+panel.width<=width&&panel.y>=0,'support panel outside viewport');
+      await page.getByRole('button',{name:'Закрыть поддержку'}).click();
+      assert.equal(await support.getAttribute('open'),null);
+      await supportTrigger.focus();await page.keyboard.press('Enter');
+      assert.notEqual(await support.getAttribute('open'),null);
+      await page.keyboard.press('Escape');
+      assert.equal(await support.getAttribute('open'),null);
+      assert.equal(await supportTrigger.evaluate(el=>el===document.activeElement),true);
+      await supportTrigger.click();await page.locator('#hero').click({position:{x:5,y:5}});
+      assert.equal(await support.getAttribute('open'),null);
       // Exercise every product image, including the collapsed process screenshot.
       await page.locator('.screenshot-detail').evaluate(el=>el.open=true);
       for(const image of await page.locator('.product-shot img').all()){
@@ -87,4 +106,45 @@ try{
       console.log('LANDING_OK width='+width+' warmed cache, visual themes, animation, navigation');
     }finally{await context.close();}
   }
+  // Native English content, first-visit detection and persistent manual choice.
+  for(const width of [320,390,768,1440]){
+    const context=await browser.newContext({viewport:{width,height:900},locale:'en-US'});
+    try{
+      const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      await page.goto(base+'/?campaign=welcome#download');
+      await page.waitForURL(url=>url.pathname==='/en/');
+      assert.equal(new URL(page.url()).hash,'#download');
+      assert.equal(new URL(page.url()).searchParams.get('campaign'),'welcome');
+      assert.equal(await page.locator('html').getAttribute('lang'),'en');
+      assert.equal(await page.locator('h1').textContent(),'FuntiDesk — remote help, calls and your computers');
+      assert.equal(await page.locator('body').evaluate(el=>/[А-Яа-яЁё]/.test(el.innerText)),false);
+      for(const theme of ['dark','light']){
+        await page.getByLabel('Site theme',{exact:true}).selectOption(theme);
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'English overflow '+width);
+      }
+      await page.getByLabel('FuntiDesk support',{exact:true}).click();
+      await page.getByRole('heading',{name:'Need a hand?'}).waitFor({state:'visible'});
+      assert.equal(await page.getByRole('link',{name:'Message us on Telegram ↗'}).getAttribute('href'),'https://t.me/funtidesk_bot');
+      await page.getByRole('button',{name:'Close support'}).click();
+      await page.locator('#motion').click();assert.equal(await page.locator('#motion').textContent(),'○ Paused');
+      await page.locator('[data-language="ru"]').click();
+      await page.waitForURL(url=>url.pathname==='/');
+      assert.equal(await page.locator('html').getAttribute('lang'),'ru');
+      assert.equal(await page.evaluate(()=>localStorage.getItem('funtidesk-site-language')),'ru');
+      await page.goto(base+'/');assert.equal(new URL(page.url()).pathname,'/');
+      await page.locator('[data-language="en"]').click();await page.waitForURL(url=>url.pathname==='/en/');
+      assert.equal(await page.evaluate(()=>localStorage.getItem('funtidesk-site-language')),'en');
+      await page.goto(base+'/');await page.waitForURL(url=>url.pathname==='/en/');
+      assert.deepEqual(errors,[]);
+      console.log('LOCALE_OK width='+width+' English, browser detection, manual choice, persistence, themes, support');
+    }finally{await context.close();}
+  }
+  const blocked=await browser.newContext({locale:'en-US'});
+  try{
+    await blocked.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError')}})});
+    const page=await blocked.newPage();await page.goto(base+'/');await page.waitForURL(url=>url.pathname==='/en/');
+    await page.locator('[data-language="ru"]').click();await page.waitForURL(url=>url.pathname==='/');
+    await page.reload();assert.equal(await page.locator('html').getAttribute('lang'),'ru');
+    console.log('LOCALE_OK blocked storage, explicit Russian choice survives reload');
+  }finally{await blocked.close();}
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

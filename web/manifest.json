@@ -20,8 +20,8 @@
     },
     {
       "file": "app.js",
-      "bytes": 5293,
-      "sha256": "ff6236327ceb56726b01fbbf93b2f31dd0b887f4e8811df44133c23250de244d",
+      "bytes": 5452,
+      "sha256": "e0182f08e8e6f0cc0a827cd25f57626d01351c4f2d8f78cd159e5df86a2258f4",
       "content_type": "text/javascript"
     },
     {
@@ -73,6 +73,12 @@
       "content_type": "text/html"
     },
     {
+      "file": "en/index.html",
+      "bytes": 19426,
+      "sha256": "678b4dfdee227f8b341b942cebdb8e22dc87f8e73b9484a460802ffa42b4174b",
+      "content_type": "text/html"
+    },
+    {
       "file": "family.css",
       "bytes": 9957,
       "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
@@ -116,8 +122,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 24513,
-      "sha256": "030a2b7dfd822bfcbec5dc71b7560dcf541c52a29b316c5cee4d8cfa18ed3a77",
+      "bytes": 26232,
+      "sha256": "e042b1b251550787f6f4974d5d05e5a52ddbc406772e7ec5170870a157befec7",
       "content_type": "text/html"
     },
     {
@@ -130,6 +136,12 @@
       "file": "lab.js",
       "bytes": 22511,
       "sha256": "b8ab3bb3ba77eb09d591df414941b0a27971c387a48240953ef4f5135ac53e56",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "locale.js",
+      "bytes": 1504,
+      "sha256": "ec5c4d1d702491d430bf5fffcfacc8d9f7c3062921aeed04c4884155ce44f2e4",
       "content_type": "text/javascript"
     },
     {
@@ -152,8 +164,8 @@
     },
     {
       "file": "product.css",
-      "bytes": 6151,
-      "sha256": "eebaea75cb7c4de133e4b89d5e9312a1bd82633cdb3a70c62a975ff34c1f6d7e",
+      "bytes": 6827,
+      "sha256": "3d30e8c24a78a8e7060f601fb51b0d0e1354c6651211714ca23716619bc3dc77",
       "content_type": "text/css"
     },
     {
@@ -173,6 +185,18 @@
       "bytes": 18216,
       "sha256": "c9bdbbd752d0f75c37e86c54f2b1d747065ca2b29a9768e1cd1c94a5517d0c4a",
       "content_type": "text/css"
+    },
+    {
+      "file": "support.css",
+      "bytes": 1964,
+      "sha256": "a6269a413bd01e77bed8e199018c26da11f5d21ab38569957be758e8a08c7d71",
+      "content_type": "text/css"
+    },
+    {
+      "file": "support.js",
+      "bytes": 499,
+      "sha256": "cffaa34f3605d7caceb2643931cd5d3c8a610478dc6c0b91cc4427497a38d97e",
+      "content_type": "text/javascript"
     },
     {
       "file": "theme.css",
