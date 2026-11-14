@@ -1277,5 +1277,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-eventlog-shown", "Показано {} из {n}"),
         ("funti-admin-eventlog-failed", "Не удалось прочитать журнал Windows"),
         ("funti-about-telegram", "Новости FuntiDesk в Telegram"),
+        ("funti-no-image-title", "Изображения пока нет"),
+        ("funti-no-image-rdp", "Часто так бывает, когда на том компьютере открыт сеанс удалённого рабочего стола (RDP), а его окно свёрнуто или отключено: Windows тогда не рисует экран. Разверните окно RDP на том компьютере или завершите RDP-сеанс — изображение появится."),
+        ("funti-no-image-other", "Тот компьютер не присылает изображение. Проверьте, что экран не выключен и пользователь вошёл в систему."),
     ].iter().cloned().collect();
 }
