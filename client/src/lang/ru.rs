@@ -1378,5 +1378,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-history-allow", "Записывать историю нагрузки (7 дней) для рабочего места тех, кто может управлять этим компьютером"),
         ("funti-live-connecting", "подключаюсь…"),
         ("funti-live-window", "Вынести в отдельное окно"),
+        ("funti-run-update", "Обновить FuntiDesk"),
+        ("funti-run-update-confirm", "Обновить FuntiDesk на {} компьютерах?"),
+        ("funti-run-update-note", "Каждый компьютер сам скачает последний релиз, проверит SHA256 и перезапустит FuntiDesk с прежним ID и настройками. Подключения к нему на минуту прервутся."),
+        ("funti-journal-admin-update", "FuntiDesk обновляется до {}"),
     ].iter().cloned().collect();
 }

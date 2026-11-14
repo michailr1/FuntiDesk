@@ -296,7 +296,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
         final answer = jsonDecode(result);
         if (answer is Map<String, dynamic> && answer['op'] == 'logs') {
           _saveLogs(host, answer);
-        } else if (answer is Map<String, dynamic> && answer['op'] == 'run') {
+        } else if (answer is Map<String, dynamic> && (answer['op'] == 'run' || answer['op'] == 'update')) {
           _runs.onAnswer(host.id, answer);
         } else if (answer is Map<String, dynamic> && answer['op'] == 'screen') {
           final jpeg = answer['jpeg'];

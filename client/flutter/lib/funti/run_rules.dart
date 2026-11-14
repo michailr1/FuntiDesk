@@ -44,7 +44,7 @@ class FuntiRun {
 
   /// The answer of a host to this run; false if it is not about this run.
   bool onAnswer(String hostId, Map<String, dynamic> a) {
-    if (a['op'] != 'run' || a['id'] != id) return false;
+    if ((a['op'] != 'run' && a['op'] != 'update') || a['id'] != id) return false;
     final r = results[hostId];
     if (r == null) return false;
     r.onAnswer(a);
@@ -62,3 +62,6 @@ class FuntiRun {
 Map<String, dynamic> funtiRunRequest(
         String id, String shell, String script, int timeout) =>
     {'op': 'run', 'id': id, 'shell': shell, 'script': script, 'timeout': timeout};
+
+/// The request that updates FuntiDesk on each host of a run.
+Map<String, dynamic> funtiUpdateRequest(String id) => {'op': 'update', 'id': id};

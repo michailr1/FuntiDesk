@@ -26,6 +26,11 @@ void main() {
       '=== A — code 0\nPC-1\n\n=== B — timeout\n\n\n=== C — funti-run-failed\n');
   check('request', funtiRunRequest('r1', 'cmd', 'ver', 60)['shell'], 'cmd');
 
+  final up = FuntiRun('u1', 'update', '', ['a'], DateTime(2026));
+  check('update answer', up.onAnswer('a', {'op': 'update', 'id': 'u1', 'code': 0, 'output': '1.5.3-ft.13500'}), true);
+  check('update ok', up.results['a']!.ok, true);
+  check('update request', funtiUpdateRequest('u1')['op'], 'update');
+
   if (failed > 0) throw 'run_rules: $failed check(s) failed';
   print('run_rules: ok');
 }

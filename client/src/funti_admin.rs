@@ -51,6 +51,9 @@ pub enum Request {
     Uninstall(String),
     /// Drives, their health, serial number (ADR-024, stage 5).
     Hardware,
+    /// Update FuntiDesk on this computer from the release (ADR-007), for a
+    /// group from the workplace; the id comes back with the answer.
+    Update(String),
     /// The program's log of this computer as an archive.
     Logs,
     /// The load of the last day or week (ADR-025).
@@ -66,6 +69,7 @@ impl Request {
             | Request::Programs
             | Request::Uninstall(_)
             | Request::Hardware
+            | Request::Update(_)
             | Request::Logs
             | Request::History(_) => true,
         }
@@ -73,7 +77,7 @@ impl Request {
 
     /// Long: answered later, so the connection keeps working meanwhile.
     pub fn is_long(&self) -> bool {
-        matches!(self, Request::Run(_) | Request::Uninstall(_))
+        matches!(self, Request::Run(_) | Request::Uninstall(_) | Request::Update(_))
     }
 }
 
@@ -99,6 +103,7 @@ pub fn parse(request: &str) -> Request {
         "run" => Request::Run(run_rules::parse_request(&value)),
         "programs" => Request::Programs,
         "hardware" => Request::Hardware,
+        "update" => Request::Update(value["id"].as_str().unwrap_or("").chars().take(64).collect()),
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
         "logs" => Request::Logs,
         "history" => Request::History(history_rules::parse_days(&value)),
@@ -211,6 +216,35 @@ fn handle_programs(request: &Request) -> (String, Option<(&'static str, String)>
     {
         let op = if matches!(request, Request::Uninstall(_)) { "uninstall" } else { "programs" };
         (rules::error_json(op, "funti-admin-windows-only").to_string(), None)
+    }
+}
+
+/// Starts the update and waits for its first word: the version it goes to,
+/// or why it cannot. The service then replaces FuntiDesk and restarts it.
+fn update(id: &str) -> (String, Option<(&'static str, String)>) {
+    #[cfg(windows)]
+    {
+        let (tx, rx) = std::sync::mpsc::channel();
+        crate::funti_update::start_remote(move |answer| {
+            tx.send(answer).ok();
+        });
+        let answer = rx
+            .recv_timeout(std::time::Duration::from_secs(600))
+            .unwrap_or_else(|_| "err:busy or no answer".to_owned());
+        let (code, text) = match answer.strip_prefix("ok:") {
+            Some(version) => (0, version.to_owned()),
+            None => (1, answer.trim_start_matches("err:").to_owned()),
+        };
+        (
+            serde_json::json!({"op": "update", "id": id, "code": code, "output": text}).to_string(),
+            (code == 0).then(|| ("update", text)),
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let mut answer = rules::error_json("update", "funti-admin-windows-only");
+        answer["id"] = id.into();
+        (answer.to_string(), None)
     }
 }
 
@@ -355,6 +389,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Run(r) => return handle_run(r),
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
         Request::Hardware => return (hardware_answer(), None),
+        Request::Update(id) => return update(id),
         Request::Logs => return logs(),
         Request::History(days) => {
             let uptime = SYSTEM.lock().unwrap().uptime();

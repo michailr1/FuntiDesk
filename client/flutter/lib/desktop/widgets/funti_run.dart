@@ -157,6 +157,43 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
     }
   }
 
+  /// FuntiDesk updates itself from the release on each chosen computer.
+  Future<void> _startUpdate() async {
+    final hosts = widget.hosts
+        .where((h) => h.note.isEmpty && _chosen.contains(h.id))
+        .toList();
+    if (hosts.isEmpty) return;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(translate('funti-run-update-confirm')
+            .replaceAll('{}', '${hosts.length}')),
+        content: SizedBox(
+          width: 480,
+          child: Text(
+              '${hosts.map((h) => h.name).join(', ')}\n\n${translate('funti-run-update-note')}'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(translate('Cancel'))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(translate('funti-run-update'))),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    widget.board.add(FuntiRun(id, 'update', translate('funti-run-update'),
+        hosts.map((h) => h.id), DateTime.now()));
+    _shown = 0;
+    _open.clear();
+    for (final h in hosts) {
+      widget.send(h.id, funtiUpdateRequest(id));
+    }
+  }
+
   String _timeoutText(int s) => s < 60
       ? translate('funti-run-seconds').replaceAll('{}', '$s')
       : translate('funti-run-minutes').replaceAll('{}', '${s ~/ 60}');
@@ -361,6 +398,11 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                 ]),
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                  onPressed: count == 0 ? null : _startUpdate,
+                  icon: const Icon(Icons.system_update_alt, size: 18),
+                  label: Text(translate('funti-run-update'))),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                   onPressed: count == 0 ? null : _start,
                   icon: const Icon(Icons.play_arrow, size: 18),
