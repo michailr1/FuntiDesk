@@ -20,8 +20,8 @@
     },
     {
       "file": "app.js",
-      "bytes": 5293,
-      "sha256": "ff6236327ceb56726b01fbbf93b2f31dd0b887f4e8811df44133c23250de244d",
+      "bytes": 5452,
+      "sha256": "e0182f08e8e6f0cc0a827cd25f57626d01351c4f2d8f78cd159e5df86a2258f4",
       "content_type": "text/javascript"
     },
     {
@@ -73,6 +73,12 @@
       "content_type": "text/html"
     },
     {
+      "file": "en/index.html",
+      "bytes": 19424,
+      "sha256": "b37c28e58c4617ee5e8c8ecdbe0868401287d791081c6994092561538b4f4f25",
+      "content_type": "text/html"
+    },
+    {
       "file": "family.css",
       "bytes": 9957,
       "sha256": "21f86defb800cb9c088ce9ba43f91d88150222166d22aec3f84393d3dee7983b",
@@ -116,8 +122,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 25718,
-      "sha256": "a2cebda5aeeab00bf535b1ca9ae013af047f9ce6978ce81b4000099a91c5997d",
+      "bytes": 26230,
+      "sha256": "0984b94581b6a7af66b455bd529590b6d0d9a1bc6c65731ec73e30e7489591b5",
       "content_type": "text/html"
     },
     {
@@ -130,6 +136,12 @@
       "file": "lab.js",
       "bytes": 22511,
       "sha256": "b8ab3bb3ba77eb09d591df414941b0a27971c387a48240953ef4f5135ac53e56",
+      "content_type": "text/javascript"
+    },
+    {
+      "file": "locale.js",
+      "bytes": 1504,
+      "sha256": "ec5c4d1d702491d430bf5fffcfacc8d9f7c3062921aeed04c4884155ce44f2e4",
       "content_type": "text/javascript"
     },
     {
@@ -152,8 +164,8 @@
     },
     {
       "file": "product.css",
-      "bytes": 6151,
-      "sha256": "eebaea75cb7c4de133e4b89d5e9312a1bd82633cdb3a70c62a975ff34c1f6d7e",
+      "bytes": 6827,
+      "sha256": "3d30e8c24a78a8e7060f601fb51b0d0e1354c6651211714ca23716619bc3dc77",
       "content_type": "text/css"
     },
     {
