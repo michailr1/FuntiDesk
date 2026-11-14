@@ -54,6 +54,9 @@ pub enum Request {
     /// Update FuntiDesk on this computer from the release (ADR-007), for a
     /// group from the workplace; the id comes back with the answer.
     Update(String),
+    /// Wake a computer with FuntiDesk this one has seen in its local network
+    /// (ADR-021), for the workplace: the ID of that computer.
+    Wake(String),
     /// The program's log of this computer as an archive.
     Logs,
     /// The load of the last day or week (ADR-025).
@@ -70,6 +73,7 @@ impl Request {
             | Request::Uninstall(_)
             | Request::Hardware
             | Request::Update(_)
+            | Request::Wake(_)
             | Request::Logs
             | Request::History(_) => true,
         }
@@ -103,6 +107,7 @@ pub fn parse(request: &str) -> Request {
         "run" => Request::Run(run_rules::parse_request(&value)),
         "programs" => Request::Programs,
         "hardware" => Request::Hardware,
+        "wake" => Request::Wake(value["target"].as_str().unwrap_or("").chars().take(64).collect()),
         "update" => Request::Update(value["id"].as_str().unwrap_or("").chars().take(64).collect()),
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
         "logs" => Request::Logs,
@@ -390,6 +395,16 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
         Request::Hardware => return (hardware_answer(), None),
         Request::Update(id) => return update(id),
+        Request::Wake(target) => {
+            let answer: serde_json::Value =
+                serde_json::from_str(&crate::funti_wake::handle(&serde_json::json!({"id": target}).to_string()))
+                    .unwrap_or_default();
+            let sent = answer["sent"] == true;
+            return (
+                serde_json::json!({"op": "wake", "target": target, "sent": sent}).to_string(),
+                sent.then(|| ("wake", target.clone())),
+            );
+        }
         Request::Logs => return logs(),
         Request::History(days) => {
             let uptime = SYSTEM.lock().unwrap().uptime();

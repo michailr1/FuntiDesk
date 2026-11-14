@@ -840,5 +840,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-update-confirm", "Update FuntiDesk on {} computers?"),
         ("funti-run-update-note", "Each computer downloads the latest release itself, checks SHA256 and restarts FuntiDesk with the same ID and settings. Connections to it drop for a minute."),
         ("funti-journal-admin-update", "FuntiDesk is updating to {}"),
+        ("funti-wake-group", "Wake over the network"),
+        ("funti-wake-no-helpers", "No computer online to wake this one through"),
+        ("funti-wake-sent", "Wake signal for “{}” sent through “{via}”. If wake-on-LAN is allowed, it comes online in a minute or two."),
+        ("funti-wake-unseen", "None of your computers online has seen “{}” in its local network"),
+        ("funti-journal-admin-wake", "Wake signal sent to computer {}"),
     ].iter().cloned().collect();
 }

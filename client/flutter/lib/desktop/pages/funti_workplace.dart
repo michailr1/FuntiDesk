@@ -122,6 +122,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String _group = 'all';
   bool _bell = false;
   bool _screens = false;
+  // Wake requests (ADR-021) per computer: how many asked, answered, sent.
+  final _wakes = <String, List<int>>{};
   // The tile that is a live control session (ADR-024, stage 3b): which host,
   // whether it has grown to the whole area, whether its first picture came.
   String? _liveId;
@@ -294,7 +296,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     if (result is String) {
       try {
         final answer = jsonDecode(result);
-        if (answer is Map<String, dynamic> && answer['op'] == 'logs') {
+        if (answer is Map<String, dynamic> && answer['op'] == 'wake') {
+          _onWake(host, answer);
+        } else if (answer is Map<String, dynamic> && answer['op'] == 'logs') {
           _saveLogs(host, answer);
         } else if (answer is Map<String, dynamic> && (answer['op'] == 'run' || answer['op'] == 'update')) {
           _runs.onAnswer(host.id, answer);
@@ -328,6 +332,42 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       _alerts.insertAll(0, alerts);
       if (_alerts.length > 100) _alerts.removeRange(100, _alerts.length);
     });
+  }
+
+  /// Asks every computer that answers now to wake [target] if it has seen it
+  /// in its local network.
+  void _wake(_Host target) {
+    final helpers = _hosts.values.where((h) => h.ready && h.id != target.id).toList();
+    if (helpers.isEmpty) {
+      showToast(translate('funti-wake-no-helpers'));
+      return;
+    }
+    _wakes[target.id] = [helpers.length, 0, 0];
+    for (final h in helpers) {
+      bind.mainFuntiServiceRequest(
+          id: h.id, request: jsonEncode({'op': 'wake', 'target': target.id}));
+    }
+  }
+
+  void _onWake(_Host helper, Map<String, dynamic> answer) {
+    final id = '${answer['target'] ?? ''}';
+    final w = _wakes[id];
+    final target = _hosts[id];
+    if (w == null || target == null) return;
+    w[1]++;
+    if (answer['sent'] == true) {
+      if (w[2]++ == 0) {
+        showToast(translate('funti-wake-sent')
+            .replaceAll('{}', target.name)
+            .replaceAll('{via}', helper.name));
+      }
+    }
+    if (w[1] >= w[0]) {
+      if (w[2] == 0) {
+        showToast(translate('funti-wake-unseen').replaceAll('{}', target.name));
+      }
+      _wakes.remove(id);
+    }
   }
 
   /// The archive of that computer's program log, saved where the
@@ -455,6 +495,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             case 'terminal':
               connect(context, h.id, isTerminal: true);
               break;
+            case 'wake':
+              _wake(h);
+              break;
             case 'logs':
               _ask(h.id, 'logs');
               showToast(translate('funti-logs-asked'));
@@ -478,6 +521,8 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
               child: Text(translate('funti-workplace-terminal'))),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'logs', child: Text(translate('funti-logs-remote'))),
+          if (!h.ready)
+            PopupMenuItem(value: 'wake', child: Text(translate('funti-wake-group'))),
         ],
       );
 

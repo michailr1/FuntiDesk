@@ -1381,5 +1381,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-update-confirm", ""),
         ("funti-run-update-note", ""),
         ("funti-journal-admin-update", ""),
+        ("funti-wake-group", ""),
+        ("funti-wake-no-helpers", ""),
+        ("funti-wake-sent", ""),
+        ("funti-wake-unseen", ""),
+        ("funti-journal-admin-wake", ""),
     ].iter().cloned().collect();
 }
