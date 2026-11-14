@@ -834,5 +834,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-history-empty", "No history yet: it is written every 5 minutes from this version on"),
         ("funti-history-off-host", "History is turned off on that computer"),
         ("funti-history-allow", "Keep a load history (7 days) for the workplace of those who may control this computer"),
+        ("funti-live-connecting", "connecting…"),
+        ("funti-live-window", "Move to its own window"),
     ].iter().cloned().collect();
 }

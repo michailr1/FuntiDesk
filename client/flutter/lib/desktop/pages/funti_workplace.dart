@@ -27,6 +27,7 @@ import '../widgets/funti_eventlog.dart';
 import '../widgets/funti_family.dart';
 import '../widgets/funti_run.dart';
 import '../widgets/funti_history.dart';
+import '../widgets/funti_live_view.dart';
 import '../widgets/funti_journal.dart';
 
 const _kModeOption = 'funti-workplace';
@@ -121,6 +122,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   String _group = 'all';
   bool _bell = false;
   bool _screens = false;
+  // The tile that is a live control session (ADR-024, stage 3b): which host,
+  // whether it has grown to the whole area, whether its first picture came.
+  String? _liveId;
+  bool _liveBig = false, _liveImage = false;
+  final _liveKey = GlobalKey<FuntiLiveViewState>();
   // "Inventory": all computers in one table (ADR-024, stage 5).
   bool _inventory = false;
   // "Command": a command on several computers (ADR-024, stage 7).
@@ -163,7 +169,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     _pictures = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!_screens) return;
       for (final h in _shownScreens()) {
-        _askPicture(h.id, _tileWidth());
+        if (h.id != _liveId) _askPicture(h.id, _tileWidth());
       }
     });
   }
@@ -1131,6 +1137,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
             backgroundColor: _screens ? t.surface2 : null,
             visualDensity: VisualDensity.compact),
         onPressed: () {
+          if (_screens) _closeLive();
           setState(() {
             _screens = !_screens;
             if (_screens) {
@@ -1231,7 +1238,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           child: Tooltip(
             message: translate('funti-workplace-screen'),
             child: InkWell(
-              onTap: () => connect(context, h.id),
+              onTap: () => _goLive(h.id),
               child: Center(child: body),
             ),
           ),
@@ -1240,9 +1247,109 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     );
   }
 
+  /// The tile becomes a live session and grows to the whole area.
+  void _goLive(String id) {
+    if (_liveId == id) return;
+    setState(() {
+      _liveId = null;
+      _liveBig = false;
+      _liveImage = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _liveId = id);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _liveId == id) setState(() => _liveBig = true);
+      });
+    });
+  }
+
+  /// Shrinks back into its tile, then the session closes.
+  void _closeLive() {
+    final id = _liveId;
+    if (id == null) return;
+    setState(() => _liveBig = false);
+    Future.delayed(_kLiveGrow, () {
+      if (mounted && _liveId == id && !_liveBig) setState(() => _liveId = null);
+    });
+  }
+
+  void _liveToWindow() {
+    final id = _liveId;
+    if (id == null) return;
+    _closeLive();
+    connect(context, id);
+  }
+
+  Widget _livePanel(FuntiTokens t, _Host h) {
+    final picture = h.picture;
+    return _FuntiGlow(
+      active: !_liveImage,
+      color: t.accent,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          color: t.surface,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+              color: t.chrome,
+              child: Row(children: [
+                Icon(Icons.circle, size: 8, color: _liveImage ? t.ok : t.accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                      _liveImage
+                          ? h.name
+                          : '${h.name} · ${translate('funti-live-connecting')}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+                ),
+                TextButton(
+                    onPressed: () => _liveKey.currentState?.ctrlAltDel(),
+                    child: const Text('Ctrl+Alt+Del')),
+                IconButton(
+                    tooltip: translate('funti-live-window'),
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: _liveToWindow,
+                    icon: Icon(Icons.open_in_new, color: t.muted)),
+                IconButton(
+                    tooltip: translate('Close'),
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: _closeLive,
+                    icon: Icon(Icons.close, color: t.muted)),
+              ]),
+            ),
+            Expanded(
+              child: Stack(fit: StackFit.expand, children: [
+                if (picture != null)
+                  Image.memory(picture, fit: BoxFit.contain, gaplessPlayback: true),
+                AnimatedOpacity(
+                  opacity: _liveImage ? 1 : 0,
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOut,
+                  child: FuntiLiveView(
+                    key: _liveKey,
+                    id: h.id,
+                    onFirstImage: () {
+                      if (mounted) setState(() => _liveImage = true);
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _screensView(FuntiTokens t) {
     final hosts = _shownScreens();
-    if (hosts.isEmpty) {
+    final live = _liveId == null ? null : _hosts[_liveId];
+    if (hosts.isEmpty && live == null) {
       return Center(
           child: Text(translate('funti-workplace-screens-empty'),
               textAlign: TextAlign.center, style: TextStyle(color: t.muted)));
@@ -1251,19 +1358,44 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     final rows = _layout <= 2 ? 1 : (_layout == 4 ? 2 : 3);
     return Padding(
       padding: const EdgeInsets.all(6),
-      child: Column(children: [
-        for (var r = 0; r < rows; r++)
-          Expanded(
-            child: Row(children: [
-              for (var c = 0; c < columns; c++)
-                Expanded(
-                  child: r * columns + c < hosts.length
-                      ? _screenTile(t, hosts[r * columns + c])
-                      : const SizedBox.shrink(),
-                ),
-            ]),
-          ),
-      ]),
+      child: LayoutBuilder(builder: (context, box) {
+        final cellW = box.maxWidth / columns, cellH = box.maxHeight / rows;
+        final index = live == null ? -1 : hosts.indexOf(live);
+        // Where the live tile grows from: its own cell, or the middle.
+        final from = index >= 0
+            ? Rect.fromLTWH((index % columns) * cellW, (index ~/ columns) * cellH, cellW, cellH)
+            : Rect.fromCenter(
+                center: Offset(box.maxWidth / 2, box.maxHeight / 2),
+                width: cellW,
+                height: cellH);
+        final to = Rect.fromLTWH(0, 0, box.maxWidth, box.maxHeight);
+        final r = _liveBig ? to : from;
+        return Stack(children: [
+          Column(children: [
+            for (var row = 0; row < rows; row++)
+              Expanded(
+                child: Row(children: [
+                  for (var c = 0; c < columns; c++)
+                    Expanded(
+                      child: row * columns + c < hosts.length
+                          ? _screenTile(t, hosts[row * columns + c])
+                          : const SizedBox.shrink(),
+                    ),
+                ]),
+              ),
+          ]),
+          if (live != null)
+            AnimatedPositioned(
+              duration: _kLiveGrow,
+              curve: Curves.easeOutCubic,
+              left: r.left + 4,
+              top: r.top + 4,
+              width: r.width - 8,
+              height: r.height - 8,
+              child: _livePanel(t, live),
+            ),
+        ]);
+      }),
     );
   }
 
@@ -1300,6 +1432,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       );
 
   Widget _main(FuntiTokens t) {
+    // The live session lives only in the screens view.
+    if (!_screens && _liveId != null) {
+      _liveId = null;
+      _liveBig = false;
+      _liveImage = false;
+    }
     final active = _active == null ? null : _hosts[_active];
     Widget body;
     if (_inventory) {
@@ -1447,5 +1585,64 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       ]),
       if (_bell) _alertsPopup(t),
     ]);
+  }
+}
+
+const _kLiveGrow = Duration(milliseconds: 380);
+
+/// A soft light running around the tile while the session connects.
+class _FuntiGlow extends StatefulWidget {
+  final bool active;
+  final Color color;
+  final Widget child;
+  const _FuntiGlow({required this.active, required this.color, required this.child});
+
+  @override
+  State<_FuntiGlow> createState() => _FuntiGlowState();
+}
+
+class _FuntiGlowState extends State<_FuntiGlow> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final glow = widget.active ? 0.35 + 0.35 * (1 - (2 * _c.value - 1).abs()) : 0.18;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: widget.color.withOpacity(widget.active ? glow : 0.5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                  color: widget.color.withOpacity(glow * 0.6),
+                  blurRadius: widget.active ? 18 : 10,
+                  spreadRadius: widget.active ? 1 : 0),
+            ],
+            gradient: widget.active
+                ? SweepGradient(
+                    transform: GradientRotation(_c.value * 6.2832),
+                    colors: [
+                      widget.color.withOpacity(0.0),
+                      widget.color.withOpacity(0.35),
+                      widget.color.withOpacity(0.0),
+                    ],
+                  )
+                : null,
+          ),
+          padding: const EdgeInsets.all(2),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
   }
 }

@@ -1375,5 +1375,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-history-empty", ""),
         ("funti-history-off-host", ""),
         ("funti-history-allow", ""),
+        ("funti-live-connecting", ""),
+        ("funti-live-window", ""),
     ].iter().cloned().collect();
 }
