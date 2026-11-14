@@ -845,5 +845,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-wake-sent", "Wake signal for “{}” sent through “{via}”. If wake-on-LAN is allowed, it comes online in a minute or two."),
         ("funti-wake-unseen", "None of your computers online has seen “{}” in its local network"),
         ("funti-journal-admin-wake", "Wake signal sent to computer {}"),
+        ("funti-workplace-disk", "Disk"),
+        ("funti-folders-counting", "Counting folder sizes… On a big disk this may take up to two minutes."),
+        ("funti-folders-up", "Up one level"),
+        ("funti-folders-partial", "Counting did not finish in two minutes: sizes are partial."),
+        ("funti-folders-unreadable", "The folder could not be read"),
     ].iter().cloned().collect();
 }

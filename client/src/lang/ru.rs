@@ -1387,5 +1387,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-wake-sent", "Сигнал на включение «{}» отправлен через «{via}». Если включение по сети разрешено, компьютер появится в сети через минуту-две."),
         ("funti-wake-unseen", "Ни один из ваших компьютеров в сети не видел «{}» в своей локальной сети"),
         ("funti-journal-admin-wake", "Отправлен сигнал на включение компьютера {}"),
+        ("funti-workplace-disk", "Диск"),
+        ("funti-folders-counting", "Считаю размеры папок… На большом диске это может занять до двух минут."),
+        ("funti-folders-up", "На уровень выше"),
+        ("funti-folders-partial", "Подсчёт не закончился за две минуты: размеры показаны частично."),
+        ("funti-folders-unreadable", "Папку не удалось прочитать"),
     ].iter().cloned().collect();
 }

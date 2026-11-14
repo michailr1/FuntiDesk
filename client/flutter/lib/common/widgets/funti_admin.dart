@@ -80,6 +80,7 @@ class _Answers {
   final programs = Rxn<List<Map<String, dynamic>>>();
   final uninstalled = Rxn<Map<String, dynamic>>();
   final hardware = Rxn<Map<String, dynamic>>();
+  final folders = Rxn<Map<String, dynamic>>();
 }
 
 final _answers = <String, _Answers>{};
@@ -169,6 +170,9 @@ void funtiAdminOnAnswer(String key, Map<String, dynamic> answer) {
     case 'uninstall':
       a.uninstalled.value = answer;
       a.link?.ask({'op': 'programs'});
+      break;
+    case 'folders':
+      a.folders.value = answer;
       break;
     case 'hardware':
       if (answer['error'] == null) a.hardware.value = answer;
@@ -809,6 +813,128 @@ class _FuntiProgramsPanelState extends State<FuntiProgramsPanel> {
                       ]),
                     );
                   }),
+        ),
+      ]);
+    });
+  }
+}
+
+/// FUNTIDESK (ADR-024, stage 5): what takes the space of a disk — folders of
+/// one level, largest first; a click goes deeper.
+class FuntiFoldersPanel extends StatefulWidget {
+  final FuntiAdminLink link;
+  const FuntiFoldersPanel({Key? key, required this.link}) : super(key: key);
+
+  @override
+  State<FuntiFoldersPanel> createState() => _FuntiFoldersPanelState();
+}
+
+class _FuntiFoldersPanelState extends State<FuntiFoldersPanel> {
+  late _Answers _a;
+  final _path = <String>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _a = _ofKey(widget.link.key)..link = widget.link;
+    _a.folders.value = null;
+    widget.link.ask({'op': 'folders'});
+  }
+
+  void _open(String path) {
+    _a.folders.value = null;
+    widget.link.ask({'op': 'folders', 'path': path});
+  }
+
+  String _join(String dir, String name) =>
+      dir.endsWith('\\') || dir.endsWith('/') ? '$dir$name' : '$dir\\$name';
+
+  @override
+  Widget build(BuildContext context) {
+    final t = FuntiTokens.of(context);
+    return Obx(() {
+      final a = _a.folders.value;
+      if (a == null) {
+        return Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(height: 10),
+          Text(translate('funti-folders-counting'), style: TextStyle(color: t.muted)),
+        ]));
+      }
+      final dir = '${a['path'] ?? ''}';
+      if (a['error'] is String) {
+        return Center(child: Text(translate('${a['error']}'), style: TextStyle(color: t.muted)));
+      }
+      final list = (a['folders'] is List ? a['folders'] as List : const [])
+          .whereType<Map>()
+          .toList();
+      final total = (a['total'] is num) ? (a['total'] as num).toDouble() : 0.0;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          IconButton(
+              tooltip: translate('funti-folders-up'),
+              onPressed: _path.isEmpty
+                  ? null
+                  : () {
+                      _path.removeLast();
+                      _open(_path.isEmpty ? '' : _path.last);
+                    },
+              icon: const Icon(Icons.arrow_upward, size: 18)),
+          Expanded(
+              child: SelectableText(dir,
+                  style: TextStyle(fontWeight: FontWeight.w600, color: t.text))),
+          Text(readableFileSize(total), style: TextStyle(color: t.muted)),
+          IconButton(
+              tooltip: translate('Refresh'),
+              onPressed: () => _open(_path.isEmpty ? '' : _path.last),
+              icon: const Icon(Icons.refresh, size: 18)),
+        ]),
+        if (a['complete'] == false)
+          Text(translate('funti-folders-partial'),
+              style: TextStyle(fontSize: 12, color: t.muted)),
+        const SizedBox(height: 6),
+        Expanded(
+          child: ListView(children: [
+            for (final f in list)
+              InkWell(
+                onTap: () {
+                  final next = _join(dir, '${f['name']}');
+                  _path.add(next);
+                  _open(next);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                  child: Row(children: [
+                    Icon(Icons.folder_outlined, size: 18, color: t.muted),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 3,
+                      child: Text('${f['name']}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, color: t.text)),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                            value: total > 0 ? ((f['size'] as num?) ?? 0) / total : 0,
+                            minHeight: 6,
+                            backgroundColor: t.surface2,
+                            color: t.accent),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 90,
+                      child: Text(readableFileSize(((f['size'] as num?) ?? 0).toDouble()),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(fontSize: 12, color: t.muted)),
+                    ),
+                  ]),
+                ),
+              ),
+          ]),
         ),
       ]);
     });

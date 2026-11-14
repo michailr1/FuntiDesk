@@ -1386,5 +1386,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-wake-sent", ""),
         ("funti-wake-unseen", ""),
         ("funti-journal-admin-wake", ""),
+        ("funti-workplace-disk", ""),
+        ("funti-folders-counting", ""),
+        ("funti-folders-up", ""),
+        ("funti-folders-partial", ""),
+        ("funti-folders-unreadable", ""),
     ].iter().cloned().collect();
 }

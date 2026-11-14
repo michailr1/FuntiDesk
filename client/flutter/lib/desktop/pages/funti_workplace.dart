@@ -102,7 +102,7 @@ const _layouts = [1, 2, 4, 9];
 const _kOptionLayout = 'funti-workplace-layout';
 const _kOptionNoThumbs = 'funti-workplace-no-thumbs';
 
-enum _Section { overview, processes, services, autostart, programs, eventlog, journal }
+enum _Section { overview, processes, services, autostart, programs, disk, eventlog, journal }
 
 class FuntiWorkplaceView extends StatefulWidget {
   const FuntiWorkplaceView({Key? key}) : super(key: key);
@@ -1069,6 +1069,7 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       if (_windows(h)) _Section.services,
       if (_windows(h)) _Section.autostart,
       if (_windows(h)) _Section.programs,
+      _Section.disk,
       if (_windows(h)) _Section.eventlog,
       _Section.journal,
     ];
@@ -1098,6 +1099,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           body = Padding(
               padding: const EdgeInsets.all(12),
               child: FuntiEventLogPanel(key: ValueKey('e${h.id}'), link: link));
+          break;
+        case _Section.disk:
+          body = Padding(
+              padding: const EdgeInsets.all(12),
+              child: FuntiFoldersPanel(key: ValueKey('d${h.id}'), link: link));
           break;
         case _Section.programs:
           body = Padding(

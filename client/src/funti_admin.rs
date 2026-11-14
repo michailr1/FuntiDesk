@@ -7,6 +7,7 @@
 mod attention_rules;
 mod autostart_rules;
 mod eventlog_rules;
+mod folders;
 mod hardware;
 mod programs_rules;
 mod history;
@@ -57,6 +58,8 @@ pub enum Request {
     /// Wake a computer with FuntiDesk this one has seen in its local network
     /// (ADR-021), for the workplace: the ID of that computer.
     Wake(String),
+    /// Folders of one level with their sizes (ADR-024, stage 5).
+    Folders(std::path::PathBuf),
     /// The program's log of this computer as an archive.
     Logs,
     /// The load of the last day or week (ADR-025).
@@ -74,6 +77,7 @@ impl Request {
             | Request::Hardware
             | Request::Update(_)
             | Request::Wake(_)
+            | Request::Folders(_)
             | Request::Logs
             | Request::History(_) => true,
         }
@@ -81,7 +85,10 @@ impl Request {
 
     /// Long: answered later, so the connection keeps working meanwhile.
     pub fn is_long(&self) -> bool {
-        matches!(self, Request::Run(_) | Request::Uninstall(_) | Request::Update(_))
+        matches!(
+            self,
+            Request::Run(_) | Request::Uninstall(_) | Request::Update(_) | Request::Folders(_)
+        )
     }
 }
 
@@ -107,6 +114,7 @@ pub fn parse(request: &str) -> Request {
         "run" => Request::Run(run_rules::parse_request(&value)),
         "programs" => Request::Programs,
         "hardware" => Request::Hardware,
+        "folders" => Request::Folders(folders::parse_path(&value, &system_disk())),
         "wake" => Request::Wake(value["target"].as_str().unwrap_or("").chars().take(64).collect()),
         "update" => Request::Update(value["id"].as_str().unwrap_or("").chars().take(64).collect()),
         "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
@@ -395,6 +403,7 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Programs | Request::Uninstall(_) => return handle_programs(request),
         Request::Hardware => return (hardware_answer(), None),
         Request::Update(id) => return update(id),
+        Request::Folders(path) => return (folders::scan(path, folders::TIME_LIMIT).to_string(), None),
         Request::Wake(target) => {
             let answer: serde_json::Value =
                 serde_json::from_str(&crate::funti_wake::handle(&serde_json::json!({"id": target}).to_string()))
