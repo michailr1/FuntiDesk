@@ -1,0 +1,48 @@
+name: Delete merged agent branches
+
+# Run by hand. Deletes only branches under the given prefix (claude/ by
+# default) whose last commit is already in main, so nothing unmerged is
+# lost; main and other people's branches are never touched.
+on:
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: "Branch prefix to clean"
+        default: "claude/"
+        required: true
+      dry_run:
+        description: "Only list, do not delete"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Delete merged branches
+        env:
+          PREFIX: ${{ inputs.prefix }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          case "$PREFIX" in
+            */) ;;
+            *) echo "prefix must end with /"; exit 1 ;;
+          esac
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          branches=$(git branch -r --merged origin/main --format='%(refname:short)' \
+            | sed 's#^origin/##' | grep "^${PREFIX}" || true)
+          echo "Merged into main under ${PREFIX}: $(echo "$branches" | grep -c . || true)"
+          for b in $branches; do
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "would delete $b"
+            else
+              git push origin --delete "$b" && echo "deleted $b"
+            fi
+          done
