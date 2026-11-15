@@ -845,9 +845,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                 ? '${info['battery']}%${info['charging'] == true ? ' · ${translate('funti-phone-charging')}' : ''}'
                 : ''
           ],
-          ['funti-workplace-model', [str('maker'), str('model')].where((x) => x.isNotEmpty).join(' ')],
-          ['funti-workplace-board', str('board')],
-          ['funti-inventory-serial', '${funtiAdminHardwareOf(_key(h.id)).value?['serial'] ?? ''}'],
+          ['funti-workplace-model', [funtiRealValue(str('maker')), funtiRealValue(str('model'))].where((x) => x.isNotEmpty).join(' ')],
+          ['funti-workplace-board', funtiRealValue(str('board'))],
+          ['funti-inventory-serial', funtiRealValue(funtiAdminHardwareOf(_key(h.id)).value?['serial'])],
           [
             'funti-workplace-cpu',
             str('cpu').isEmpty

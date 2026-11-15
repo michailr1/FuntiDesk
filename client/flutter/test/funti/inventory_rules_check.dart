@@ -29,6 +29,17 @@ void main() {
   check('bare', funtiInventoryValues(bare).skip(3).every((x) => x.isEmpty), true);
   final noSmart = FuntiInventoryRow('X', '1', '', {'disks': [{'name': 'C:\\', 'size': 1073741824}]}, null);
   check('disks fallback', funtiInventoryValues(noSmart)[8], 'C:\\ 1.0 GB');
+  final filler = FuntiInventoryRow('Мини', '2', '', {
+    'maker': 'To be filled by O.E.M.', 'model': 'GRT U58',
+  }, {'serial': 'Default string'});
+  check('filler model', funtiInventoryValues(filler)[4], 'GRT U58');
+  check('filler serial', funtiInventoryValues(filler)[5], '');
+  for (final f in ['System Serial Number', '0000000000', '  N/A ', 'xxxxxxxx', 'Default_String']) {
+    check('placeholder $f', funtiIsPlaceholder(f), true);
+  }
+  for (final r in ['PF3ABC12', 'GRT U58', '5CD1234XYZ', 'LENOVO']) {
+    check('real $r', funtiRealValue(r), r);
+  }
   final csv = funtiInventoryCsv(['Имя', 'ID'], [
     FuntiInventoryRow('A; "B"', '1', '', null, null),
   ]);
