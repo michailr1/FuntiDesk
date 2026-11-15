@@ -32,8 +32,8 @@
     },
     {
       "file": "connect/app.webmanifest",
-      "bytes": 397,
-      "sha256": "11b606b4508da0bcbe3c7c06fb7ff3916d8827b78f5ca501bad80de40e2888ff",
+      "bytes": 370,
+      "sha256": "6fe1675314e42077acc4f2a3e67b8714ea2e630e40625fa757b1b9fb56dccd6f",
       "content_type": "application/manifest+json"
     },
     {
@@ -44,8 +44,8 @@
     },
     {
       "file": "connect/index.html",
-      "bytes": 12568,
-      "sha256": "db4d210adde5b9271b1635078656d3d5c8c02f7d16c9ea2874bda10dfc5babc2",
+      "bytes": 13009,
+      "sha256": "196922fae4101fff19b5cae238197a8ab0aeb572b83560a591b28b9bcbf5582d",
       "content_type": "text/html"
     },
     {
@@ -56,14 +56,14 @@
     },
     {
       "file": "connect/session.css",
-      "bytes": 11850,
-      "sha256": "91193eb500f011efa418f79018fa04d6bb59e5fb7833eba721409253244ac766",
+      "bytes": 12202,
+      "sha256": "d39816c9d2407f5722068c4d60bd6848c7b5e7d14f3f52a196cf7604f57279bd",
       "content_type": "text/css"
     },
     {
       "file": "connect/session.js",
-      "bytes": 1150966,
-      "sha256": "a2ef7514669f5658f5fa41f3e87257ce7dd3340ee7a2961b474c5291c64a2b9e",
+      "bytes": 1183257,
+      "sha256": "eec199a992230767bd75d04899a12446a77b6b39ec425f3ea921df894e7c7ab6",
       "content_type": "text/javascript"
     },
     {
@@ -74,8 +74,8 @@
     },
     {
       "file": "en/index.html",
-      "bytes": 21532,
-      "sha256": "ac2d0089a641372761d4ca031a949ff6619be3ab9a4a95de64137b0b48b5edaf",
+      "bytes": 21564,
+      "sha256": "92d08f397204ae880b90af3150b044fd7ee0c8999ea75ca839de9039425e15ba",
       "content_type": "text/html"
     },
     {
@@ -152,8 +152,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 29402,
-      "sha256": "72e2258d2113bb561a5a104081d964766c50c32049cdd6a36ccae0b31807be8c",
+      "bytes": 29434,
+      "sha256": "820544adce4953534d9fd91718c44adac102602d4b6843dd9ad2be9a8c8601bf",
       "content_type": "text/html"
     },
     {

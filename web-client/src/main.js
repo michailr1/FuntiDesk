@@ -1,14 +1,16 @@
+import {t, language, initLanguage} from './i18n.js';
 import { FilePanel } from './files-ui.js';
 import { Session, errorText } from './session.js';
 import { controls, ready } from './protocol.js';
 import { Recovery } from './recovery.js';
 import { PhoneConsole } from './phone.js';
+initLanguage();
 const $ = (id) => document.getElementById(id);
 const canvas = $('screen'); let active; let files; let hadSessionOnHide = false;
 let target = '';
 try { target = decodeURIComponent(location.hash.slice(1)); } catch { /* Invalid fragments do not prefill a computer. */ }
 if (/^[0-9]{6,16}$/.test(target)) $('peer-id').value = target;
-if (location.hash) history.replaceState(null, '', location.pathname);
+if (location.hash) history.replaceState(null, '', location.pathname+location.search);
 function stop(preserveReload = false) { recovery?.clear(preserveReload); $('password').value = ''; active?.close(); active = null; phone.sync(); files?.close(); files?.sync(); $('connect').disabled = false; $('disconnect').disabled = true; }
 async function connect(id, password) {
   const session = new Session(canvas, (text) => { if (active === session) { $('status').textContent = text; phone.sync(); files?.sync(); } });
@@ -23,7 +25,7 @@ async function connect(id, password) {
     const code = session.failure || error.message;
     session.close(); active = null; phone.sync(); files?.sync();
     if (recovery?.interrupted(code)) {
-      $('status').textContent = 'Соединение прервано. Восстановим его при возвращении в течение 5 минут.';
+      $('status').textContent = t('Соединение прервано. Восстановим его при возвращении в течение 5 минут.');
       recovery.resume();
     } else { stop(); $('status').textContent = errorText(code); }
   }
@@ -35,7 +37,7 @@ $('connection-form').addEventListener('submit', (event) => {
   let password = $('password').value; $('password').value = '';
   connect($('peer-id').value.trim(), password); password = '';
 });
-$('disconnect').addEventListener('click', () => { stop(); $('status').textContent = 'Сеанс завершён.'; });
+$('disconnect').addEventListener('click', () => { stop(); $('status').textContent = t('Сеанс завершён.'); });
 window.addEventListener('pagehide', () => {
   hadSessionOnHide = active?.connected === true && active.firstFrame;
   recovery?.saveReload(); stop(true);
@@ -102,3 +104,10 @@ if (restored === true) {
   Recovery.forgetReload();
   if (typeof restored === 'string') $('status').textContent = errorText(restored);
 }
+
+document.addEventListener('funtidesk-languagechange',()=>{
+  $('status').textContent=t($('status').textContent);
+  if(phone.shown)for(const option of $('phone-monitor').options)option.textContent=t('Монитор ')+(Number(option.value)+1);
+  if(files.dialog.open){files.entries=null;files.localEntries=null;files.render();}
+  phone.sync();
+});

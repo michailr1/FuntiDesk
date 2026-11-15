@@ -25,7 +25,7 @@ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'
 try {
   for(const scenario of ['valid','phone','phone-reload','wrong-password','wrong-key']) {
     const reloadScenario=scenario==='phone-reload',phone=scenario==='phone'||reloadScenario;
-    const context=await browser.newContext(phone?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:{});const page=await context.newPage();const errors=[];const input=[];const publicKeys=[];
+    const context=await browser.newContext(phone?{viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'ru-RU'}:{locale:'ru-RU'});const page=await context.newPage();const errors=[];const input=[];const publicKeys=[];
     const systemDialogs=[];let allowAction=false;page.on('dialog',dialog=>{systemDialogs.push(dialog.type());return allowAction?dialog.accept():dialog.dismiss();});
     if(phone)await page.addInitScript(()=>{
       window.wakeRequests=0;window.wakeReleases=0;
@@ -85,6 +85,17 @@ try {
     if(scenario==='valid'||phone) {
       await page.waitForFunction(()=>document.querySelector('#screen').width===32);
       assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelector('#screen').getContext('2d').getImageData(16,16,1,1).data).map((v,i)=>i===0?v>200:i===3?v===255:v<50)),[true,true,true,true]);
+      if(scenario==='valid'){
+        const beforeLanguage=logins.length;
+        await page.locator('#console-language').selectOption('en');
+        assert.equal(await page.locator('html').getAttribute('lang'),'en');
+        assert.match(await page.locator('#status').textContent(),/Connected/);
+        assert.equal(await page.locator('#connect').isDisabled(),true);
+        assert.equal(await page.locator('#password').inputValue(),'');
+        await page.locator('#console-language').selectOption('ru');
+        assert.equal(logins.length,beforeLanguage,'language changes must not reconnect');
+        await page.evaluate(()=>{localStorage.removeItem('funtidesk-site-language');history.replaceState(null,'',location.pathname);});
+      }
       if(phone){
         await page.locator('body.phone-session').waitFor();await page.locator('#phone-menu').waitFor();
         await page.locator('#phone-help-sheet[open]').waitFor();assert.equal(input.length,0);
