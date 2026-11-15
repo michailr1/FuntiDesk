@@ -1957,6 +1957,18 @@ pub fn main_funti_service_request(id: String, request: String) {
     crate::funti_service::request(&id, request);
 }
 
+/// FUNTIDESK: saves the archive of the program's logs at `path`; empty on
+/// success, otherwise what went wrong.
+pub fn main_funti_save_logs(path: String) -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return crate::funti_logs::save(&path);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = path;
+        String::new()
+    }
+}
+
 /// FUNTIDESK (ADR-024): close one service connection, or all with an empty id.
 pub fn main_funti_service_close(id: String) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -57,6 +57,9 @@ mod funti_admin;
 // FUNTIDESK (ADR-021): wake a device in this computer's local network.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod funti_wake;
+// FUNTIDESK: the program's log as one archive, here or from the workplace.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod funti_logs;
 // FUNTIDESK (ADR-020): local journal of incoming connections.
 #[cfg(not(target_os = "ios"))]
 pub mod funti_journal;

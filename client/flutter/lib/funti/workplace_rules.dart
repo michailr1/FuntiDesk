@@ -21,10 +21,15 @@ class FuntiHost {
   String reason = '';
   FuntiAdminStatus? status;
 
+  /// What needs attention on it (antivirus, updates, restart …): the
+  /// `items` of the `attention` answer.
+  List<Map<String, dynamic>> attention = const [];
+
   FuntiHost(this.id, this.name);
 
   bool get ready => state == 'ready';
-  bool get problem => ready && (status?.hot ?? false);
+  bool get problem =>
+      ready && ((status?.hot ?? false) || attention.isNotEmpty);
 
   /// Trying again makes sense only for a host that was not reachable.
   bool get retry => state == 'closed' && reason == funtiServiceOffline;
@@ -50,7 +55,10 @@ class FuntiHost {
   void onState(String newState, String newReason) {
     state = newState;
     reason = newReason;
-    if (!ready) status = null;
+    if (!ready) {
+      status = null;
+      attention = const [];
+    }
   }
 }
 
@@ -129,4 +137,14 @@ class FuntiAlertTracker {
     if (reason != funtiServiceOffline || !_wasReady.remove(host.id)) return [];
     return [FuntiAlert('lost', host.id, host.name, now, 0)];
   }
+}
+
+/// The items of an `attention` answer.
+List<Map<String, dynamic>> funtiAttentionItems(Map<String, dynamic> answer) {
+  final items = answer['items'];
+  if (items is! List) return const [];
+  return [
+    for (final i in items)
+      if (i is Map && i['kind'] is String) Map<String, dynamic>.from(i)
+  ];
 }

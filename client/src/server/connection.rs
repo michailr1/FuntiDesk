@@ -385,6 +385,8 @@ pub struct Connection {
     // FUNTIDESK (ADR-024): a service connection — administration requests
     // only; set together with `file_transfer`.
     funti_service: bool,
+    // FUNTIDESK (ADR-024): pictures of the screen are journaled once per connection.
+    funti_screen_journaled: bool,
     terminal: bool,
     port_forward_socket: Option<Framed<TcpStream, BytesCodec>>,
     port_forward_mux: Option<super::port_forward_mux::PortForwardMux>,
@@ -606,6 +608,7 @@ impl Connection {
             file_transfer: None,
             view_camera: false,
             funti_service: false,
+            funti_screen_journaled: false,
             terminal: false,
             port_forward_socket: None,
             port_forward_mux: None,
@@ -4358,15 +4361,44 @@ impl Connection {
                         }
                         // A service connection (ADR-024) is open only to whoever
                         // could control this computer unattended.
-                        if self.funti_service
+                        let allowed = self.funti_service
                             || (self.is_remote()
-                                && (!request.needs_control() || self.peer_keyboard_enabled()))
-                        {
+                                && (!request.needs_control() || self.peer_keyboard_enabled()));
+                        if allowed && request.is_long() {
+                            // FUNTIDESK (ADR-024): a command may run for
+                            // minutes; the answer comes later, the
+                            // connection keeps working meanwhile.
+                            let mut inner = self.inner.clone();
+                            let (conn, peer, ip) = (self.inner.id(), self.lr.my_id.clone(), self.ip.clone());
+                            tokio::spawn(async move {
+                                let (answer, ended) = tokio::task::spawn_blocking(move || {
+                                    crate::funti_admin::handle(&request)
+                                })
+                                .await
+                                .unwrap_or_default();
+                                if let Some((action, target)) = ended {
+                                    crate::funti_journal::admin_event(conn, &peer, &ip, action, &target);
+                                }
+                                let mut misc = Misc::new();
+                                misc.set_funti_admin_result(answer);
+                                let mut msg = Message::new();
+                                msg.set_misc(misc);
+                                inner.send(Arc::new(msg));
+                            });
+                        } else if allowed {
                             let (answer, ended) = tokio::task::spawn_blocking(move || {
                                 crate::funti_admin::handle(&request)
                             })
                             .await
                             .unwrap_or_default();
+                            let ended = match ended {
+                                Some(("screen", _)) if self.funti_screen_journaled => None,
+                                Some(("screen", t)) => {
+                                    self.funti_screen_journaled = true;
+                                    Some(("screen", t))
+                                }
+                                other => other,
+                            };
                             if let Some((action, target)) = ended {
                                 crate::funti_journal::admin_event(
                                     self.inner.id(),

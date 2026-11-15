@@ -4,16 +4,36 @@
 //! The requests arrive in `server/connection.rs` (`funti_admin_request`),
 //! which checks who asks and writes ended processes to the journal.
 
+mod attention_rules;
 mod autostart_rules;
 mod eventlog_rules;
+mod folders;
 mod hardware;
+mod programs_rules;
+mod history;
+mod history_rules;
 mod rules;
+mod run_rules;
+mod screen_rules;
+mod storage_rules;
+#[cfg(windows)]
+mod attention;
 #[cfg(windows)]
 mod autostart;
 #[cfg(windows)]
 mod eventlog;
 #[cfg(windows)]
+mod programs;
+#[cfg(windows)]
+mod run;
+#[cfg(target_os = "linux")]
+mod run_unix;
+#[cfg(windows)]
+mod screen;
+#[cfg(windows)]
 mod services;
+#[cfg(windows)]
+mod storage;
 
 /// A request of the other side: the bar, processes, services (`rules`),
 /// what starts with Windows (`autostart_rules`) or a Windows event log
@@ -22,6 +42,30 @@ pub enum Request {
     Core(rules::Request),
     Autostart(autostart_rules::Request),
     EventLog(Option<eventlog_rules::Request>),
+    /// A picture of the screen this wide (ADR-024, stage 3a).
+    Screen(u32),
+    /// What needs attention: antivirus, updates, restart (ADR-024, stage 4).
+    Attention,
+    /// A command or script (ADR-024, stage 7); Err: why it cannot run.
+    Run(Result<run_rules::Request, &'static str>),
+    /// Installed programs (ADR-024, stage 5).
+    Programs,
+    /// Remove a program by its id from the list.
+    Uninstall(String),
+    /// Drives, their health, serial number (ADR-024, stage 5).
+    Hardware,
+    /// Update FuntiDesk on this computer from the release (ADR-007), for a
+    /// group from the workplace; the id comes back with the answer.
+    Update(String),
+    /// Wake a computer with FuntiDesk this one has seen in its local network
+    /// (ADR-021), for the workplace: the ID of that computer.
+    Wake(String),
+    /// Folders of one level with their sizes (ADR-024, stage 5).
+    Folders(std::path::PathBuf),
+    /// The program's log of this computer as an archive.
+    Logs,
+    /// The load of the last day or week (ADR-025).
+    History(i64),
 }
 
 impl Request {
@@ -29,8 +73,24 @@ impl Request {
     pub fn needs_control(&self) -> bool {
         match self {
             Request::Core(r) => r.needs_control(),
-            Request::Autostart(_) | Request::EventLog(_) => true,
+            Request::Autostart(_) | Request::EventLog(_) | Request::Screen(_) | Request::Attention | Request::Run(_)
+            | Request::Programs
+            | Request::Uninstall(_)
+            | Request::Hardware
+            | Request::Update(_)
+            | Request::Wake(_)
+            | Request::Folders(_)
+            | Request::Logs
+            | Request::History(_) => true,
         }
+    }
+
+    /// Long: answered later, so the connection keeps working meanwhile.
+    pub fn is_long(&self) -> bool {
+        matches!(
+            self,
+            Request::Run(_) | Request::Uninstall(_) | Request::Update(_) | Request::Folders(_)
+        )
     }
 }
 
@@ -51,8 +111,58 @@ pub fn parse(request: &str) -> Request {
     match value["op"].as_str().unwrap_or("") {
         op if op.starts_with("autostart") => Request::Autostart(autostart_rules::parse_request(&value)),
         "eventlog" => Request::EventLog(eventlog_rules::parse_request(&value)),
+        "screen" => Request::Screen(screen_rules::parse_width(&value)),
+        "attention" => Request::Attention,
+        "run" => Request::Run(run_rules::parse_request(&value)),
+        "programs" => Request::Programs,
+        "hardware" => Request::Hardware,
+        "folders" => Request::Folders(folders::parse_path(&value, &system_disk())),
+        "wake" => Request::Wake(value["target"].as_str().unwrap_or("").chars().take(64).collect()),
+        "update" => Request::Update(value["id"].as_str().unwrap_or("").chars().take(64).collect()),
+        "uninstall" => Request::Uninstall(value["id"].as_str().unwrap_or("").to_owned()),
+        "logs" => Request::Logs,
+        "history" => Request::History(history_rules::parse_days(&value)),
         _ => Request::Core(rules::parse_request(request)),
     }
+}
+
+fn logs() -> (String, Option<(&'static str, String)>) {
+    use hbb_common::base64::{engine::general_purpose::STANDARD, Engine};
+    match crate::funti_logs::archive() {
+        Ok(zip) => (
+            serde_json::json!({"op": "logs", "zip": STANDARD.encode(&zip), "size": zip.len()}).to_string(),
+            Some(("logs", String::new())),
+        ),
+        Err(e) => {
+            log::info!("FuntiDesk logs: {}", e);
+            (rules::error_json("logs", "funti-logs-failed").to_string(), None)
+        }
+    }
+}
+
+pub use history::start as start_history;
+
+/// Processor, memory and system disk in percent, for the history.
+fn load() -> (u8, u8, u8) {
+    let mut system = SYSTEM.lock().unwrap();
+    system.refresh_cpu_usage();
+    system.refresh_memory();
+    let cpu = system.global_cpu_info().cpu_usage().round().clamp(0.0, 100.0) as u8;
+    let memory = if system.total_memory() > 0 {
+        (100 * system.used_memory() / system.total_memory()) as u8
+    } else {
+        0
+    };
+    drop(system);
+    let wanted = system_disk();
+    let disk = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    (cpu, memory, disk)
 }
 
 fn handle_eventlog(request: &Option<eventlog_rules::Request>) -> String {
@@ -63,6 +173,127 @@ fn handle_eventlog(request: &Option<eventlog_rules::Request>) -> String {
         #[cfg(not(windows))]
         Some(_) => rules::error_json("eventlog", "funti-admin-windows-only").to_string(),
     }
+}
+
+/// The picture, unless the owner of this computer turned pictures off.
+fn handle_screen(width: u32) -> (String, Option<(&'static str, String)>) {
+    let option = hbb_common::config::Config::get_option(screen_rules::OPTION_DISABLE);
+    if !screen_rules::allowed(&option) {
+        return (rules::error_json("screen", "funti-admin-screen-off").to_string(), None);
+    }
+    #[cfg(windows)]
+    match screen::picture(width) {
+        Ok(answer) => (answer, Some(("screen", String::new()))),
+        Err(error) => (rules::error_json("screen", error).to_string(), None),
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = width;
+        (rules::error_json("screen", "funti-admin-windows-only").to_string(), None)
+    }
+}
+
+fn handle_run(request: &Result<run_rules::Request, &'static str>) -> (String, Option<(&'static str, String)>) {
+    let r = match request {
+        Ok(r) => r,
+        Err(error) => return (rules::error_json("run", error).to_string(), None),
+    };
+    #[cfg(windows)]
+    {
+        let (answer, target) = run::run(r);
+        (answer, Some(("run", target)))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let (answer, target) = run_unix::run(r);
+        (answer, Some(("run", target)))
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        let mut answer = rules::error_json("run", "funti-admin-windows-only");
+        answer["id"] = r.id.clone().into();
+        (answer.to_string(), None)
+    }
+}
+
+fn handle_programs(request: &Request) -> (String, Option<(&'static str, String)>) {
+    #[cfg(windows)]
+    match request {
+        Request::Uninstall(id) => match programs::uninstall(id) {
+            Ok(name) => (
+                serde_json::json!({"op": "uninstall", "id": id, "name": name}).to_string(),
+                Some(("uninstall", name)),
+            ),
+            Err(error) => {
+                let mut answer = rules::error_json("uninstall", error);
+                answer["id"] = id.clone().into();
+                (answer.to_string(), None)
+            }
+        },
+        _ => (programs::list(), None),
+    }
+    #[cfg(not(windows))]
+    {
+        let op = if matches!(request, Request::Uninstall(_)) { "uninstall" } else { "programs" };
+        (rules::error_json(op, "funti-admin-windows-only").to_string(), None)
+    }
+}
+
+/// Starts the update and waits for its first word: the version it goes to,
+/// or why it cannot. The service then replaces FuntiDesk and restarts it.
+fn update(id: &str) -> (String, Option<(&'static str, String)>) {
+    #[cfg(windows)]
+    {
+        let (tx, rx) = std::sync::mpsc::channel();
+        crate::funti_update::start_remote(move |answer| {
+            tx.send(answer).ok();
+        });
+        let answer = rx
+            .recv_timeout(std::time::Duration::from_secs(600))
+            .unwrap_or_else(|_| "err:busy or no answer".to_owned());
+        let (code, text) = match answer.strip_prefix("ok:") {
+            Some(version) => (0, version.to_owned()),
+            None => (1, answer.trim_start_matches("err:").to_owned()),
+        };
+        (
+            serde_json::json!({"op": "update", "id": id, "code": code, "output": text}).to_string(),
+            (code == 0).then(|| ("update", text)),
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let mut answer = rules::error_json("update", "funti-admin-windows-only");
+        answer["id"] = id.into();
+        (answer.to_string(), None)
+    }
+}
+
+fn hardware_answer() -> String {
+    #[cfg(windows)]
+    return storage::hardware();
+    #[cfg(not(windows))]
+    storage_rules::answer_json("", &[]).to_string()
+}
+
+fn attention() -> String {
+    let mut facts = attention_rules::Facts::default();
+    facts.uptime_days = SYSTEM.lock().unwrap().uptime() / 86400;
+    let wanted = system_disk();
+    facts.disk_percent = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .find(|d| d.mount_point().to_string_lossy().eq_ignore_ascii_case(&wanted))
+        .filter(|d| d.total_space() > 0)
+        .map(|d| (100 * d.total_space().saturating_sub(d.available_space()) / d.total_space()) as u8)
+        .unwrap_or(0);
+    #[cfg(windows)]
+    attention::facts(&mut facts);
+    // Debian and Ubuntu leave this file when an update needs a restart.
+    #[cfg(target_os = "linux")]
+    {
+        facts.restart_pending = std::path::Path::new("/var/run/reboot-required").exists();
+    }
+    attention_rules::answer_json(&facts).to_string()
 }
 
 fn handle_autostart(request: &autostart_rules::Request) -> (String, Option<(&'static str, String)>) {
@@ -178,6 +409,28 @@ pub fn handle(request: &Request) -> (String, Option<(&'static str, String)>) {
         Request::Core(r) => r,
         Request::Autostart(a) => return handle_autostart(a),
         Request::EventLog(e) => return (handle_eventlog(e), None),
+        Request::Screen(width) => return handle_screen(*width),
+        Request::Attention => return (attention(), None),
+        Request::Run(r) => return handle_run(r),
+        Request::Programs | Request::Uninstall(_) => return handle_programs(request),
+        Request::Hardware => return (hardware_answer(), None),
+        Request::Update(id) => return update(id),
+        Request::Folders(path) => return (folders::scan(path, folders::TIME_LIMIT).to_string(), None),
+        Request::Wake(target) => {
+            let answer: serde_json::Value =
+                serde_json::from_str(&crate::funti_wake::handle(&serde_json::json!({"id": target}).to_string()))
+                    .unwrap_or_default();
+            let sent = answer["sent"] == true;
+            return (
+                serde_json::json!({"op": "wake", "target": target, "sent": sent}).to_string(),
+                sent.then(|| ("wake", target.clone())),
+            );
+        }
+        Request::Logs => return logs(),
+        Request::History(days) => {
+            let uptime = SYSTEM.lock().unwrap().uptime();
+            return (history::answer(*days, uptime), None);
+        }
     };
     match request {
         rules::Request::Status => (status(), None),
