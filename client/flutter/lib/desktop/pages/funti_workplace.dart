@@ -672,8 +672,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
                   if (s != null) ...[
                     const SizedBox(height: 4),
                     Row(children: [
-                      _meter(t, translate('funti-admin-cpu'), s.cpu),
-                      const SizedBox(width: 6),
+                      // A phone does not tell its processor load.
+                      if (!_phone(h)) ...[
+                        _meter(t, translate('funti-admin-cpu'), s.cpu),
+                        const SizedBox(width: 6),
+                      ],
                       _meter(t, translate('funti-workplace-ram'), s.memory),
                       if (s.diskName.isNotEmpty) ...[
                         const SizedBox(width: 6),
@@ -829,6 +832,12 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           ['funti-workplace-hostname', str('hostname')],
           ['funti-workplace-user', str('user')],
           ['funti-workplace-uptime', number('uptime') > 0 ? _uptime(number('uptime')) : ''],
+          [
+            'funti-phone-battery',
+            info['battery'] is num
+                ? '${info['battery']}%${info['charging'] == true ? ' · ${translate('funti-phone-charging')}' : ''}'
+                : ''
+          ],
           ['funti-workplace-model', [str('maker'), str('model')].where((x) => x.isNotEmpty).join(' ')],
           ['funti-workplace-board', str('board')],
           ['funti-inventory-serial', '${funtiAdminHardwareOf(_key(h.id)).value?['serial'] ?? ''}'],
@@ -858,8 +867,10 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
       return ListView(padding: const EdgeInsets.all(14), children: [
         if (s != null)
           Row(children: [
-            Expanded(child: _tile(t, translate('funti-workplace-cpu'), '${s.cpu}%', hot: s.cpu > funtiAdminHot)),
-            const SizedBox(width: 10),
+            if (!_phone(h)) ...[
+              Expanded(child: _tile(t, translate('funti-workplace-cpu'), '${s.cpu}%', hot: s.cpu > funtiAdminHot)),
+              const SizedBox(width: 10),
+            ],
             Expanded(child: _tile(t, translate('funti-workplace-memory'), '${s.memory}%', hot: s.memory > funtiAdminHot)),
             const SizedBox(width: 10),
             Expanded(
@@ -1185,6 +1196,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   }
 
   bool _windows(_Host h) => _osOf(h).toLowerCase().contains('windows');
+  bool _phone(_Host h) =>
+      _osOf(h).toLowerCase().contains('android') ||
+      h.platform.toLowerCase() == 'android';
   bool _linux(_Host h) {
     final os = _osOf(h).toLowerCase();
     return os.contains('linux') || os.contains('ubuntu') || os.contains('debian');
@@ -1195,11 +1209,11 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
     final link = FuntiAdminLink.service(h.id);
     final sections = [
       _Section.overview,
-      _Section.processes,
+      if (!_phone(h)) _Section.processes,
       if (_windows(h)) _Section.services,
       if (_windows(h)) _Section.autostart,
       if (_windows(h)) _Section.programs,
-      _Section.disk,
+      if (!_phone(h)) _Section.disk,
       if (_windows(h)) _Section.eventlog,
       _Section.journal,
     ];

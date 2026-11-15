@@ -2097,6 +2097,11 @@ impl Connection {
         if !platform_additions.is_empty() {
             pi.platform_additions = serde_json::to_string(&platform_additions).unwrap_or("".into());
         }
+        // FUNTIDESK (ADR-026): a phone serves the workplace too.
+        #[cfg(target_os = "android")]
+        if self.funti_service {
+            pi.platform_additions = json!({"funti_service": true}).to_string();
+        }
 
         if self.is_port_forward() {
             pi.features = Some(Features {
@@ -4347,6 +4352,21 @@ impl Connection {
                                 msg.set_misc(misc);
                                 inner.send(Arc::new(msg));
                             });
+                        }
+                    }
+                    // FUNTIDESK (ADR-026): a phone answers only over a service
+                    // connection, and only what Android lets it see.
+                    #[cfg(target_os = "android")]
+                    Some(misc::Union::FuntiAdminRequest(request)) => {
+                        if self.funti_service {
+                            let answer = tokio::task::spawn_blocking(move || crate::funti_phone::handle(&request))
+                                .await
+                                .unwrap_or_default();
+                            let mut misc = Misc::new();
+                            misc.set_funti_admin_result(answer);
+                            let mut msg = Message::new();
+                            msg.set_misc(misc);
+                            self.send(msg).await;
                         }
                     }
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]

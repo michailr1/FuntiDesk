@@ -1420,6 +1420,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-unsupported", "Команды пока работают только на Windows и Linux"),
         ("funti-live-focus", "Развернуть на всё окно (скрыть список)"),
         ("funti-live-unfocus", "Показать список компьютеров"),
-        ("funti-service-android", "На телефоне Android сведения для рабочего места пока не собираются — это будет в одной из следующих версий. Экран телефона открывается как обычно."),
+        ("funti-service-android", "На телефоне старая версия FuntiDesk: обновите её, чтобы видеть телефон в рабочем месте. Экран телефона открывается как обычно."),
+        ("funti-phone-battery", "Заряд"),
+        ("funti-phone-charging", "заряжается"),
+        ("funti-admin-not-on-phone", "На телефоне это недоступно: Android не даёт приложениям такие сведения"),
     ].iter().cloned().collect();
 }

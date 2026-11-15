@@ -878,6 +878,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-unsupported", "Commands work on Windows and Linux only for now"),
         ("funti-live-focus", "Use the whole window (hide the list)"),
         ("funti-live-unfocus", "Show the computer list"),
-        ("funti-service-android", "An Android phone does not report to the workplace yet; this comes in a later version. Its screen opens as usual."),
+        ("funti-service-android", "The phone runs an older FuntiDesk: update it to see the phone in the workplace. Its screen opens as usual."),
+        ("funti-phone-battery", "Battery"),
+        ("funti-phone-charging", "charging"),
+        ("funti-admin-not-on-phone", "Not on a phone: Android does not give apps this"),
     ].iter().cloned().collect();
 }

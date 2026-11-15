@@ -60,6 +60,9 @@ mod funti_wake;
 // FUNTIDESK: the program's log as one archive, here or from the workplace.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod funti_logs;
+// FUNTIDESK (ADR-026): an Android phone answers the workplace.
+#[cfg(target_os = "android")]
+mod funti_phone;
 // FUNTIDESK (ADR-020): local journal of incoming connections.
 #[cfg(not(target_os = "ios"))]
 pub mod funti_journal;
