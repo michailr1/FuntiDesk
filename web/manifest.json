@@ -74,8 +74,8 @@
     },
     {
       "file": "en/index.html",
-      "bytes": 19426,
-      "sha256": "678b4dfdee227f8b341b942cebdb8e22dc87f8e73b9484a460802ffa42b4174b",
+      "bytes": 21532,
+      "sha256": "ac2d0089a641372761d4ca031a949ff6619be3ab9a4a95de64137b0b48b5edaf",
       "content_type": "text/html"
     },
     {
@@ -115,6 +115,36 @@
       "content_type": "image/png"
     },
     {
+      "file": "images/workplace-command.png",
+      "bytes": 413960,
+      "sha256": "8cec8e275c94ae758adaf8997c8a70b7b924ef579cb2bdebb7cb80dc533f2fda",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-overview.png",
+      "bytes": 390367,
+      "sha256": "20b6a4ee03335778833df07c5a2e8bb77234eebed9288b4293bd17f2e7cc5168",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-processes.png",
+      "bytes": 463797,
+      "sha256": "426cd7c9e170a76ebdba625df702eb76492e7c1b9daa6af4c86fa0ac11490c4b",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-programs.png",
+      "bytes": 416421,
+      "sha256": "886a6461683cc3c1cddfb3727f299539331ecda4aceaf6aa456e0ee27b59ef1e",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-screens.png",
+      "bytes": 478603,
+      "sha256": "c9963caaaf78a81020d03e4ea133e0e56ae524bd7913589ca0728ace82172bd1",
+      "content_type": "image/png"
+    },
+    {
       "file": "images/workplace.png",
       "bytes": 140127,
       "sha256": "83bb03cd49f86b470363a17d29da6cb0273ee404e615e32b4c9a7b2b946a1a23",
@@ -122,8 +152,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 26232,
-      "sha256": "e042b1b251550787f6f4974d5d05e5a52ddbc406772e7ec5170870a157befec7",
+      "bytes": 29402,
+      "sha256": "72e2258d2113bb561a5a104081d964766c50c32049cdd6a36ccae0b31807be8c",
       "content_type": "text/html"
     },
     {
