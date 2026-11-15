@@ -294,6 +294,12 @@ class _HostPageState extends State<_HostPage> {
         ['funti-workplace-model', [str('maker'), str('model')].where((x) => x.isNotEmpty).join(' ')],
         ['funti-workplace-cpu', str('cpu')],
         [
+          'funti-phone-battery',
+          info?['battery'] is num
+              ? '${info!['battery']}%${info['charging'] == true ? ' · ${translate('funti-phone-charging')}' : ''}'
+              : ''
+        ],
+        [
           'funti-workplace-memory',
           info?['memory'] is num ? readableFileSize((info!['memory'] as num).toDouble()) : ''
         ],
@@ -383,13 +389,15 @@ class _HostPageState extends State<_HostPage> {
     final t = FuntiTokens.of(context);
     final link = FuntiAdminLink.service(h.id);
     final windows = w.windows(h);
+    final phone = w.osOf(h).toLowerCase().contains('android') ||
+        h.platform.toLowerCase() == 'android';
     final tabs = <(String, Widget Function())>[
       ('funti-workplace-overview', () => _overview(t)),
-      ('funti-workplace-processes', () => FuntiProcessesPanel(link: link)),
+      if (!phone) ('funti-workplace-processes', () => FuntiProcessesPanel(link: link)),
       if (windows) ('funti-workplace-services', () => FuntiServicesPanel(link: link)),
       if (windows) ('funti-workplace-autostart', () => FuntiAutostartPanel(link: link)),
       if (windows) ('funti-workplace-programs', () => FuntiProgramsPanel(link: link)),
-      ('funti-workplace-disk', () => FuntiFoldersPanel(link: link)),
+      if (!phone) ('funti-workplace-disk', () => FuntiFoldersPanel(link: link)),
       if (windows) ('funti-workplace-eventlog', () => FuntiEventLogPanel(link: link)),
       ('funti-workplace-journal', () => _journal(t)),
     ];
