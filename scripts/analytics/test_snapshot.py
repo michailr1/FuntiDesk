@@ -45,9 +45,17 @@ class SnapshotTests(unittest.TestCase):
             db.executescript((ROOT / 'account/src/schema-cancel.sql').read_text())
         self.assertEqual(m.collect(self.path, now=self.now)['account']['accounts_existing'], 1)
         with sqlite3.connect(self.path) as db:
-            db.execute('PRAGMA user_version=6')
+            db.execute('PRAGMA user_version=7')
         with self.assertRaises(ValueError):
             m.collect(self.path)
+
+    def test_v6_nullable_email_keeps_counts(self):
+        with sqlite3.connect(self.path) as db:
+            db.executescript((ROOT / 'account/src/schema-cancel.sql').read_text())
+            db.execute('PRAGMA foreign_keys=OFF')
+            db.executescript((ROOT / 'account/src/schema-telegram.sql').read_text())
+            db.execute("INSERT INTO accounts(id,email,created_at) VALUES('telegram-test',NULL,?)",(self.now,))
+        self.assertEqual(m.collect(self.path, now=self.now)['account']['accounts_existing'], 2)
 
     def test_readonly_and_missing(self):
         with m.database(self.path) as db:

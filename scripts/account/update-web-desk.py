@@ -68,7 +68,7 @@ def update(landing_only=False, console_only=False):
     caddy = candidates[0]
     api = next(v for v in before if v['Name'] == '/funtidesk-account-account-1')
     data = next(Path(m['Source']) for m in api['Mounts'] if m['Destination'] == '/data')
-    if not api['State']['Running'] or library.database_version(data / 'account.sqlite3') not in (4, 5):
+    if not api['State']['Running'] or library.database_version(data / 'account.sqlite3') not in (4, 5, 6):
         raise RuntimeError('Expected the active compatible v4/v5 API')
     library.api_ready(api['NetworkSettings']['Networks']['funtidesk-account-front']['IPAddress'])
     compose = ['docker', 'compose', '-p', 'caddy', '--env-file', str(ROOT / 'account.env'),

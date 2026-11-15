@@ -111,6 +111,9 @@ class StaticUpdate(unittest.TestCase):
     def test_only_static_release_is_switched(self):
         self.exercise()
 
+    def test_static_update_supports_schema_v6(self):
+        self.exercise(schema=6)
+
     def test_static_update_supports_schema_v5(self):
         self.exercise(schema=5)
 

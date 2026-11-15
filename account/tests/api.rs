@@ -52,6 +52,9 @@ struct Reply {
 
 impl Fixture {
     fn new() -> Self {
+        Self::telegram(false)
+    }
+    fn telegram(enabled: bool) -> Self {
         let (mail, receiver) = mpsc::channel(20);
         let clock = Arc::new(AtomicI64::new(1_800_000_000));
         let registry = Arc::new(Registry::default());
@@ -63,6 +66,11 @@ impl Fixture {
             vec![],
         )
         .with_clock(Arc::new(move || now.load(Ordering::SeqCst)));
+        let app = if enabled {
+            app.with_telegram([12; 32])
+        } else {
+            app
+        };
         Self {
             router: funtidesk_account::router(app),
             clock,
@@ -1267,4 +1275,211 @@ async fn library_history_retries_clear_and_foreign_sources() {
             .body["history"],
         json!([])
     );
+}
+
+#[tokio::test]
+async fn telegram_http_requires_bridge_and_browser_context_and_issues_only_cookie() {
+    let f = Fixture::telegram(true);
+    let boot = f.call(Method::GET, "/auth/bootstrap", &[], json!({})).await;
+    assert_eq!(boot.body["telegram_enabled"], true);
+    let cookie = boot.headers["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_owned();
+    let headers = vec![
+        ("cookie", cookie.clone()),
+        ("origin", "https://desk.funti.cc".into()),
+        ("x-funti-csrf", boot.body["csrf"].as_str().unwrap().into()),
+    ];
+    assert_eq!(
+        f.call(Method::POST, "/auth/telegram/start", &[], json!({}))
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/auth/telegram/start",
+            &[("x-funti-client", "native".into())],
+            json!({})
+        )
+        .await
+        .status,
+        StatusCode::BAD_REQUEST
+    );
+    let begin = f
+        .call(Method::POST, "/auth/telegram/start", &headers, json!({}))
+        .await;
+    assert_eq!(begin.status, StatusCode::OK);
+    let id = begin.body["id"].as_str().unwrap();
+    let code = begin.body["code"].as_str().unwrap();
+    assert!(begin.body.get("telegram_id").is_none());
+    assert!(begin.body.get("token").is_none());
+    let body = json!({"code":code,"telegram_id":101});
+    assert!(!f
+        .call(Method::POST, "/auth/telegram/approve", &[], body.clone())
+        .await
+        .status
+        .is_success());
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/auth/telegram/approve",
+            &[("authorization", format!("Bearer {}", "00".repeat(32)))],
+            body.clone()
+        )
+        .await
+        .status,
+        StatusCode::FORBIDDEN
+    );
+    let bridge = vec![("authorization", format!("Bearer {}", hex::encode([12; 32])))];
+    let mut browser_bridge = bridge.clone();
+    browser_bridge.push(("origin", "https://desk.funti.cc".into()));
+    assert!(!f
+        .call(
+            Method::POST,
+            "/auth/telegram/approve",
+            &browser_bridge,
+            body.clone()
+        )
+        .await
+        .status
+        .is_success());
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/auth/telegram/approve",
+            &bridge,
+            body.clone()
+        )
+        .await
+        .body["approved"],
+        true
+    );
+    assert_eq!(
+        f.call(Method::POST, "/auth/telegram/approve", &bridge, body)
+            .await
+            .body["approved"],
+        false
+    );
+    let other = f.call(Method::GET, "/auth/bootstrap", &[], json!({})).await;
+    let other_headers = vec![
+        (
+            "cookie",
+            other.headers["set-cookie"]
+                .to_str()
+                .unwrap()
+                .split(';')
+                .next()
+                .unwrap()
+                .into(),
+        ),
+        ("origin", "https://desk.funti.cc".into()),
+        ("x-funti-csrf", other.body["csrf"].as_str().unwrap().into()),
+    ];
+    assert_eq!(
+        f.call(
+            Method::POST,
+            "/auth/telegram/status",
+            &other_headers,
+            json!({"id":id})
+        )
+        .await
+        .body["status"],
+        "expired"
+    );
+    assert!(!f
+        .call(
+            Method::POST,
+            "/auth/telegram/finish",
+            &other_headers,
+            json!({"id":id})
+        )
+        .await
+        .status
+        .is_success());
+    let finished = f
+        .call(
+            Method::POST,
+            "/auth/telegram/finish",
+            &headers,
+            json!({"id":id}),
+        )
+        .await;
+    assert_eq!(finished.status, StatusCode::OK);
+    assert!(finished.body.get("token").is_none());
+    let session_cookie = finished
+        .headers
+        .get_all("set-cookie")
+        .iter()
+        .find(|v| v.to_str().unwrap().starts_with("__Host-funti-account="))
+        .unwrap()
+        .to_str()
+        .unwrap();
+    for flag in ["Secure", "HttpOnly", "SameSite=Strict", "Path=/"] {
+        assert!(session_cookie.contains(flag));
+    }
+    let session = f
+        .call(
+            Method::GET,
+            "/session",
+            &[("cookie", session_cookie.split(';').next().unwrap().into())],
+            json!({}),
+        )
+        .await;
+    assert_eq!(session.status, StatusCode::OK);
+    assert!(session.body["email"].is_null());
+    assert_eq!(session.body["telegram_linked"], true);
+    assert!(!f
+        .call(
+            Method::POST,
+            "/auth/telegram/finish",
+            &headers,
+            json!({"id":id})
+        )
+        .await
+        .status
+        .is_success());
+}
+#[tokio::test]
+async fn telegram_feature_is_disabled_without_bridge_configuration() {
+    let f = Fixture::new();
+    assert_eq!(
+        f.call(Method::GET, "/auth/bootstrap", &[], json!({}))
+            .await
+            .body["telegram_enabled"],
+        false
+    );
+    assert_eq!(
+        f.call(Method::POST, "/auth/telegram/start", &[], json!({}))
+            .await
+            .status,
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+}
+
+#[tokio::test]
+async fn native_session_shape_stays_compatible_and_cannot_manage_telegram_identity() {
+    let mut f = Fixture::telegram(true);
+    let token = f.login("native@example.invalid").await;
+    let reply = f
+        .call(Method::GET, "/session", &auth(&token), json!({}))
+        .await;
+    assert_eq!(reply.body["email"], "native@example.invalid");
+    assert!(reply.body.get("telegram_linked").is_none());
+    assert!(reply.body.get("telegram_enabled").is_none());
+    assert!(!f
+        .call(
+            Method::POST,
+            "/auth/telegram/unlink",
+            &auth(&token),
+            json!({})
+        )
+        .await
+        .status
+        .is_success());
 }

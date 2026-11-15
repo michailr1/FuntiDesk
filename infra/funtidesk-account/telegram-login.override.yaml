@@ -1,0 +1,7 @@
+# Optional overlay for ADR-026; key content is never part of configuration output.
+services:
+  account:
+    environment:
+      FUNTI_ACCOUNT_TELEGRAM_BRIDGE_KEY_FILE: /secrets/telegram-login.key
+    volumes:
+      - ${FUNTI_ACCOUNT_ROOT:-/opt/funtidesk-account}/secrets/telegram-login.key:/secrets/telegram-login.key:ro

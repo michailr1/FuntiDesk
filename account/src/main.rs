@@ -5,7 +5,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<()> {
     let command = std::env::args().nth(1).unwrap_or_default();
-    if !command.is_empty() && command != "initialize" {
+    if !command.is_empty() && command != "initialize" && command != "migrate" {
         bail!("unknown account command");
     }
     let config = Config::from_env()?;
@@ -17,12 +17,21 @@ async fn main() -> Result<()> {
     }
     let store = Store::open(&config.database, config.key)?;
     let (sender, receiver) = tokio::sync::mpsc::channel(20);
-    let app = App::new(
+    let mut app = App::new(
         store,
         sender,
         Arc::new(UnixRegistry(config.registry_socket)),
         config.trusted_proxies,
     );
+    if let Ok(path) = std::env::var("FUNTI_ACCOUNT_TELEGRAM_BRIDGE_KEY_FILE") {
+        app = app.with_telegram(funtidesk_account::config::read_key(std::path::Path::new(
+            &path,
+        ))?);
+    }
+    if command == "migrate" {
+        println!("ACCOUNT_SCHEMA_MIGRATED");
+        return Ok(());
+    }
     if command == "initialize" {
         println!("ACCOUNT_INITIALIZED");
         return Ok(());

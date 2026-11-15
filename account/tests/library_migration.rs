@@ -25,8 +25,8 @@ fn upgrade_keeps_existing_account_and_session_and_reopen_keeps_synchronized_list
     let mut store = Store::open(&path, [7; 32]).unwrap();
     let auth = store.authenticate(&token, false, now).unwrap().unwrap();
     assert_eq!(
-        store.session(&auth, now).unwrap().unwrap().email,
-        "person@example.invalid"
+        store.session(&auth, now).unwrap().unwrap().email.as_deref(),
+        Some("person@example.invalid")
     );
     assert!(store
         .library(&auth, now)
@@ -62,7 +62,7 @@ fn upgrade_keeps_existing_account_and_session_and_reopen_keeps_synchronized_list
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        6
     );
 }
 
@@ -134,7 +134,7 @@ fn removing_witness_preserves_v3_data_sessions_and_revocations_without_network()
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        6
     );
     assert_eq!(db.query_row("SELECT count(*) FROM sqlite_master WHERE name='recovery_state' OR (type='trigger' AND name LIKE 'recovery_%')", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
     assert_eq!(
@@ -190,7 +190,7 @@ fn v4_migration_preserves_deliveries_and_cancellation_survives_reopen() {
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        6
     );
     assert_eq!(
         db.query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
