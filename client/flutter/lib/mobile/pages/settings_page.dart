@@ -21,6 +21,7 @@ import '../widgets/deploy_dialog.dart';
 import '../../models/shortcut_model.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
+import 'funti_phone_setup.dart';
 import 'mobile_keyboard_shortcuts_page.dart';
 import 'scan_page.dart';
 
@@ -306,6 +307,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       ],
     ));
     final List<AbstractSettingsTile> enhancementsTiles = [];
+    // FUNTIDESK (ADR-026): every permission for the helper in one place.
+    if (isAndroid && !outgoingOnly) {
+      enhancementsTiles.add(SettingsTile(
+          title: Text(translate('funti-setup-title')),
+          leading: const Icon(Icons.volunteer_activism_outlined),
+          onPressed: (context) => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const FuntiPhoneSetupPage()))));
+    }
     final enable2fa = bind.mainHasValid2FaSync();
     final List<AbstractSettingsTile> tfaTiles = [
       SettingsTile.switchTile(

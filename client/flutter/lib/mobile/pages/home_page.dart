@@ -9,6 +9,7 @@ import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
 import 'connection_page.dart';
 import 'funti_workplace_mobile.dart';
+import 'funti_phone_setup.dart';
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -44,6 +45,10 @@ class HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     initPages();
+    // FUNTIDESK (ADR-026): prepare the phone once for the helper.
+    if (isAndroid && !bind.isOutgoingOnly()) {
+      funtiPhoneSetupOnFirstStart(context);
+    }
   }
 
   void initPages() {
