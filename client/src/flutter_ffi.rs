@@ -1946,14 +1946,14 @@ pub fn session_request_voice_call(session_id: SessionID) {
 /// password or family, never a prompt). State and answers come as the
 /// global "funti_service" event.
 pub fn main_funti_service_open(id: String) {
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[cfg(not(target_os = "ios"))]
     crate::funti_service::open(id);
 }
 
 /// FUNTIDESK (ADR-024): an administration request to a host with an open
 /// service connection.
 pub fn main_funti_service_request(id: String, request: String) {
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[cfg(not(target_os = "ios"))]
     crate::funti_service::request(&id, request);
 }
 
@@ -1971,7 +1971,7 @@ pub fn main_funti_save_logs(path: String) -> String {
 
 /// FUNTIDESK (ADR-024): close one service connection, or all with an empty id.
 pub fn main_funti_service_close(id: String) {
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[cfg(not(target_os = "ios"))]
     if id.is_empty() {
         crate::funti_service::close_all();
     } else {
