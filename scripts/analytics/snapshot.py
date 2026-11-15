@@ -33,7 +33,7 @@ def database(path):
 
 def account_metrics(path, now):
     with database(path) as db:
-        if db.execute('PRAGMA user_version').fetchone()[0] not in (4, 5):
+        if db.execute('PRAGMA user_version').fetchone()[0] not in (4, 5, 6):
             raise ValueError('unsupported account schema')
         scalar = lambda sql, args=(): db.execute(sql, args).fetchone()[0]
         result = {

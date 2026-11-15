@@ -8,6 +8,9 @@
   let challenge = '';
   let email = '';
   let busy = false;
+  let telegram = null;
+  let telegramTimer = null;
+  let telegramPolling = false;
   let library = null;
   const retryRequests = new Map();
 
@@ -57,12 +60,15 @@
   }
 
   function updateButtons() {
-    for (const button of document.querySelectorAll('main button')) button.disabled = busy;
-    $('send-code').disabled = busy || !loginCsrf;
+    for (const button of document.querySelectorAll('main button')) button.disabled = busy || (!!telegram && !['telegram-copy','telegram-cancel'].includes(button.id));
+    $('send-code').disabled = busy || !loginCsrf || !!telegram;
     document.querySelector('main').setAttribute('aria-busy', String(busy));
   }
 
   function errorText(error) {
+    if (error.code === 'invalid_telegram_challenge') return 'Код истёк, уже использован или Telegram связан с другим аккаунтом. Аккаунты автоматически не объединяются. Начните заново.';
+    if (error.code === 'telegram_unavailable') return 'Вход через Telegram временно недоступен. Можно войти по почте.';
+    if (error.code === 'email_required') return 'Сначала нужен другой способ входа. Аккаунт без почты нельзя оставить без Telegram.';
     if (error.code === 'wrong_origin') return 'Откройте кабинет по адресу https://desk.funti.cc/account/.';
     if (error.code === 'invalid_code') return 'Код неверный или больше не действует. Проверьте письмо или запросите новый код.';
     if (error.code === 'too_many_sessions') return 'Достигнут лимит 20 входов. Выйдите из кабинета на одном из устройств и повторите ввод кода.';
@@ -84,7 +90,7 @@
       if (error.status === 401) {
         clearAccount();
         try { await prepareLogin(); } catch { $('retry-login').hidden = false; }
-        message('Вход закончился. Войдите по почте ещё раз.', 'error');
+        message('Вход закончился. Войдите снова.', 'error');
       } else {
         message(errorText(error), 'error');
         if (!sessionCsrf && !loginCsrf) {
@@ -99,6 +105,7 @@
   }
 
   function clearAccount() {
+    cancelTelegram();
     sessionCsrf = '';
     loginCsrf = '';
     challenge = '';
@@ -121,6 +128,7 @@
     const data = await api('/auth/bootstrap');
     if (typeof data.csrf !== 'string' || !data.csrf) throw new ApiError(0, 'service_unavailable');
     loginCsrf = data.csrf;
+    $('telegram-login').hidden = data.telegram_enabled !== true;
     $('login').hidden = false;
     $('retry-login').hidden = true;
   }
@@ -301,6 +309,7 @@
   }
 
   async function showAccount() {
+    cancelTelegram();
     const session = await api('/session');
     if (typeof session.csrf !== 'string' || !session.csrf) throw new ApiError(0, 'service_unavailable');
     sessionCsrf = session.csrf;
@@ -310,7 +319,11 @@
     $('email').value = '';
     $('code').value = '';
     $('code-sent').textContent = '';
-    $('account-email').textContent = session.email;
+    $('account-email').textContent = session.email || 'Аккаунт Telegram';
+    $('telegram-account').hidden = session.telegram_enabled !== true;
+    $('telegram-account-state').textContent = session.telegram_linked ? 'Telegram привязан к этому аккаунту.' : 'После привязки вы сможете входить в этот же аккаунт через бота.';
+    $('telegram-link').hidden = session.telegram_linked === true;
+    $('telegram-unlink').hidden = session.telegram_linked !== true || !session.email;
     $('session-expiry').textContent = 'Вход действует до ' + date(session.expires_at);
     $('login').hidden = true;
     $('account').hidden = false;
@@ -389,6 +402,62 @@
       });
     });
   }
+
+  function cancelTelegram() {
+    if (telegramTimer) clearInterval(telegramTimer);
+    telegramTimer = null; telegram = null;
+    $('telegram-pending').hidden = true; $('telegram-code').textContent = '';
+  }
+  async function startTelegram(linking) {
+    cancelTelegram();
+    const csrf = linking ? sessionCsrf : loginCsrf;
+    const data = await api('/auth/telegram/' + (linking ? 'link' : 'start'), {}, csrf);
+    if (!/^[a-f0-9]{64}$/.test(data.id) || !/^[A-F0-9]{5}-[A-F0-9]{5}$/.test(data.code) || data.expires_in !== 300) throw new ApiError(0,'service_unavailable');
+    telegram = {id:data.id, code:data.code, linking, csrf, deadline:Date.now()+300000};
+    $('telegram-title').textContent = linking ? 'Подтвердите привязку Telegram' : 'Подтвердите вход в Telegram';
+    $('telegram-code').textContent = '/login ' + data.code;
+    $('telegram-pending').hidden = false;
+    telegramTimer = setInterval(checkTelegram,3000);
+    message('Ожидаем подтверждение в боте. После подтверждения вернитесь в эту вкладку.');
+  }
+  async function checkTelegram() {
+    const attempt = telegram;
+    if (!attempt || telegramPolling || busy) return;
+    if (Date.now() >= attempt.deadline) {cancelTelegram();updateButtons();message('Код Telegram истёк. Начните вход заново.');return;}
+    telegramPolling = true;
+    try {
+      const body = {id:attempt.id,linking:attempt.linking};
+      const state = await api('/auth/telegram/status',body,attempt.csrf);
+      if (telegram !== attempt) return;
+      if (state.status === 'expired') {cancelTelegram();updateButtons();message('Код Telegram истёк. Начните вход заново.');return;}
+      if (state.status === 'approved') {
+        clearInterval(telegramTimer);telegramTimer=null;
+        await run(async()=>{
+          try {await api('/auth/telegram/finish',body,attempt.csrf);} catch(error) {
+            if(error.status && error.status < 500)throw error;
+            try {const recovered=await api('/session');if(!recovered.telegram_linked)throw error;await showAccount();return;} catch {throw error;}
+          }
+          await showAccount();message(attempt.linking ? 'Telegram привязан. Оба способа входа открывают тот же аккаунт.' : 'Вы вошли через Telegram.');
+        });
+        cancelTelegram();updateButtons();
+      }
+    } catch(error) {if(telegram===attempt){cancelTelegram();updateButtons();message(errorText(error),'error');}}
+    finally {telegramPolling=false;}
+  }
+  $('telegram-start').onclick=()=>run(()=>startTelegram(false));
+  $('telegram-link').onclick=()=>run(()=>startTelegram(true));
+  $('telegram-cancel').onclick=()=>{cancelTelegram();updateButtons();message('Запрос отменён в этой вкладке.');};
+  $('telegram-copy').onclick=async()=>{
+    if(!telegram)return;
+    try {await navigator.clipboard.writeText('/login '+telegram.code);message('Команда скопирована. Отправьте её нашему боту.');}
+    catch {message('Выделите команду выше и скопируйте её вручную.');}
+  };
+  $('telegram-unlink').onclick=()=>{
+    if(!confirm('Отключить Telegram и завершить все входы в этот аккаунт? После этого войдите по почте.'))return;
+    run(async()=>{await api('/auth/telegram/unlink',{},sessionCsrf);clearAccount();await prepareLogin();message('Telegram отключён. Войдите по почте.');});
+  };
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkTelegram();});
+  window.addEventListener('pagehide',cancelTelegram);
 
   run(async () => {
     try { await showAccount(); } catch (error) {

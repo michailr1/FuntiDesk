@@ -8,14 +8,14 @@
     },
     {
       "file": "account/account.js",
-      "bytes": 18794,
-      "sha256": "5d07840294fe5a2669776615d9ea7de879aaac586be9207c1e99a2dd59973eb8",
+      "bytes": 23988,
+      "sha256": "e324e96b5ea96de6391cbf71d1b5a03e6b773435caa9ad487f7e8b9eb22d85c7",
       "content_type": "text/javascript"
     },
     {
       "file": "account/index.html",
-      "bytes": 6988,
-      "sha256": "f051e23c4fc093a22af62a7f91737260396bf14aef339514293eeaa15e4b8439",
+      "bytes": 8670,
+      "sha256": "942b9ff93e8cf689bded914d2b7ed6b379a59df4776997ae277c4c1fa088ebf2",
       "content_type": "text/html"
     },
     {
@@ -74,8 +74,8 @@
     },
     {
       "file": "en/index.html",
-      "bytes": 21564,
-      "sha256": "92d08f397204ae880b90af3150b044fd7ee0c8999ea75ca839de9039425e15ba",
+      "bytes": 21671,
+      "sha256": "d25aba42e1bd8d3177a5a50669765023b3accf4687b4c512af9c1e4cd64838ef",
       "content_type": "text/html"
     },
     {
@@ -152,8 +152,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 29434,
-      "sha256": "820544adce4953534d9fd91718c44adac102602d4b6843dd9ad2be9a8c8601bf",
+      "bytes": 29652,
+      "sha256": "ac616f2fcc3b7c7fb41dac587844dcfab57142f74b1b3cd016de56bd16b45e4b",
       "content_type": "text/html"
     },
     {

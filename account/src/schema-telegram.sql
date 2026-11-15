@@ -1,0 +1,10 @@
+BEGIN IMMEDIATE;
+CREATE TABLE accounts_v6(id TEXT PRIMARY KEY, email TEXT UNIQUE, created_at INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0);
+INSERT INTO accounts_v6 SELECT id,email,created_at,disabled FROM accounts;
+DROP TABLE accounts;
+ALTER TABLE accounts_v6 RENAME TO accounts;
+CREATE TABLE telegram_identities(subject_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL UNIQUE REFERENCES accounts(id), linked_at INTEGER NOT NULL);
+CREATE TABLE telegram_challenges(id TEXT PRIMARY KEY, scope_hash TEXT NOT NULL, code_hash TEXT NOT NULL UNIQUE, target_account TEXT REFERENCES accounts(id), session_hash TEXT, subject_hash TEXT, expires_at INTEGER NOT NULL, consumed INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX telegram_scope ON telegram_challenges(scope_hash);
+PRAGMA user_version=6;
+COMMIT;

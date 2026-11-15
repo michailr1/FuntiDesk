@@ -5,6 +5,7 @@ pub mod library;
 pub mod mail;
 pub mod registry;
 pub mod store;
+pub mod telegram;
 mod web;
 
 use anyhow::Result;
@@ -20,6 +21,7 @@ use tokio::sync::mpsc;
 pub struct App {
     pub(crate) store: Arc<Mutex<store::Store>>,
     pub(crate) key: [u8; 32],
+    pub(crate) telegram_bridge: Option<[u8; 32]>,
     pub(crate) mail: mpsc::Sender<mail::MailJob>,
     pub(crate) registry: Arc<dyn registry::KeyRegistry>,
     pub(crate) proxies: Arc<Vec<IpAddr>>,
@@ -38,6 +40,7 @@ impl App {
         Self {
             store: Arc::new(Mutex::new(store)),
             key,
+            telegram_bridge: None,
             mail,
             registry,
             proxies: Arc::new(proxies),
@@ -49,6 +52,11 @@ impl App {
             }),
             permits: Arc::new(tokio::sync::Semaphore::new(32)),
         }
+    }
+
+    pub fn with_telegram(mut self, key: [u8; 32]) -> Self {
+        self.telegram_bridge = Some(key);
+        self
     }
 
     pub fn with_clock(mut self, clock: Arc<dyn Fn() -> i64 + Send + Sync>) -> Self {

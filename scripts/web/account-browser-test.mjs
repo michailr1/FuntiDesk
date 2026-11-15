@@ -21,7 +21,8 @@ const lines=createInterface({input:fixture.stdout});
 const ready=JSON.parse(await new Promise(r=>lines.once('line',r)));
 const base='http://127.0.0.1:'+ready.proxy_port;
 await writeFile(join(dir,'account.key'),randomBytes(32).toString('hex'),{mode:0o600});
-const serviceEnv={...process.env,FUNTI_ACCOUNT_LISTEN:'127.0.0.1:'+backendPort,FUNTI_ACCOUNT_DATABASE:join(dir,'account.sqlite3'),FUNTI_ACCOUNT_KEY_FILE:join(dir,'account.key'),FUNTI_ACCOUNT_SMTP_HOST:'127.0.0.1',FUNTI_ACCOUNT_SMTP_PORT:String(ready.smtp_port),FUNTI_ACCOUNT_REGISTRY_SOCKET:join(dir,'registry.sock')};
+const telegramBridgeKey=randomBytes(32).toString('hex');await writeFile(join(dir,'telegram.key'),telegramBridgeKey,{mode:0o600});
+const serviceEnv={...process.env,FUNTI_ACCOUNT_TELEGRAM_BRIDGE_KEY_FILE:join(dir,'telegram.key'),FUNTI_ACCOUNT_LISTEN:'127.0.0.1:'+backendPort,FUNTI_ACCOUNT_DATABASE:join(dir,'account.sqlite3'),FUNTI_ACCOUNT_KEY_FILE:join(dir,'account.key'),FUNTI_ACCOUNT_SMTP_HOST:'127.0.0.1',FUNTI_ACCOUNT_SMTP_PORT:String(ready.smtp_port),FUNTI_ACCOUNT_REGISTRY_SOCKET:join(dir,'registry.sock')};
 const start=args=>spawn(binary,args,{env:serviceEnv,stdio:['ignore','ignore','inherit']});
 async function run(args){const child=start(args);const [code]=await once(child,'exit');assert.equal(code,0,'CLI '+args[0]+' failed');}
 let browser,service;
@@ -33,7 +34,7 @@ function key(){const pair=generateKeyPairSync('ed25519');return {...pair,pk:pair
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 function proof(n,pair){const message=n.action==='bind'?['funtidesk-account-v1','bind',n.account_id,n.funti_id,n.pk,n.nonce,n.expires_at]:['funtidesk-account-v1',n.action,n.account_id,n.device_id,n.funti_id,n.pk,n.payload_hash,n.nonce,n.expires_at];return sign(null,Buffer.from(message.join('\n')),pair.privateKey).toString('base64');}
 try{
-  await run(['initialize']);service=start([]);
+  await run(['initialize']);await run(['migrate']);service=start([]);
   for(let i=0;i<100;i++){try{assert.equal((await fetch(base+'/health')).status,200);break}catch{await sleep(50);if(i===99)throw Error('Service startup timeout')}}
   const address='family@example.invalid';
   const native={'x-funti-client':'native'};
@@ -135,6 +136,30 @@ try{
   const readsAfterLogout=libraryReads;await page.clock.fastForward(60000);assert.equal(libraryReads,readsAfterLogout);assert.equal(await page.locator('#favorites .row').count(),0);
   const invalidNative=await fetch(base+apiPath+'/session',{headers:native});assert.equal(invalidNative.status,401);
   await page.locator('#email').fill('another@example.invalid');await page.locator('#send-code').click();await page.locator('#code-form:not([hidden])').waitFor();await page.locator('#code').fill(await inbox('another@example.invalid'));await page.locator('#code-form button[type=submit]').click();await page.locator('#account:not([hidden])').waitFor();await page.locator('#logout:enabled').click();await page.locator('#send-code:enabled').waitFor();
+  // Telegram confirmations use the real local API, with a synthetic trusted bridge.
+  const confirmTelegram=async(telegramId)=>{
+    await page.waitForFunction(()=>/^\/login [A-F0-9]{5}-[A-F0-9]{5}$/.test(document.querySelector('#telegram-code').textContent));
+    const command=await page.locator('#telegram-code').textContent();
+    assert.match(command,/^\/login [A-F0-9]{5}-[A-F0-9]{5}$/);
+    const result=await request(apiPath+'/auth/telegram/approve',{code:command.slice(7),telegram_id:telegramId},{authorization:'Bearer '+telegramBridgeKey});
+    assert.equal(result.approved,true);await page.clock.fastForward(3500);
+    await page.locator('#telegram-pending').waitFor({state:'hidden'});
+    await page.locator('#account:not([hidden])').waitFor();
+  };
+  await page.locator('#telegram-start:enabled').click();await confirmTelegram(202);
+  assert.equal(await page.locator('#account-email').textContent(),'Аккаунт Telegram');
+  assert.equal(await page.locator('#telegram-unlink').isVisible(),false,'cannot remove the only sign-in method');
+  await page.locator('#logout:enabled').click();await page.locator('#send-code:enabled').waitFor();
+  await request('/test/advance-minute',{});
+  await page.locator('#email').fill('another@example.invalid');await page.locator('#send-code').click();await page.locator('#code-form:not([hidden])').waitFor();await page.locator('#code').fill(await inbox('another@example.invalid',1));await page.locator('#code-form button[type=submit]').click();await page.locator('#account:not([hidden])').waitFor();
+  const prior=await page.evaluate(async()=>await(await fetch('/api/account/v1/session')).json());
+  await page.locator('#telegram-link:enabled').click();await confirmTelegram(101);
+  const linked=await page.evaluate(async()=>await(await fetch('/api/account/v1/session')).json());assert.equal(linked.account_id,prior.account_id);assert.equal(linked.telegram_linked,true);
+  await page.locator('#logout:enabled').click();await page.locator('#telegram-start:enabled').click();await confirmTelegram(101);
+  assert.equal(await page.locator('#account-email').textContent(),'another@example.invalid');
+  acceptDialogs=true;await page.locator('#telegram-unlink:enabled').click();await page.locator('#send-code:enabled').waitFor();
+  assert.equal(await page.locator('#telegram-pending').isVisible(),false);
+  assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
   bootstrapDown=true;await page.reload();await page.locator('#retry-login:not([hidden])').waitFor();assert.equal(await page.locator('#send-code').isDisabled(),true);
   bootstrapDown=false;await page.locator('#retry-login').click();await page.locator('#send-code:enabled').waitFor();
   assert.deepEqual(errors,[]);
