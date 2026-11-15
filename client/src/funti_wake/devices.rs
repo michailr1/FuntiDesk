@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn seen_computers_follow_kept_ones_without_repeats() {
         let seen = [
-            Seen { id: "111".into(), hostname: "MINIPC".into(), macs: vec!["aa:bb:0c:1d:2e:ff".into(), "".into()] },
+            Seen { id: "111".into(), hostname: "PC-1".into(), macs: vec!["aa:bb:0c:1d:2e:ff".into(), "".into()] },
             Seen { id: "222".into(), hostname: "LAPTOP".into(), macs: vec!["01:02:03:04:05:06".into()] },
             Seen { id: "333".into(), hostname: "NOMAC".into(), macs: vec![] },
         ];
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["saved"], true);
         assert_eq!(rows[1]["id"], "111");
-        assert_eq!(rows[1]["name"], "MINIPC");
+        assert_eq!(rows[1]["name"], "PC-1");
         assert_eq!(rows[1]["mac"], "AA:BB:0C:1D:2E:FF");
         assert!(known(&seen, "111") && known(&seen, "222"));
         assert!(!known(&seen, "333") && !known(&seen, "444"));
