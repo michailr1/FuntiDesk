@@ -1,21 +1,22 @@
+import {t, language} from './i18n.js';
 import {Files} from './files.js';
 import {LIMIT, fileSize, fileName, joinPath} from './file-codec.js';
 import {errorText} from './session.js';
 import {LocalFiles} from './local-files.js';
 const $ = id => document.getElementById(id);
-const collator = new Intl.Collator('ru', {numeric:true, sensitivity:'base'});
+const collators = Object.fromEntries(['ru','en'].map(locale=>[locale,new Intl.Collator(locale,{numeric:true,sensitivity:'base'})]));
 const directory = e => [0,2,3].includes(e.entry_type || 0);
 export function displayEntries(entries, query = '', sort = 'name') {
-  const text = query.trim().toLocaleLowerCase('ru');
-  return entries.filter(e => e.name.toLocaleLowerCase('ru').includes(text)).sort((a,b) =>
+  const text = query.trim().toLocaleLowerCase(language);
+  return entries.filter(e => e.name.toLocaleLowerCase(language).includes(text)).sort((a,b) =>
     Number(directory(b)) - Number(directory(a)) ||
     (sort === 'size' && !directory(a) ? (b.size || 0) - (a.size || 0) : sort === 'date' ? (b.modified_time || 0) - (a.modified_time || 0) : 0) ||
-    (sort === 'reverse' ? -1 : 1) * collator.compare(a.name,b.name));
+    (sort === 'reverse' ? -1 : 1) * collators[language].compare(a.name,b.name));
 }
 export function displaySize(value = 0) {
-  if (!Number.isSafeInteger(value) || value < 0) return 'Размер неизвестен';
+  if (!Number.isSafeInteger(value) || value < 0) return t('Размер неизвестен');
   const unit = value >= 1048576 ? 2 : value >= 1024 ? 1 : 0;
-  return new Intl.NumberFormat('ru', {maximumFractionDigits:1}).format(value / 1024 ** unit) + ' ' + ['Б','КБ','МБ'][unit];
+  return new Intl.NumberFormat(language, {maximumFractionDigits:1}).format(value / 1024 ** unit) + ' ' + [t('Б'),t('КБ'),t('МБ')][unit];
 }
 function text(tag, value, className) { const node = document.createElement(tag); node.textContent = value; if(className)node.className = className; return node; }
 function icon(type) {
@@ -24,7 +25,7 @@ function icon(type) {
   path.setAttribute('d', type === 3 ? 'M3 5h18v14H3z M6 15h2 M17 15h1' : directory({entry_type:type}) ? 'M3 7V4h6l3 3h9v13H3z' : 'M14 3H5v18h14V8z M14 3v6h5');
   svg.append(path); return svg;
 }
-const messages = {local_limit:'Выберите не больше 10 000 файлов.',file_size:'Один файл — не больше 50 МБ.',file_name:'Выберите другое имя файла без служебных символов.',file_exists:'Файл с таким именем уже есть. Укажите другое имя: перезапись не выполнялась.',files_denied:'Компьютер не разрешил файловый сеанс. Проверьте пароль и право передачи файлов.',file_directory:'Не удалось открыть папку. Проверьте путь и права доступа.',file_busy:'Дождитесь завершения или отмените текущую передачу.',file_remote:'Компьютер отклонил передачу. Проверьте имя, папку и права доступа.',file_block:'Компьютер прислал некорректные данные файла.',file_compression:'Не удалось проверить сжатый блок файла.',file_path:'Откройте папку для отправки файла.'};
+const messages = {local_limit:t('Выберите не больше 10 000 файлов.'),file_size:t('Один файл — не больше 50 МБ.'),file_name:t('Выберите другое имя файла без служебных символов.'),file_exists:t('Файл с таким именем уже есть. Укажите другое имя: перезапись не выполнялась.'),files_denied:t('Компьютер не разрешил файловый сеанс. Проверьте пароль и право передачи файлов.'),file_directory:t('Не удалось открыть папку. Проверьте путь и права доступа.'),file_busy:t('Дождитесь завершения или отмените текущую передачу.'),file_remote:t('Компьютер отклонил передачу. Проверьте имя, папку и права доступа.'),file_block:t('Компьютер прислал некорректные данные файла.'),file_compression:t('Не удалось проверить сжатый блок файла.'),file_path:t('Откройте папку для отправки файла.')};
 export class FilePanel {
   constructor(session, beforeOpen = () => {}, beforeDirect = () => {}) {
     this.session = session; this.beforeOpen = beforeOpen; this.dialog = $('files-dialog');
@@ -81,7 +82,7 @@ export class FilePanel {
     this.activeSide = side; this.dialog.dataset.side = side;
     for(const value of ['local','remote']) {const button = $('files-tab-'+value);button.setAttribute('aria-selected',String(value === side));button.tabIndex = value === side ? 0 : -1;}
   }
-  message(text) { const node = $(this.client?.connected ? 'files-status' : 'files-login-status'); if(node.textContent !== text)node.textContent = text; }
+  message(text) { const node = $(this.client?.connected ? 'files-status' : 'files-login-status'); if(node.textContent !== text)node.textContent = t(text); }
   error(error) { this.message(messages[error.message] || errorText(error.message)); }
   act(action) { try { action(); } catch(error) { this.error(error); } }
   sync() {
@@ -94,7 +95,7 @@ export class FilePanel {
     if (!standalone && (!s?.connected || !s.filesAllowed)) return;
     this.close(); this.owner = s; this.standalone = standalone; this.beforeOpen(); this.connecting = false;
     $('files-id').value = s.id; $('files-password').value = '';
-    $('files-computer').textContent = 'Компьютер ' + s.id;
+    $('files-computer').textContent = t('Компьютер ') + s.id;
     this.side('remote');
     $('files-pick').value = ''; $('files-name').value = ''; $('files-path').value = '';
     this.render(); this.dialog.showModal(); if(!standalone)$('files-password').focus();
@@ -125,17 +126,17 @@ export class FilePanel {
       for(const entry of displayEntries(local.entries,$('files-local-search').value)) {
         const row = document.createElement('li'), button = text('button','','files-row' + (directory(entry) ? ' files-directory' : ''));
         button.type = 'button'; button.disabled = busy || local.busy || (!directory(entry) && entry.size > LIMIT);
-        button.setAttribute('aria-label',`${directory(entry) ? 'Открыть локальную папку' : 'Выбрать локальный файл'} ${entry.name}`);
+        button.setAttribute('aria-label',`${directory(entry) ? t('Открыть локальную папку') : t('Выбрать локальный файл')} ${entry.name}`);
         if(!directory(entry))button.setAttribute('aria-pressed',String(entry.file === selected));
-        const label = text('span','','files-label');label.append(text('span',entry.name,'files-name'),text('small',directory(entry) ? 'Папка' : entry.size > LIMIT ? 'Больше 50 МБ' : displaySize(entry.size)));
+        const label = text('span','','files-label');label.append(text('span',entry.name,'files-name'),text('small',directory(entry) ? t('Папка') : entry.size > LIMIT ? t('Больше 50 МБ') : displaySize(entry.size)));
         button.append(icon(entry.entry_type),label,text('span',directory(entry) ? '›' : entry.file === selected ? '✓' : '', 'files-row-action'));
         button.onclick = () => this.local.choose(entry); row.append(button);list.append(row);
       }
       this.localEntries = local.entries; this.localSelected = selected; this.localBusy = busy || local.busy;
     }
     $('files-local-empty').hidden = $('files-local-list').childElementCount > 0 && !local.error && !local.busy;
-    $('files-local-empty').textContent = local.busy ? 'Открываем папку…' : local.error === 'local_access' ? 'Не удалось прочитать папку. Выберите её заново или выберите файлы.' : local.error === 'local_limit' ? 'Слишком много файлов: выберите папку поменьше.' : $('files-local-search').value ? 'Ничего не найдено' : 'Выберите файлы для отправки.';
-    $('files-local-path').textContent = local.stack.map(h=>h.name).join(' / ') || 'Выбранные файлы';
+    $('files-local-empty').textContent = local.busy ? t('Открываем папку…') : local.error === 'local_access' ? t('Не удалось прочитать папку. Выберите её заново или выберите файлы.') : local.error === 'local_limit' ? t('Слишком много файлов: выберите папку поменьше.') : $('files-local-search').value ? t('Ничего не найдено') : t('Выберите файлы для отправки.');
+    $('files-local-path').textContent = local.stack.map(h=>h.name).join(' / ') || t('Выбранные файлы');
     $('files-local-up').disabled = busy || local.busy || local.stack.length < 2;
     for(const id of ['files-choose','files-local-folder'])$(id).disabled = busy || local.busy;
   }
@@ -153,22 +154,22 @@ export class FilePanel {
       button.onclick = () => this.act(() => this.client.list(target));
       if(i)nav.append(text('span','›')); nav.append(button);
     });
-    if(!parts.length)nav.append(text('span','Диски компьютера'));
+    if(!parts.length)nav.append(text('span',t('Диски компьютера')));
     nav.scrollLeft = nav.scrollWidth;
   }
   renderList(c, busy) {
     const list = $('files-list'), scroll = $('files-scroll'); list.replaceChildren();
     const entries = displayEntries(c.entries || [],$('files-search').value,$('files-sort').value); let previous;
     for (const entry of entries) {
-      const type = entry.entry_type || 0, group = directory(entry) ? 'Папки' : 'Файлы';
+      const type = entry.entry_type || 0, group = directory(entry) ? t('Папки') : t('Файлы');
       if(group !== previous) {list.append(text('li',group,'files-group'));previous = group;}
       const row = document.createElement('li'), button = document.createElement('button'); button.type = 'button';
       const unsupported = ![0,3,4].includes(type), large = type === 4 && (!Number.isSafeInteger(entry.size || 0) || entry.size < 0 || entry.size > LIMIT);
       button.className = directory(entry) ? 'files-row files-directory' : 'files-row'; button.disabled = busy || unsupported || large;
-      const label = text('span','','files-label'); label.append(text('span',entry.name,'files-name'),text('small',unsupported ? 'Ссылка · недоступна' : large ? 'Больше 50 МБ · недоступен' : type === 3 ? 'Диск' : type === 0 ? 'Папка' : displaySize(entry.size)));
+      const label = text('span','','files-label'); label.append(text('span',entry.name,'files-name'),text('small',unsupported ? t('Ссылка · недоступна') : large ? t('Больше 50 МБ · недоступен') : type === 3 ? t('Диск') : type === 0 ? t('Папка') : displaySize(entry.size)));
       button.append(icon(type),label,text('span',directory(entry) ? '›' : entry === this.remote ? '✓' : '', 'files-row-action'));
       if(type === 4)button.setAttribute('aria-pressed',String(entry === this.remote));
-      button.setAttribute('aria-label',`${directory(entry) ? 'Открыть папку' : 'Выбрать удалённый файл'} ${entry.name}${large ? ': больше 50 МБ' : unsupported ? ': недоступно' : ''}`);
+      button.setAttribute('aria-label',`${directory(entry) ? t('Открыть папку') : t('Выбрать удалённый файл')} ${entry.name}${large ? t(': больше 50 МБ') : unsupported ? t(': недоступно') : ''}`);
       button.onclick = () => this.act(() => {
         if(type === 4) {this.remote = entry;this.remotePath = c.path;this.render();}
         else c.list(type === 3 ? entry.name + '\\' : joinPath(c.path,entry.name));
@@ -176,7 +177,7 @@ export class FilePanel {
       row.append(button); list.append(row);
     }
     $('files-empty').hidden = entries.length > 0 || busy;
-    $('files-empty').textContent = $('files-search').value.trim() ? 'Ничего не найдено в этой папке' : 'Папка пуста';
+    $('files-empty').textContent = $('files-search').value.trim() ? t('Ничего не найдено в этой папке') : t('Папка пуста');
     if(this.entries !== c.entries || this.query !== $('files-search').value)scroll.scrollTop = 0;
     this.query = $('files-search').value;
   }
@@ -185,7 +186,7 @@ export class FilePanel {
     $('files-login').hidden = connected || this.connecting; $('files-browser').hidden = !connected;
     $('files-login-status').hidden = connected;
     $('files-login-button').disabled = this.connecting; $('files-password').disabled = this.connecting;
-    if (!connected) { this.release(); this.message(this.connecting ? 'Проверяем пароль и разрешение на компьютере…' : c?.error ? (messages[c.error] || errorText(c.error)) : 'Введите пароль компьютера для файлового сеанса.'); return; }
+    if (!connected) { this.release(); this.message(this.connecting ? t('Проверяем пароль и разрешение на компьютере…') : c?.error ? (messages[c.error] || errorText(c.error)) : t('Введите пароль компьютера для файлового сеанса.')); return; }
     for (const id of ['files-home','files-drives','files-up','files-refresh','files-path','files-folder-go','files-pick','files-name','files-unpick']) $(id).disabled = busy;
     if(this.path !== c.path || (this.remote && !c.entries?.includes(this.remote))) {this.remote = null;this.entries = null;}
     if(this.path !== c.path) {this.path = c.path;$('files-search').value = '';$('files-location').open = false;}
@@ -194,14 +195,14 @@ export class FilePanel {
     $('files-rename').hidden = !picked; $('files-unpick').hidden = !picked;
     $('files-send').disabled = busy || this.local.busy || !picked || picked.size > LIMIT || !c.path;
     $('files-download').disabled = busy || !this.remote;
-    $('files-remote-picked').textContent = this.remote?.name || 'Выберите удалённый файл';
-    $('files-upload-target').textContent = c.path ? `Отправить в ${c.path}` : 'Откройте папку на удалённом компьютере';
-    $('files-picked-name').textContent = picked?.name || 'Выберите локальный файл'; $('files-picked-size').textContent = picked ? displaySize(picked.size) : '';
+    $('files-remote-picked').textContent = this.remote?.name || t('Выберите удалённый файл');
+    $('files-upload-target').textContent = c.path ? t('Отправить в {path}',{path:c.path}) : t('Откройте папку на удалённом компьютере');
+    $('files-picked-name').textContent = picked?.name || t('Выберите локальный файл'); $('files-picked-size').textContent = picked ? displaySize(picked.size) : '';
     this.renderLocal(busy);
     $('files-path').value = c.path || ''; $('files-cancel').hidden = !c.job;
     $('files-progress').hidden = !c.job; $('files-progress').max = c.job?.size || 1; $('files-progress').value = c.job?.bytes || 0;
-    const progress = c.job ? `${c.job.type === 'upload' ? 'Отправка' : 'Скачивание'} ${c.job.name}: ${displaySize(c.job.bytes)} из ${displaySize(c.job.size)}${c.job.awaitingDone ? '. Ждём подтверждения.' : ''}` : '';
-    this.message(c.error ? messages[c.error] || errorText(c.error) : progress || (c.listing ? 'Открываем папку…' : c.result?.type === 'upload' ? 'Файл передан на компьютер.' : c.blob ? `Получен ${c.result.name}. Сохраните на устройство.` : 'Выберите файл на нужной стороне и направление передачи.'));
+    const progress = c.job ? t('{direction} {name}: {done} из {size}{waiting}',{direction:t(c.job.type === 'upload' ? 'Отправка' : 'Скачивание'),name:c.job.name,done:displaySize(c.job.bytes),size:displaySize(c.job.size),waiting:c.job.awaitingDone?t('. Ждём подтверждения.'):''}) : '';
+    this.message(c.error ? messages[c.error] || errorText(c.error) : progress || (c.listing ? t('Открываем папку…') : c.result?.type === 'upload' ? t('Файл передан на компьютер.') : c.blob ? t('Получен {name}. Сохраните на устройство.',{name:c.result.name}) : t('Выберите файл на нужной стороне и направление передачи.')));
     if (this.entries !== c.entries || this.busy !== busy || this.selection !== this.remote) {
       this.breadcrumbs(c.path || ''); this.renderList(c,busy); this.entries = c.entries; this.busy = busy; this.selection = this.remote;
     }

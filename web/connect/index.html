@@ -12,11 +12,11 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/connect/apple-touch-icon.png">
   <link rel="manifest" href="/connect/app.webmanifest">
   <link rel="stylesheet" href="/account/account.css">
-  <link rel="stylesheet" href="/connect/session.css">
-  <script type="module" src="/connect/session.js"></script>
+  <link rel="stylesheet" href="/connect/session.css?v=d39816c9d240">
+  <script type="module" src="/connect/session.js?v=eec199a99223"></script>
 </head>
 <body>
-  <header class="site-header"><a class="brand" href="/"><img src="/mark.svg" width="32" height="32" alt="">FuntiDesk</a><a href="/account/">Личный кабинет</a></header>
+  <header class="site-header"><a class="brand" href="/"><img src="/mark.svg" width="32" height="32" alt="">FuntiDesk</a><a href="/account/">Личный кабинет</a><label class="console-language"><span>Язык</span><select id="console-language" data-console-language aria-label="Язык интерфейса"><option value="ru">RU</option><option value="en">EN</option></select></label></header>
   <main>
     <h1>Подключиться к компьютеру</h1>
     <p class="lead">Временный или постоянный пароль проверяет FuntiDesk на компьютере.</p>
@@ -41,7 +41,7 @@
       <div><button id="phone-fit" type="button">По размеру экрана</button><button id="phone-actual" type="button">1:1</button></div>
       <label>Масштаб <input id="phone-zoom" type="range" min="1" max="400" step="1" value="100"></label>
       <label>Качество <select id="phone-quality"><option value="2">Быстрее</option><option value="3" selected>Сбалансированное</option><option value="4">Лучшее</option></select></label>
-      <button id="phone-files" type="button" hidden>Файлы</button><button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button>
+      <button id="phone-files" type="button" hidden>Файлы</button><button id="phone-help" type="button">Подсказка жестов</button><button id="phone-cad" type="button">Ctrl+Alt+Del…</button><button id="phone-end" type="button">Завершить</button><label>Язык <select id="phone-language" data-console-language aria-label="Язык интерфейса"><option value="ru">RU</option><option value="en">EN</option></select></label>
     </section>
     <section id="phone-keys" hidden aria-label="Клавиши компьютера">
       <div id="phone-input-row"><textarea id="phone-text" rows="1" aria-label="Текст для компьютера" placeholder="Текст для компьютера" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><button id="phone-keys-close" type="button">Скрыть</button></div>
