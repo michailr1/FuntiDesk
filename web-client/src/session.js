@@ -1,3 +1,4 @@
+import {t, language} from './i18n.js';
 import { Socket } from './socket.js';
 import { ready, wire, rendezvous, SERVER_KEY, handshake, passwordProof, wipe } from './protocol.js';
 
@@ -17,7 +18,7 @@ export class Session {
     if (!capability.supported || this.closed) throw new Error('unsupported_browser');
     this.decoder = new VideoDecoder({ output: (frame) => this.draw(frame), error: () => this.fail('video_error') });
     this.decoder.configure({ codec: 'vp09.00.10.08', optimizeForLatency: true });
-    this.onState('Соединяемся с компьютером…');
+    this.onState(t('Соединяемся с компьютером…'));
     const signal = new Socket(ORIGIN + '/ws/rendezvous', rendezvous); this.sockets.push(signal);
     await signal.opened;
     signal.send({ punch_hole_request: { id, licence_key: SERVER_KEY, conn_type: 0, nat_type: 2, force_relay: true, version: '1.5.0' } });
@@ -46,7 +47,7 @@ export class Session {
           disable_camera: 2, supported_decoding: { ability_vp9: 1, prefer: 1 }, custom_fps: 30 },
       } });
     } finally { wipe(proof); }
-    this.onState('Проверяем пароль и разрешения на компьютере…');
+    this.onState(t('Проверяем пароль и разрешения на компьютере…'));
     while (!this.closed) {
       const message = await socket.next(120000);
       if (message.hash) throw new Error('authentication_failed');
@@ -59,13 +60,13 @@ export class Session {
         if (this.keyboard === null) this.keyboard = true;
         if (this.filesAllowed === null) this.filesAllowed = true;
         this.connected = true;
-        this.onState('Подключено. Нажмите на экран для управления.', true);
+        this.onState(t('Подключено. Нажмите на экран для управления.'), true);
       }
       if (message.cursor_position) this.onCursor?.(message.cursor_position);
       if (message.test_delay && !message.test_delay.from_client) socket.send({ test_delay: message.test_delay });
       if (message.misc?.permission_info && (message.misc.permission_info.permission || 0) === 0) {
         this.keyboard = message.misc.permission_info.enabled === true;
-        if (!this.keyboard) this.onState('Компьютер разрешил только просмотр.', true);
+        if (!this.keyboard) this.onState(t('Компьютер разрешил только просмотр.'), true);
       }
       if (message.misc?.permission_info?.permission === 4) { this.filesAllowed = message.misc.permission_info.enabled === true; this.onFilePermission?.(); }
       if (message.misc?.close_reason) throw new Error('remote_closed');
@@ -117,17 +118,17 @@ export class Session {
   }
 }
 export function errorText(code) {
-  return ({ recovery_missing: 'Данные для восстановления отсутствуют. Введите пароль компьютера ещё раз.',
-    recovery_storage_unavailable: 'Хранилище вкладки недоступно. Для восстановления разрешите хранение данных сайта в настройках браузера или введите пароль ещё раз.',
-    recovery_navigation_unavailable: 'Браузер не сообщил об обновлении страницы. Введите пароль компьютера ещё раз.',
-    recovery_page_restored: 'Браузер вернул закрытую страницу сеанса. Подключитесь к компьютеру ещё раз.',
-    recovery_expired: 'Время восстановления истекло. Введите пароль компьютера ещё раз.',
-    recovery_unavailable: 'Данные доступа изменились. Введите пароль компьютера ещё раз.', unsupported_browser: 'Нужен браузер с поддержкой WebCodecs VP9. Обновите Safari или Chrome и повторите попытку.',
-    invalid_credentials: 'Введите ID и временный или постоянный пароль компьютера.',
-    computer_unavailable: 'Компьютер недоступен. Проверьте ID и запущен ли FuntiDesk.',
-    authentication_failed: 'Компьютер отклонил вход. Проверьте пароль и разрешения на компьютере.',
-    client_update_required: 'Для безопасного веб-подключения обновите FuntiDesk на компьютере.',
-    remote_closed: 'Компьютер завершил сеанс.', invalid_identity: 'Не удалось проверить ключ компьютера. Подключение остановлено.',
-    invalid_handshake: 'Не удалось установить защищённое соединение.',
-  })[code] || 'Соединение завершено или недоступно. Для новой попытки введите пароль ещё раз.';
+  return ({ recovery_missing: t('Данные для восстановления отсутствуют. Введите пароль компьютера ещё раз.'),
+    recovery_storage_unavailable: t('Хранилище вкладки недоступно. Для восстановления разрешите хранение данных сайта в настройках браузера или введите пароль ещё раз.'),
+    recovery_navigation_unavailable: t('Браузер не сообщил об обновлении страницы. Введите пароль компьютера ещё раз.'),
+    recovery_page_restored: t('Браузер вернул закрытую страницу сеанса. Подключитесь к компьютеру ещё раз.'),
+    recovery_expired: t('Время восстановления истекло. Введите пароль компьютера ещё раз.'),
+    recovery_unavailable: t('Данные доступа изменились. Введите пароль компьютера ещё раз.'), unsupported_browser: t('Нужен браузер с поддержкой WebCodecs VP9. Обновите Safari или Chrome и повторите попытку.'),
+    invalid_credentials: t('Введите ID и временный или постоянный пароль компьютера.'),
+    computer_unavailable: t('Компьютер недоступен. Проверьте ID и запущен ли FuntiDesk.'),
+    authentication_failed: t('Компьютер отклонил вход. Проверьте пароль и разрешения на компьютере.'),
+    client_update_required: t('Для безопасного веб-подключения обновите FuntiDesk на компьютере.'),
+    remote_closed: t('Компьютер завершил сеанс.'), invalid_identity: t('Не удалось проверить ключ компьютера. Подключение остановлено.'),
+    invalid_handshake: t('Не удалось установить защищённое соединение.'),
+  })[code] || t('Соединение завершено или недоступно. Для новой попытки введите пароль ещё раз.');
 }

@@ -87,15 +87,15 @@ try{
       await supportTrigger.click();await page.locator('#hero').click({position:{x:5,y:5}});
       assert.equal(await support.getAttribute('open'),null);
       // Exercise every product image, including the collapsed process screenshot.
-      await page.locator('.screenshot-detail').evaluate(el=>el.open=true);
+      await page.locator('.screenshot-detail').evaluateAll(elements=>elements.forEach(el=>el.open=true));
       for(const image of await page.locator('.product-shot img').all()){
         await image.scrollIntoViewIfNeeded();
         await image.evaluate(img=>img.decode());
         assert.ok(await image.evaluate(img=>img.naturalWidth>0),'broken product screenshot');
       }
-      assert.equal(await page.locator('.product-shot img').count(),5);
+      assert.equal(await page.locator('.product-shot img').count(),8);
       assert.equal(await page.locator('#download a[href*="funtidesk-linux-"]').count(),1);
-      await page.locator('.screenshot-detail').evaluate(el=>el.open=false);
+      await page.locator('.screenshot-detail').evaluateAll(elements=>elements.forEach(el=>el.open=false));
       await page.locator('#hero').scrollIntoViewIfNeeded();
       if(process.env.FUNTI_WEB_SCREENSHOTS){await mkdir(process.env.FUNTI_WEB_SCREENSHOTS,{recursive:true});await page.screenshot({path:path.join(process.env.FUNTI_WEB_SCREENSHOTS,'landing-'+width+'.png'),fullPage:true});}
       const anchors=await page.locator('a[href^="#"]').evaluateAll(a=>a.map(v=>v.hash.slice(1)));

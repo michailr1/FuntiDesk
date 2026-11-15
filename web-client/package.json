@@ -9,7 +9,8 @@
     "test": "node --test test/*.test.mjs",
     "test:browser": "node test/browser.mjs",
     "test:landing": "node test/landing.mjs",
-    "test:files": "node test/files-browser.mjs"
+    "test:files": "node test/files-browser.mjs",
+    "test:locale": "node test/locale-browser.mjs"
   },
   "dependencies": {
     "fzstd": "0.1.1",

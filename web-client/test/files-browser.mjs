@@ -17,7 +17,7 @@ const bundle=await build({stdin:{contents:"import {Files} from './src/files.js';
 const production=await build({entryPoints:[root+'src/main.js'],bundle:true,write:false,format:'esm',target:'chrome120',plugins:[{name:'test-pin',setup(b){b.onLoad({filter:/\/protocol\.js$/},async a=>({contents:(await readFile(a.path,'utf8')).replace(SERVER_KEY,pin),loader:'js'}));}}]});
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
 try{for(const scenario of ['valid','wrong-password','wrong-key','revoked','direct','direct-denied','direct-identity','direct-host-identity']){
- const direct=scenario.startsWith('direct');const page=await browser.newPage(direct?{viewport:{width:390,height:700},isMobile:true,hasTouch:true}:{});const errors=[];let signals=0,logins=0;
+ const direct=scenario.startsWith('direct');const page=await browser.newPage(direct?{viewport:{width:390,height:700},isMobile:true,hasTouch:true,locale:'ru-RU'}:{locale:'ru-RU'});const errors=[];let signals=0,logins=0;
  if(direct)await page.addInitScript(()=>{Object.defineProperty(window,'VideoDecoder',{value:undefined,configurable:true});Object.defineProperty(window,'EncodedVideoChunk',{value:undefined,configurable:true});});let proofSent=false,cancelled=false,received=[],send,job,hold=false,writes=0,reads=0,uiMode=false;
  const listing=()=>uiMode ? [{name:'zebra.txt',entry_type:4,size:20},{name:'Folder10',entry_type:0},{name:'data.txt',entry_type:4,size:4096},{name:'Folder2',entry_type:0},{name:'Photos',entry_type:0},{name:'Report10.txt',entry_type:4,size:10},{name:'Report2.txt',entry_type:4,size:2},{name:'big.zip',entry_type:4,size:60*1024*1024}] : [{name:'data.txt',entry_type:4,size:4096}];
  page.on('pageerror',e=>errors.push(e.message));
@@ -59,6 +59,12 @@ try{for(const scenario of ['valid','wrong-password','wrong-key','revoked','direc
    await page.getByRole('button',{name:'Выбрать удалённый файл data.txt',exact:true}).waitFor();
    assert.equal(signals,1);assert.equal(logins,1,'only one files login, no screen login');assert.equal(await page.evaluate(()=>typeof VideoDecoder),'undefined');
    assert.equal(await page.locator('#password').inputValue(),'');assert.equal(await page.locator('#files-password').inputValue(),'');assert.equal(await page.locator('#files-login').isVisible(),false);
+   const beforeLanguageLogins=logins;
+   await page.evaluate(()=>{const select=document.getElementById('console-language');select.value='en';select.dispatchEvent(new Event('change',{bubbles:true}));});
+   await page.getByRole('button',{name:'Choose remote file data.txt',exact:true}).waitFor();
+   assert.equal(await page.locator('#files-id').inputValue(),id);assert.equal(logins,beforeLanguageLogins,'language change must preserve the file session');
+   assert.deepEqual(await page.locator('#files-list .files-name').allTextContents(),['data.txt']);
+   await page.evaluate(()=>{const select=document.getElementById('console-language');select.value='ru';select.dispatchEvent(new Event('change',{bubbles:true}));localStorage.removeItem('funtidesk-site-language');});
    await page.getByRole('button',{name:'Выбрать удалённый файл data.txt',exact:true}).click();await page.locator('#files-download').click();await page.locator('#files-save').waitFor({state:'visible'});
    await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));assert.equal(await page.locator('#files-dialog').evaluate(d=>d.open),false);
    assert.deepEqual(await page.evaluate(()=>Object.keys(sessionStorage)),[]);assert.equal(await page.locator('#connect').isEnabled(),true);

@@ -32,8 +32,8 @@
     },
     {
       "file": "connect/app.webmanifest",
-      "bytes": 397,
-      "sha256": "11b606b4508da0bcbe3c7c06fb7ff3916d8827b78f5ca501bad80de40e2888ff",
+      "bytes": 370,
+      "sha256": "6fe1675314e42077acc4f2a3e67b8714ea2e630e40625fa757b1b9fb56dccd6f",
       "content_type": "application/manifest+json"
     },
     {
@@ -44,8 +44,8 @@
     },
     {
       "file": "connect/index.html",
-      "bytes": 12568,
-      "sha256": "db4d210adde5b9271b1635078656d3d5c8c02f7d16c9ea2874bda10dfc5babc2",
+      "bytes": 13009,
+      "sha256": "196922fae4101fff19b5cae238197a8ab0aeb572b83560a591b28b9bcbf5582d",
       "content_type": "text/html"
     },
     {
@@ -56,14 +56,14 @@
     },
     {
       "file": "connect/session.css",
-      "bytes": 11850,
-      "sha256": "91193eb500f011efa418f79018fa04d6bb59e5fb7833eba721409253244ac766",
+      "bytes": 12202,
+      "sha256": "d39816c9d2407f5722068c4d60bd6848c7b5e7d14f3f52a196cf7604f57279bd",
       "content_type": "text/css"
     },
     {
       "file": "connect/session.js",
-      "bytes": 1150966,
-      "sha256": "a2ef7514669f5658f5fa41f3e87257ce7dd3340ee7a2961b474c5291c64a2b9e",
+      "bytes": 1183257,
+      "sha256": "eec199a992230767bd75d04899a12446a77b6b39ec425f3ea921df894e7c7ab6",
       "content_type": "text/javascript"
     },
     {
@@ -74,8 +74,8 @@
     },
     {
       "file": "en/index.html",
-      "bytes": 19426,
-      "sha256": "678b4dfdee227f8b341b942cebdb8e22dc87f8e73b9484a460802ffa42b4174b",
+      "bytes": 21564,
+      "sha256": "92d08f397204ae880b90af3150b044fd7ee0c8999ea75ca839de9039425e15ba",
       "content_type": "text/html"
     },
     {
@@ -115,6 +115,36 @@
       "content_type": "image/png"
     },
     {
+      "file": "images/workplace-command.png",
+      "bytes": 413960,
+      "sha256": "8cec8e275c94ae758adaf8997c8a70b7b924ef579cb2bdebb7cb80dc533f2fda",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-overview.png",
+      "bytes": 390367,
+      "sha256": "20b6a4ee03335778833df07c5a2e8bb77234eebed9288b4293bd17f2e7cc5168",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-processes.png",
+      "bytes": 463797,
+      "sha256": "426cd7c9e170a76ebdba625df702eb76492e7c1b9daa6af4c86fa0ac11490c4b",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-programs.png",
+      "bytes": 416421,
+      "sha256": "886a6461683cc3c1cddfb3727f299539331ecda4aceaf6aa456e0ee27b59ef1e",
+      "content_type": "image/png"
+    },
+    {
+      "file": "images/workplace-screens.png",
+      "bytes": 478603,
+      "sha256": "c9963caaaf78a81020d03e4ea133e0e56ae524bd7913589ca0728ace82172bd1",
+      "content_type": "image/png"
+    },
+    {
       "file": "images/workplace.png",
       "bytes": 140127,
       "sha256": "83bb03cd49f86b470363a17d29da6cb0273ee404e615e32b4c9a7b2b946a1a23",
@@ -122,8 +152,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 26232,
-      "sha256": "e042b1b251550787f6f4974d5d05e5a52ddbc406772e7ec5170870a157befec7",
+      "bytes": 29434,
+      "sha256": "820544adce4953534d9fd91718c44adac102602d4b6843dd9ad2be9a8c8601bf",
       "content_type": "text/html"
     },
     {

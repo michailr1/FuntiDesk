@@ -1,3 +1,4 @@
+import {t, language} from './i18n.js';
 import { controls } from './protocol.js';
 const $ = (id) => document.getElementById(id);
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -21,7 +22,7 @@ export class PhoneConsole {
     $('phone-keys-close').onclick = () => { $('phone-text').blur(); $('phone-keys').hidden = true; this.layout(); };
     $('phone-help').onclick = () => this.help();
     $('phone-help-close').onclick = () => $('phone-help-sheet').close();
-    $('phone-cad').onclick = () => { if (confirm('Отправить Ctrl+Alt+Del на компьютер?')) this.key('CtrlAltDel'); };
+    $('phone-cad').onclick = () => { if (confirm(t('Отправить Ctrl+Alt+Del на компьютер?'))) this.key('CtrlAltDel'); };
     $('phone-quality').onchange = () => this.session()?.configure({ option: { image_quality: Number($('phone-quality').value) } });
     $('phone-monitor').onchange = () => { this.reset(); this.pan = { x: 0, y: 0 }; this.session()?.configure({ switch_display: { display: Number($('phone-monitor').value) } }); };
     const names = [['Esc', 'Escape'], ['Tab', 'Tab'], ['Ctrl', 'Control'], ['Alt', 'Alt'], ['Shift', 'Shift'], ['Win', 'Meta'], ['←', 'LeftArrow'], ['↑', 'UpArrow'], ['↓', 'DownArrow'], ['→', 'RightArrow'], ['Del', 'Delete'], ['⌫', 'Backspace'], ['Enter', 'Return']];
@@ -83,7 +84,7 @@ export class PhoneConsole {
     $('phone-panel').hidden = true; this.fit = true; this.pan = { x: 0, y: 0 }; this.layout(); this.wake();
     $('phone-monitor').replaceChildren();
     for (const [i] of (this.session().displays || []).entries()) {
-      const option = document.createElement('option'); option.value = String(i); option.textContent = 'Монитор ' + (i + 1); $('phone-monitor').append(option);
+      const option = document.createElement('option'); option.value = String(i); option.textContent = t('Монитор ') + (i + 1); $('phone-monitor').append(option);
     }
     $('phone-monitor').value = String(this.session().display || 0);
     if (!this.hinted) { this.hinted = true; this.help(); }
