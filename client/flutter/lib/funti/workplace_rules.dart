@@ -9,6 +9,7 @@ const funtiServiceNoAccess = 'funti-service-no-access';
 const funtiServiceOld = 'funti-service-old-version';
 const funtiServiceOffline = 'funti-service-offline';
 const funtiServiceRefused = 'funti-service-refused';
+const funtiServiceAndroid = 'funti-service-android';
 
 class FuntiHost {
   final String id;
@@ -43,6 +44,8 @@ class FuntiHost {
         return 'funti-service-offline';
       case funtiServiceOld:
         return 'funti-service-old-version';
+      case funtiServiceAndroid:
+        return 'funti-service-android';
       case funtiServiceNoAccess:
       case funtiServiceRefused:
       case 'Wrong Password':

@@ -35,6 +35,8 @@ const SILENCE: Duration = Duration::from_secs(90);
 pub const REASON_NO_ACCESS: &str = "funti-service-no-access";
 pub const REASON_OLD: &str = "funti-service-old-version";
 pub const REASON_OFFLINE: &str = "funti-service-offline";
+/// An Android phone answers no workplace requests yet (ADR-026, stage 3).
+pub const REASON_ANDROID: &str = "funti-service-android";
 
 enum Command {
     Request(String),
@@ -222,7 +224,11 @@ async fn run(id: &str, mut rx: UnboundedReceiver<Command>) -> Result<String, Str
                                 .map(|v| v["funti_service"] == true)
                                 .unwrap_or(false);
                             if !service {
-                                // An older FuntiDesk opened a file transfer.
+                                // A phone does not serve the workplace yet;
+                                // anything else is an older FuntiDesk.
+                                if pi.platform.eq_ignore_ascii_case("android") {
+                                    return Err(REASON_ANDROID.to_owned());
+                                }
                                 return Err(REASON_OLD.to_owned());
                             }
                             ready = true;

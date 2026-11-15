@@ -1419,5 +1419,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-unsupported", ""),
         ("funti-live-focus", ""),
         ("funti-live-unfocus", ""),
+        ("funti-service-android", ""),
     ].iter().cloned().collect();
 }

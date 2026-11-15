@@ -80,6 +80,9 @@ void main() {
   check('attention gone', [g.attention.length, g.problem], [0, false]);
   check('no items', funtiAttentionItems({'op': 'attention'}).length, 0);
 
+  final phone = FuntiHost('888', 'Телефон')..onState('closed', funtiServiceAndroid);
+  check('android note', [phone.note, phone.retry], ['funti-service-android', false]);
+
   if (failed > 0) throw 'workplace_rules: $failed check(s) failed';
   print('workplace_rules: ok');
 }

@@ -1217,9 +1217,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-journal-admin-autostart-on", "Включён автозапуск: {}"),
         ("funti-journal-type-5", "Служебное подключение (без экрана)"),
         ("funti-service-refused", "Служебное подключение этому члену семьи не разрешено."),
-        ("funti-service-no-access", "Нет сохранённого пароля, и компьютер не в семье."),
-        ("funti-service-old-version", "На том компьютере старая версия FuntiDesk."),
-        ("funti-service-offline", "Компьютер не в сети."),
+        ("funti-service-no-access", "Нет сохранённого пароля, и устройство не в семье."),
+        ("funti-service-old-version", "На том устройстве старая версия FuntiDesk."),
+        ("funti-service-offline", "Не в сети."),
         ("funti-workplace", "Рабочее место"),
         ("funti-workplace-leave", "Обычный вид"),
         ("funti-workplace-search", "Поиск по названию или ID"),
@@ -1230,7 +1230,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-files", "Файлы"),
         ("funti-workplace-terminal", "Терминал"),
         ("funti-workplace-connecting", "подключаюсь…"),
-        ("funti-workplace-no-access", "нет сохранённого пароля, и компьютер не в семье"),
+        ("funti-workplace-no-access", "нет сохранённого пароля, и устройство не в семье"),
         ("funti-workplace-no-connection", "состояние получить не удалось"),
         ("funti-workplace-alerts", "Оповещения"),
         ("funti-workplace-alerts-none", "Пока всё спокойно."),
@@ -1420,5 +1420,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-unsupported", "Команды пока работают только на Windows и Linux"),
         ("funti-live-focus", "Развернуть на всё окно (скрыть список)"),
         ("funti-live-unfocus", "Показать список компьютеров"),
+        ("funti-service-android", "На телефоне Android сведения для рабочего места пока не собираются — это будет в одной из следующих версий. Экран телефона открывается как обычно."),
     ].iter().cloned().collect();
 }

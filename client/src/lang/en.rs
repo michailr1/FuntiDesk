@@ -675,9 +675,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-journal-admin-autostart-on", "Autostart turned on: {}"),
         ("funti-journal-type-5", "Service connection (no screen)"),
         ("funti-service-refused", "A service connection is not allowed for this family member."),
-        ("funti-service-no-access", "No saved password, and the computer is not in the family."),
-        ("funti-service-old-version", "That computer runs an older FuntiDesk."),
-        ("funti-service-offline", "The computer is offline."),
+        ("funti-service-no-access", "No saved password, and the device is not in the family."),
+        ("funti-service-old-version", "That device runs an older FuntiDesk."),
+        ("funti-service-offline", "Offline."),
         ("funti-workplace", "Workplace"),
         ("funti-workplace-leave", "Usual view"),
         ("funti-workplace-search", "Search by name or ID"),
@@ -688,7 +688,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-workplace-files", "Files"),
         ("funti-workplace-terminal", "Terminal"),
         ("funti-workplace-connecting", "connecting…"),
-        ("funti-workplace-no-access", "no saved password, and not in the family"),
+        ("funti-workplace-no-access", "no saved password, and the device is not in the family"),
         ("funti-workplace-no-connection", "could not get the state"),
         ("funti-workplace-alerts", "Alerts"),
         ("funti-workplace-alerts-none", "All quiet so far."),
@@ -878,5 +878,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-run-unsupported", "Commands work on Windows and Linux only for now"),
         ("funti-live-focus", "Use the whole window (hide the list)"),
         ("funti-live-unfocus", "Show the computer list"),
+        ("funti-service-android", "An Android phone does not report to the workplace yet; this comes in a later version. Its screen opens as usual."),
     ].iter().cloned().collect();
 }
