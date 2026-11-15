@@ -77,7 +77,8 @@ class FuntiRunPanel extends StatefulWidget {
 class _FuntiRunPanelState extends State<FuntiRunPanel> {
   final _chosen = <String>{};
   final _script = TextEditingController();
-  final _open = <String>{};
+  // Outputs are shown; these are the ones the user folded.
+  final _folded = <String>{};
   String _shell = 'powershell';
   int _timeout = 60;
   bool _asUser = false;
@@ -160,7 +161,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
         id, _shell, script, hosts.map((h) => h.id), DateTime.now());
     widget.board.add(run);
     _shown = 0;
-    _open.clear();
+    _folded.clear();
     for (final h in hosts) {
       widget.send(h.id, funtiRunRequest(id, _shell, script, _timeout, asUser: _asUser));
     }
@@ -197,7 +198,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
     widget.board.add(FuntiRun(id, 'update', translate('funti-run-update'),
         hosts.map((h) => h.id), DateTime.now()));
     _shown = 0;
-    _open.clear();
+    _folded.clear();
     for (final h in hosts) {
       widget.send(h.id, funtiUpdateRequest(id));
     }
@@ -259,7 +260,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
         hosts.map((h) => h.id), DateTime.now());
     widget.board.add(run);
     _shown = 0;
-    _open.clear();
+    _folded.clear();
     for (final h in hosts) {
       final answer = await funtiBulkSendOne(h.id, paths, folder);
       widget.board.localAnswer(run, h.id, answer);
@@ -343,7 +344,7 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
           ],
           onChanged: (i) => setState(() {
             _shown = i ?? 0;
-            _open.clear();
+            _folded.clear();
           }),
         ),
         const SizedBox(width: 12),
@@ -364,9 +365,9 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
         child: ListView(children: [
           for (final r in run.results.values) ...[
             InkWell(
-              onTap: () => setState(() => _open.contains(r.hostId)
-                  ? _open.remove(r.hostId)
-                  : _open.add(r.hostId)),
+              onTap: () => setState(() => _folded.contains(r.hostId)
+                  ? _folded.remove(r.hostId)
+                  : _folded.add(r.hostId)),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                 child: Row(children: [
@@ -392,12 +393,13 @@ class _FuntiRunPanelState extends State<FuntiRunPanel> {
                                   : translate('funti-run-code')
                                       .replaceAll('{}', '${r.code}'),
                       style: TextStyle(fontSize: 12, color: t.muted)),
-                  Icon(_open.contains(r.hostId) ? Icons.expand_less : Icons.expand_more,
+                  Icon(!_folded.contains(r.hostId) ? Icons.expand_less : Icons.expand_more,
                       size: 18, color: t.muted),
                 ]),
               ),
             ),
-            if (_open.contains(r.hostId))
+            // Shown at once when the answer comes; a click folds it.
+            if (r.done && !_folded.contains(r.hostId))
               Container(
                 margin: const EdgeInsets.fromLTRB(24, 0, 4, 8),
                 padding: const EdgeInsets.all(8),
