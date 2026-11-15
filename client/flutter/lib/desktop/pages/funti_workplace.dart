@@ -540,24 +540,31 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
   Widget _meter(FuntiTokens t, String label, int percent) {
     final hot = percent > funtiAdminHot;
     final color = hot ? Theme.of(context).colorScheme.error : t.accent;
-    return SizedBox(
-      width: 52,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$label $percent%',
-            style: TextStyle(
-                fontSize: 10,
-                fontWeight: hot ? FontWeight.w700 : FontWeight.w400,
-                color: hot ? color : t.muted)),
-        const SizedBox(height: 2),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-              value: percent / 100,
-              minHeight: 3,
-              backgroundColor: t.surface2,
-              color: color),
-        ),
-      ]),
+    // At most 52 px, but shrinks in a narrow list or next to a screen
+    // thumbnail instead of painting under it.
+    return Flexible(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 52),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$label $percent%',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: hot ? FontWeight.w700 : FontWeight.w400,
+                  color: hot ? color : t.muted)),
+          const SizedBox(height: 2),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+                value: percent / 100,
+                minHeight: 3,
+                backgroundColor: t.surface2,
+                color: color),
+          ),
+        ]),
+      ),
     );
   }
 
