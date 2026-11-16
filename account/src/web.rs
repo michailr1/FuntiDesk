@@ -46,6 +46,7 @@ pub fn router(app: App) -> Router {
         .route("/session", get(session))
         .route("/logout", post(logout))
         .route("/logout-all", post(logout_all))
+        .merge(crate::telegram::routes())
         .merge(devices::routes())
         .merge(library::routes())
         .layer(DefaultBodyLimit::max(64 * 1024))
@@ -96,7 +97,7 @@ pub(crate) fn text<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {
     headers.get(key)?.to_str().ok()
 }
 
-fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+pub(crate) fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let values: Vec<_> = headers
         .get_all(header::COOKIE)
         .iter()
@@ -132,7 +133,7 @@ pub(crate) fn ip(app: &App, headers: &HeaderMap, peer: SocketAddr) -> String {
     peer.ip().to_string()
 }
 
-fn login_context(app: &App, headers: &HeaderMap) -> ApiResult<(String, bool)> {
+pub(crate) fn login_context(app: &App, headers: &HeaderMap) -> ApiResult<(String, bool)> {
     if native(headers)? {
         let scope = text(headers, "x-funti-login")
             .filter(|s| crypto::is_token(s))
@@ -178,7 +179,12 @@ pub(crate) async fn authorize(app: &App, headers: &HeaderMap, change: bool) -> A
         .ok_or_else(unauthenticated)
 }
 
-fn set_cookie(response: &mut Response, name: &str, value: &str, max_age: i64) -> ApiResult<()> {
+pub(crate) fn set_cookie(
+    response: &mut Response,
+    name: &str,
+    value: &str,
+    max_age: i64,
+) -> ApiResult<()> {
     let cookie = HeaderValue::from_str(&format!(
         "{name}={value}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}"
     ))
@@ -198,7 +204,7 @@ async fn bootstrap(State(app): State<App>, headers: HeaderMap) -> ApiResult<Resp
     let mut response = Json(if is_native {
         json!({"login_context":scope})
     } else {
-        json!({"csrf":csrf})
+        json!({"csrf":csrf,"telegram_enabled":app.telegram_bridge.is_some()})
     })
     .into_response();
     if !is_native {
@@ -321,6 +327,9 @@ async fn session(State(app): State<App>, headers: HeaderMap) -> ApiResult<Json<V
     if !native(&headers)? {
         let raw = cookie(&headers, SESSION_COOKIE).ok_or_else(unauthenticated)?;
         value["csrf"] = crypto::tag(&app.key, "session-csrf", &[&raw]).into();
+        value["telegram_enabled"] = app.telegram_bridge.is_some().into();
+    } else if let Some(object) = value.as_object_mut() {
+        object.remove("telegram_linked");
     }
     Ok(Json(value))
 }

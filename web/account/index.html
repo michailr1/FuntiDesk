@@ -9,7 +9,7 @@
   <title>Личный кабинет — FuntiDesk</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/account/account.css">
-  <script src="/account/account.js" defer></script>
+  <script src="/account/account.js?v=e324e96b5ea9" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
@@ -26,9 +26,10 @@
     <div id="message" class="message" role="status" aria-live="polite">Проверяем вход…</div>
     <noscript><p class="message">Для входа в кабинет включите JavaScript.</p></noscript>
     <section id="login" class="card login-card" aria-labelledby="login-title" hidden>
-      <p class="eyebrow">ВХОД ПО ПОЧТЕ</p>
+      <p class="eyebrow">ВХОД В АККАУНТ</p>
       <h2 id="login-title">Войти в FuntiDesk</h2>
       <p>Отправим шестизначный код на вашу почту. Пароль не нужен.</p>
+      <div id="telegram-login" hidden><button id="telegram-start" type="button" class="primary">Войти через Telegram</button><p class="muted">Без почты. Уже есть устройства в почтовом аккаунте? Сначала войдите по почте и привяжите Telegram в кабинете.</p><hr></div>
       <form id="email-form">
         <label for="email">Почта</label>
         <input id="email" name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" placeholder="you@example.com" required>
@@ -48,6 +49,13 @@
       <button id="retry-login" class="text-button" type="button" hidden>Проверить доступность</button>
       <p class="login-note">Почтовый вход позволяет посмотреть списки и убрать устройство из семьи. Подключение и добавление в семью подтверждаются в программе на доверенном компьютере.</p>
     </section>
+    <section id="telegram-pending" class="card" aria-labelledby="telegram-title" hidden>
+      <h2 id="telegram-title">Подтвердите вход в Telegram</h2>
+      <p>Откройте нашего бота, отправьте команду и нажмите кнопку подтверждения. Код действует 5 минут.</p>
+      <p><code id="telegram-code"></code></p>
+      <div class="inline-actions"><a class="primary" href="https://t.me/funtidesk_bot?start=login" target="_blank" rel="noopener noreferrer">Открыть бота ↗</a><button id="telegram-copy" type="button">Скопировать команду</button><button id="telegram-cancel" type="button">Отмена</button></div>
+      <p class="boundary-note">Подтверждайте только запрос, который начали сами на desk.funti.cc. Не передавайте код другому человеку. Вход не открывает доступ к компьютерам.</p>
+    </section>
     <section id="account" aria-label="Устройства аккаунта" hidden>
       <div class="account-toolbar">
         <div><p id="account-email" class="account-email"></p><p id="session-expiry" class="muted"></p></div>
@@ -57,6 +65,7 @@
           <button id="logout-all" class="danger-outline" type="button">Выйти везде</button>
         </div>
       </div>
+      <div id="telegram-account" class="card" hidden><h2>Telegram</h2><p id="telegram-account-state"></p><button id="telegram-link" type="button">Привязать Telegram</button><button id="telegram-unlink" type="button" hidden>Отключить Telegram</button></div>
       <p class="boundary-note">Права семьи хранятся на каждом компьютере. Кабинет показывает их списки, но не даёт доступ к компьютерам и не меняет права.</p>
       <section class="card" aria-labelledby="devices-title">
         <div class="section-heading"><h2 id="devices-title">Свои устройства</h2><span id="device-count" class="count"></span></div>

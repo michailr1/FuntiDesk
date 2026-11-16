@@ -1364,6 +1364,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-inventory-user", "Пользователь"),
         ("funti-inventory-vm", "Виртуальная машина"),
         ("funti-logs-save", "Сохранить журнал программы…"),
+        ("funti-logs-open", "Открыть папку с журналом"),
         ("funti-logs-remote", "Скачать журнал программы"),
         ("funti-logs-asked", "Собираю журнал на том компьютере…"),
         ("funti-logs-saved", "Журнал сохранён"),

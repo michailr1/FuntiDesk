@@ -23,7 +23,8 @@ pub struct Auth {
 #[derive(Serialize)]
 pub struct SessionInfo {
     pub account_id: String,
-    pub email: String,
+    pub email: Option<String>,
+    pub telegram_linked: bool,
     pub expires_at: i64,
 }
 
@@ -87,7 +88,7 @@ impl Store {
             "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;",
         )?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 5 {
+        if version > 6 {
             bail!("unsupported database version");
         }
         if version == 0 {
@@ -101,6 +102,22 @@ impl Store {
         }
         if version < 5 {
             db.execute_batch(include_str!("schema-cancel.sql"))?;
+        }
+        if version < 6 {
+            db.execute_batch("PRAGMA foreign_keys=OFF;")?;
+            let migration = db.execute_batch(include_str!("schema-telegram.sql"));
+            if migration.is_err() {
+                let _ = db.execute_batch("ROLLBACK;");
+            }
+            db.execute_batch("PRAGMA foreign_keys=ON;")?;
+            migration?;
+            let invalid: i64 =
+                db.query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| {
+                    r.get(0)
+                })?;
+            if invalid != 0 {
+                bail!("foreign key validation failed");
+            }
         }
         Ok(Self {
             db,
@@ -169,6 +186,10 @@ impl Store {
         let tx = self.db.transaction()?;
         tx.execute("DELETE FROM challenges WHERE expires_at<=?1", [now])?;
         tx.execute("DELETE FROM nonces WHERE expires_at<=?1", [now])?;
+        tx.execute(
+            "DELETE FROM telegram_challenges WHERE expires_at<=?1",
+            [now],
+        )?;
         tx.execute(
             "DELETE FROM connection_history WHERE connected_at<=?1",
             [now - 90 * 86400],
@@ -307,7 +328,7 @@ impl Store {
         if !self.active(auth, now)? {
             return Ok(None);
         }
-        Ok(Some(self.db.query_row("SELECT a.email,s.expires_at FROM accounts a JOIN sessions s ON s.account_id=a.id WHERE s.token_hash=?1", [&auth.hash], |r| Ok(SessionInfo { account_id: auth.account.clone(), email: r.get(0)?, expires_at:r.get(1)? }))?))
+        Ok(Some(self.db.query_row("SELECT a.email,s.expires_at,EXISTS(SELECT 1 FROM telegram_identities t WHERE t.account_id=a.id) FROM accounts a JOIN sessions s ON s.account_id=a.id WHERE s.token_hash=?1", [&auth.hash], |r| Ok(SessionInfo { account_id: auth.account.clone(), email: r.get(0)?, expires_at:r.get(1)?, telegram_linked:r.get(2)? }))?))
     }
 
     pub fn logout(&mut self, auth: &Auth, all: bool, now: i64) -> Result<bool> {
