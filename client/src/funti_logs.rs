@@ -54,6 +54,14 @@ fn dirs() -> Vec<(String, PathBuf)> {
     out
 }
 
+/// The log folder of this program for "Show the log": created when it is
+/// missing, so the file manager always has a folder to open.
+pub fn own_dir() -> PathBuf {
+    let dir = Config::log_path();
+    std::fs::create_dir_all(&dir).ok();
+    dir
+}
+
 /// The archive (zip) of the newest logs.
 pub fn archive() -> std::io::Result<Vec<u8>> {
     let mut found = Vec::new();

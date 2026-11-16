@@ -1969,6 +1969,14 @@ pub fn main_funti_save_logs(path: String) -> String {
     }
 }
 
+/// FUNTIDESK: the log folder of this program, for "Show the log".
+pub fn main_funti_logs_dir() -> SyncReturn<String> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return SyncReturn(crate::funti_logs::own_dir().to_string_lossy().into_owned());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    SyncReturn(String::new())
+}
+
 /// FUNTIDESK (ADR-024): close one service connection, or all with an empty id.
 pub fn main_funti_service_close(id: String) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
