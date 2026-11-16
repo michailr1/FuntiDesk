@@ -1,0 +1,6 @@
+# FUNTIDESK (ADR-018): public keys that may sign a release, in the format of
+# ssh-keygen "allowed signers":
+#   funtidesk-release ssh-ed25519 AAAA...
+# The same keys as RELEASE_KEYS in client/src/funti_release_sig.rs and
+# $releaseKeys in install.ps1. Private keys are never in this repository,
+# in GitHub secrets or with an agent. Empty until the owner's first key.
