@@ -822,6 +822,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-inventory-user", "User"),
         ("funti-inventory-vm", "Virtual machine"),
         ("funti-logs-save", "Save the program log…"),
+        ("funti-logs-open", "Open the log folder"),
         ("funti-logs-remote", "Download the program log"),
         ("funti-logs-asked", "Collecting the log on that computer…"),
         ("funti-logs-saved", "Log saved"),

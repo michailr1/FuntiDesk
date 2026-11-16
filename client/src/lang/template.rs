@@ -1363,6 +1363,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("funti-inventory-user", ""),
         ("funti-inventory-vm", ""),
         ("funti-logs-save", ""),
+        ("funti-logs-open", ""),
         ("funti-logs-remote", ""),
         ("funti-logs-asked", ""),
         ("funti-logs-saved", ""),

@@ -2972,6 +2972,24 @@ class _AboutState extends State<_About> {
                   icon: const Icon(Icons.description_outlined, size: 16),
                   label: Text(translate('funti-logs-save')),
                 ).marginSymmetric(vertical: 6),
+              // FUNTIDESK: the log folder in the file manager, to look
+              // without saving an archive.
+              if (!isWeb)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final dir = bind.mainFuntiLogsDir();
+                    if (dir.isEmpty) return;
+                    if (Platform.isWindows) {
+                      Process.run('explorer.exe', [dir]);
+                    } else if (Platform.isMacOS) {
+                      Process.run('open', [dir]);
+                    } else {
+                      launchUrl(Uri.directory(dir));
+                    }
+                  },
+                  icon: const Icon(Icons.folder_open_outlined, size: 16),
+                  label: Text(translate('funti-logs-open')),
+                ).marginOnly(bottom: 6),
               if (!isWeb)
                 SelectionArea(
                     child: Text('${translate('Fingerprint')}: $fingerprint',
