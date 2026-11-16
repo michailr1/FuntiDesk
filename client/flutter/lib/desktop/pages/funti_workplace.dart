@@ -829,9 +829,9 @@ class _FuntiWorkplaceViewState extends State<FuntiWorkplaceView> {
           ['funti-workplace-hostname', str('hostname')],
           ['funti-workplace-user', str('user')],
           ['funti-workplace-uptime', number('uptime') > 0 ? _uptime(number('uptime')) : ''],
-          ['funti-workplace-model', [str('maker'), str('model')].where((x) => x.isNotEmpty).join(' ')],
-          ['funti-workplace-board', str('board')],
-          ['funti-inventory-serial', '${funtiAdminHardwareOf(_key(h.id)).value?['serial'] ?? ''}'],
+          ['funti-workplace-model', [funtiRealValue(str('maker')), funtiRealValue(str('model'))].where((x) => x.isNotEmpty).join(' ')],
+          ['funti-workplace-board', funtiRealValue(str('board'))],
+          ['funti-inventory-serial', funtiRealValue(funtiAdminHardwareOf(_key(h.id)).value?['serial'])],
           [
             'funti-workplace-cpu',
             str('cpu').isEmpty

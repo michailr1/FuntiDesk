@@ -17,6 +17,30 @@ String _gb(Object? bytes) {
 String _s(Map<String, dynamic>? m, String k) =>
     m?[k] is String ? (m![k] as String).trim() : '';
 
+/// Fillers that board makers leave in place of a serial number, model or
+/// maker: "Default string", "To be filled by O.E.M.", "System Serial
+/// Number" and alike mean "unknown".
+bool funtiIsPlaceholder(String v) {
+  final s = v.trim().toLowerCase().replaceAll(RegExp(r'[\s._-]+'), ' ').trim();
+  if (s.isEmpty) return true;
+  if (RegExp(r'^(0|x|\*|\?)+$').hasMatch(s.replaceAll(' ', ''))) return true;
+  const exact = {
+    'default string', 'to be filled by o e m', 'to be filled by oem',
+    'system serial number', 'system product name', 'system manufacturer',
+    'system version', 'base board serial number', 'chassis serial number',
+    'not applicable', 'not specified', 'not available', 'n/a', 'na', 'none',
+    'null', 'invalid', 'unknown', 'oem', 'o e m', 'default', 'serial',
+    'serial number', '123456789', '1234567890',
+  };
+  return exact.contains(s);
+}
+
+/// [v] trimmed, or empty when it is a maker's filler.
+String funtiRealValue(Object? v) {
+  final s = v is String ? v.trim() : '';
+  return funtiIsPlaceholder(s) ? '' : s;
+}
+
 /// Column keys (translation "funti-inventory-<key>") and their values.
 const funtiInventoryColumns = [
   'name', 'id', 'online', 'os', 'model', 'serial', 'cpu', 'memory',
@@ -46,8 +70,10 @@ List<String> funtiInventoryValues(FuntiInventoryRow r) {
     r.id,
     r.online,
     _s(i, 'os'),
-    [_s(i, 'maker'), _s(i, 'model')].where((x) => x.isNotEmpty).join(' '),
-    _s(h, 'serial'),
+    [funtiRealValue(i?['maker']), funtiRealValue(i?['model'])]
+        .where((x) => x.isNotEmpty)
+        .join(' '),
+    funtiRealValue(h?['serial']),
     _s(i, 'cpu'),
     _gb(i?['memory']),
     drives,
