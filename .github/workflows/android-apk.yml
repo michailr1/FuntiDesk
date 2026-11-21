@@ -1,10 +1,14 @@
 name: Android APK
 
-# FUNTIDESK: test build of the Android client (owner decision 2026-10-08).
-# Same path as upstream flutter-build.yml (build-rustdesk-android), arm64 only,
-# debug signing: no signing secrets in the repository. Release signing is a
-# separate decision. Published as a pre-release, never as "latest" (the latest
-# release is the Windows one used by install.ps1).
+# FUNTIDESK: build of the Android client. Same path as upstream
+# flutter-build.yml (build-rustdesk-android), arm64 only.
+# Signing (ADR-026): with the FuntiDesk key from the repository secrets
+# ANDROID_KEYSTORE_B64, ANDROID_KEY_PASSWORD and ANDROID_KEY_ALIAS, so every
+# build has the same signature and installs over the previous one. Without
+# them the APK is debug-signed with the runner's throw-away key: such a
+# build cannot update an installed one and is labelled as a test build.
+# Published as a pre-release, never as "latest" (the latest release is the
+# Windows one used by install.ps1).
 
 on:
   workflow_dispatch:
@@ -214,14 +218,48 @@ jobs:
       - name: Build APK
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/ci-log.txt") 2>&1
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
-          # Test build: debug signing, no secrets in the repository.
-          sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEY_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            # The key lives only in the runner's temp directory for this job.
+            umask 077
+            keystore="$RUNNER_TEMP/funtidesk-release.jks"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$keystore"
+            {
+              echo "storeFile=$keystore"
+              echo "storePassword=$KEY_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+            } > ./flutter/android/key.properties
+            echo "FUNTI_SIGNED=1" >> "$GITHUB_ENV"
+          elif [ -n "$KEYSTORE_B64$KEY_PASSWORD$KEY_ALIAS" ]; then
+            echo "::error::Android signing secrets are set only partly"
+            exit 1
+          else
+            echo "::warning::No Android signing secrets: debug-signed test build"
+            sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+          fi
+          # Android installs an update only with a larger or equal versionCode:
+          # the commit count, as the Windows build number (client/build.rs).
+          build_number="$(git rev-list --count HEAD)"
           cd flutter
-          flutter build apk --release --target-platform android-arm64 --split-per-abi
+          flutter build apk --release --target-platform android-arm64 --split-per-abi \
+            --build-number "$build_number"
+          rm -f android/key.properties
+          if [ "${FUNTI_SIGNED:-}" = 1 ]; then
+            # Fail closed: a "signed" build must not carry the debug key.
+            apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+            certs="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk)"
+            echo "$certs"
+            if echo "$certs" | grep -q "CN=Android Debug"; then
+              echo "::error::signed with the debug key"; exit 1
+            fi
+          fi
           mkdir -p ../../dist
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ../../dist/FuntiDesk-android-arm64.apk
           cd ../../dist
@@ -241,9 +279,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="funtidesk-android-${GITHUB_SHA::12}"
-          notes="Тестовая сборка Android-клиента FuntiDesk (arm64), коммит ${GITHUB_SHA}. Отладочная подпись: установка вручную из файла, не для распространения."
+          if [ "${FUNTI_SIGNED:-}" = 1 ]; then
+            title="Android arm64 — FuntiDesk (сборка ${GITHUB_SHA::12})"
+            notes="Android-клиент FuntiDesk (arm64), коммит ${GITHUB_SHA}. Подписан ключом FuntiDesk: ставится поверх предыдущей сборки с этой подписью, без удаления."
+          else
+            title="Android arm64 — FuntiDesk (тестовая сборка ${GITHUB_SHA::12})"
+            notes="Тестовая сборка Android-клиента FuntiDesk (arm64), коммит ${GITHUB_SHA}. Отладочная подпись: не ставится поверх другой сборки, установка вручную из файла, не для распространения."
+          fi
           gh release create "$tag" dist/FuntiDesk-android-arm64.apk dist/SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title "Android arm64 — FuntiDesk (тестовая сборка ${GITHUB_SHA::12})" \
+            --target "$GITHUB_SHA" --title "$title" \
             --notes "$notes" --prerelease --latest=false
 
       # Job logs of this public repository need a GitHub login to read; the
