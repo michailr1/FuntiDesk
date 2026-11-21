@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # Адреса API, которые в main уже есть: без входа они отвечают 401, а на старом
 # API — 404. Пополнять при каждом новом адресе кабинета.
 API_ROUTES = [
-    ('POST', '/api/account/v1/family/remove/cancel', 'отмена удаления (#71, схема v5)'),
+    ('POST', '/api/account/v1/family/remove/cancel', 'отмена удаления (#71, схема v5)', {'event_id': -1}),
 ]
 
 
@@ -46,8 +46,10 @@ def main():
         elif hashlib.sha256(body).hexdigest() != item['sha256']:
             stale.append(f"`{item['file']}`")
     api = []
-    for method, path, what in API_ROUTES:
-        status, _, _ = fetch(method, path, b'{}')
+    for method, path, what, payload in API_ROUTES:
+        # Axum validates JSON before authorization. Use a valid body with an
+        # impossible event ID, so this unauthenticated probe cannot cancel anything.
+        status, _, _ = fetch(method, path, json.dumps(payload).encode())
         if status == 404:
             api.append(f"`{method} {path}` — 404, адреса нет: {what}")
         elif status not in (401, 403):
